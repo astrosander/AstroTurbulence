@@ -1,8 +1,19 @@
-**Polarization Maps from 3D Kolmogorov Turbulence**
+**Polarization Maps — Velocity-Based, Kolmogorov Turbulence (Synchrotron, Unnormalized)**
 
-This folder contains 512×512 maps of Stokes I, Q, U, and polarization angle, derived from a 3D Kolmogorov velocity field. The field was smoothed in Fourier space with a Gaussian filter (width W=2 grid cells), which limits small-scale structure.
+This folder contains 512×512 maps of Stokes I, Q, U, and polarization angle, computed from a 3D turbulent velocity field with a Kolmogorov power spectrum. The polarization was generated using a synchrotron-style prescription, assuming Q and U come from the projected velocity components:
 
-The data is stored as Fortran binary files using `write_2D_field` from `io.f90`. If you're not using Fortran, you can mimic the `read_2D_field` logic — Python scripts in the folder do exactly that.
+$$Q(x, y) = \int dz\\, (v_x^2 - v_y^2),$$
+
+$$U(x, y) = \int dz\\, 2 v_x v_y.$$
+
+The 3D velocity field was smoothed in Fourier space using a Gaussian filter:
+
+$$
+e^{-k^2 W^2}, \quad W = 2 \text{ (grid cells)},
+$$
+
+which reduces small-scale fluctuations and mimics limited observational resolution.
+
 
 ### Contents:
 
