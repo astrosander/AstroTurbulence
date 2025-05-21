@@ -1,10 +1,16 @@
 **Polarization Maps — Velocity-Based, Kolmogorov Turbulence (Synchrotron & Dust, Unnormalized)**
 
-This folder contains 512×512 maps of Stokes I, Q, U, and polarization angle, computed from a 3D turbulent velocity field with a Kolmogorov power spectrum. The polarization was generated using synchrotron- and dust-style prescription, assuming Q and U come from the projected velocity components:
+This folder contains 512×512 maps of Stokes I, Q, U, and polarization angle, computed from a 3D turbulent velocity field with a Kolmogorov power spectrum. The polarization was generated using synchrotron- and dust-style prescription. 
+
+Synchrotron methodology, assuming Q and U come from the projected velocity components:
 
 $$Q(x, y) = \int dz\\, (v_x^2 - v_y^2),$$
 
 $$U(x, y) = \int dz\\, 2 v_x v_y.$$
+
+Alternatively, for dust prescription with have divided the integrand by the square of magnitude of $v_\perp$, i.e.
+
+$$Q = \int \frac{v_x^2-v_y^2}{v_x^2+v_y^2}\\,dz$$
 
 The 3D velocity field was smoothed in Fourier space using a Gaussian filter:
 
