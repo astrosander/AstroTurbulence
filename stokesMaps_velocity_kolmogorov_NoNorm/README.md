@@ -12,6 +12,8 @@ Alternatively, for dust prescription with have divided the integrand by the squa
 
 $$Q = \int \frac{v_x^2-v_y^2}{v_x^2+v_y^2}\\,dz$$
 
+$$U = \int \frac{2 v_x v_y}{v_x^2+v_y^2}\\,dz$$
+
 The 3D velocity field was smoothed in Fourier space using a Gaussian filter:
 
 $$
