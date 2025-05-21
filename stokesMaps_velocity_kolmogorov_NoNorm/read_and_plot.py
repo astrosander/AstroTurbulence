@@ -30,10 +30,10 @@ def read_fortran_2d_array(filename):
         return data.reshape((nx, ny), order='F')
 
 def main():
-    I = read_fortran_2d_array('input/test_Kolm_L512V_L512_I')
-    Q = read_fortran_2d_array('input/test_Kolm_L512V_L512_Q')
-    U = read_fortran_2d_array('input/test_Kolm_L512V_L512_U')
-    ang_file = read_fortran_2d_array('input/test_Kolm_L512V_L512_ang')
+    I = read_fortran_2d_array('input/synchrotron/test_Kolm_L512V_L512_I')
+    Q = read_fortran_2d_array('input/synchrotron/test_Kolm_L512V_L512_Q')
+    U = read_fortran_2d_array('input/synchrotron/test_Kolm_L512V_L512_U')
+    ang_file = read_fortran_2d_array('input/synchrotron/test_Kolm_L512V_L512_ang')
 
     angle_computed = 0.5 * np.arctan2(U, Q)
     angle_computed_deg = np.degrees(angle_computed)

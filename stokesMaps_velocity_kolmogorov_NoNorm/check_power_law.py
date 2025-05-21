@@ -89,10 +89,10 @@ def main():
     outdir = Path("figures")
     outdir.mkdir(exist_ok=True)
 
-    I = read_fortran_2d_array("input/test_Kolm_L512V_L512_I")
-    Q = read_fortran_2d_array("input/test_Kolm_L512V_L512_Q")
-    U = read_fortran_2d_array("input/test_Kolm_L512V_L512_U")
-    ang = read_fortran_2d_array("input/test_Kolm_L512V_L512_ang")
+    I = read_fortran_2d_array("input/synchrotron/test_Kolm_L512V_L512_I")
+    Q = read_fortran_2d_array("input/synchrotron/test_Kolm_L512V_L512_Q")
+    U = read_fortran_2d_array("input/synchrotron/test_Kolm_L512V_L512_U")
+    ang = read_fortran_2d_array("input/synchrotron/test_Kolm_L512V_L512_ang")
 
     if np.max(np.abs(ang)) > np.pi:
         ang_vec = np.radians(ang)
