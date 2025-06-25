@@ -81,7 +81,8 @@ def plot_structure(field: np.ndarray, Rs: np.ndarray, title: str, outfile: Path,
     plt.ylim(1e-3, 1e0)
     plt.grid(True, which="both", ls=":", lw=0.5)
     plt.tight_layout()
-    plt.savefig(outfile, bbox_inches="tight")
+    plt.show()
+    # plt.savefig(outfile, bbox_inches="tight")
     plt.close()
     return slope
 
