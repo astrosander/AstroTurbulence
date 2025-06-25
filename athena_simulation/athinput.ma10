@@ -1,0 +1,62 @@
+# ==============================================================
+#  ATHENA++  (public C++)   super‑Alfvénic driven turbulence
+#  Alfven Mach number target  MA ≈ 10   (v_rms ≅ 1,  v_A=0.1)
+# ==============================================================
+
+<job>
+  problem_id       = ma10_turb
+  output_dir       = out_ma10
+
+<mesh>
+  # -------- domain & resolution --------
+  nx1  = 128
+  nx2  = 128
+  nx3  = 128
+  x1min= 0.0   
+  x1max = 1.0
+  x2min= 0.0   
+  x2max = 1.0
+  x3min= 0.0   
+  x3max = 1.0
+
+  ix1_bc     = periodic
+  ox1_bc     = periodic
+
+  ix2_bc     = periodic
+  ox2_bc     = periodic
+
+
+  ix3_bc     = periodic
+  ox3_bc     = periodic
+
+
+<meshblock>
+nx1        = 32
+nx2        = 32
+nx3        = 32
+
+<time>
+  tlim        = 10           # run 10 code‑time units
+  dt          = 1.0e-3
+  cfl_number  = 0.3
+  ncycle_out  = 1          # console report
+
+<hydro>
+  iso_sound_speed = 1.0      # cs = 1  (isothermal)
+
+<mhd>
+  # weak uniform B along +x → v_A = B/√ρ = 0.1   for ρ=1
+  B0 = 0.1, 0.0, 0.0
+
+<problem>      # ---- DRIVEN TURBULENCE PARAMETERS ----
+  drive_type   = 2           # 2 = solenoidal forcing
+  driving_rate = 1.0         # energy injection ε̇
+  kpeak        = 2.0         # inject near k=2
+  seed         = 12345       # RNG seed
+
+<output1>
+  file_type = vtk          # full 3‑D fields
+  dt        = 0.1
+  variable  = prim
+  id        = full3d
+

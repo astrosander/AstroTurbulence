@@ -1,0 +1,96 @@
+<comment>
+problem    = Super‑Alfvénic (M_A=10) turbulence – power‑law/FFT forcing
+reference  = [your paper here]
+configure  = --prob=turb -fft          # make sure you configured Athena++ this way
+</comment>
+
+<job>
+problem_id = ma10_vtk                  # basename for all output files
+output_dir = ./out_ma10_vtk/
+</job>
+
+
+#-----------------------------------------------------------------------
+# OUTPUT: keep a fast‑cadence history file + full dumps in VTK
+#-----------------------------------------------------------------------
+<output1>
+file_type  = hst                       # scalar time‑series
+dt         = 0.01                      # 0.01 code‑time units
+</output1>
+
+<output2>
+file_type  = vtk                       # binary VTK bricks
+variable   = prim                      # ρ, v, B, p – ready for structure‑functions
+dt         = 0.10                      # every 0.10 code‑time units
+</output2>
+
+
+#-----------------------------------------------------------------------
+# RUNTIME CONTROL
+#-----------------------------------------------------------------------
+<time>
+cfl_number = 0.30                      # stable for isothermal MHD
+integrator = vl2
+xorder     = 2
+tlim       = 10.0                      # ~10 eddy‑turnovers
+nlim       = 500000
+#ncycle_out = 50                        # how often to echo to stdout
+</time>
+
+
+#-----------------------------------------------------------------------
+# MESH & BOUNDARIES  (periodic 128³ box of size 1³)
+#-----------------------------------------------------------------------
+<mesh>
+nx1 = 128
+nx2 = 128
+nx3 = 128
+x1min = -0.5
+x1max = 0.5
+x2min = -0.5
+x2max = 0.5
+x3min = -0.5
+x3max = 0.5
+ix1_bc = periodic
+ox1_bc = periodic
+ix2_bc = periodic
+ox2_bc = periodic
+ix3_bc = periodic
+ox3_bc = periodic
+refinement = none
+</mesh>
+
+<meshblock>
+nx1 = 32
+nx2 = 32
+nx3 = 32        # eight meshblocks per dimension
+</meshblock>
+
+
+#-----------------------------------------------------------------------
+# PHYSICS: isothermal gas + weak mean field for M_A = 10
+#-----------------------------------------------------------------------
+<hydro>
+gamma            = 1.0001             # effectively isothermal
+iso_sound_speed  = 1.0                # ⇒ V_rms ≈ 1 → M_s ≈ 1
+</hydro>
+
+<magnetic>
+b0 = 0  0  0.177                      # |B₀| = V_rms √(4πρ)/M_A  for ρ=1
+</magnetic>
+
+
+#-----------------------------------------------------------------------
+# TURBULENCE DRIVER  (FFT‑based, continuous, k=2 power injection)
+#-----------------------------------------------------------------------
+<turbulence>
+turb_flag  = 3        # 3 = continuously driven OU forcing
+dedt       = 1.0      # <dE/dt> – tunes V_rms; leave at 1 and check log
+nlow       = 2        # inject only at |k| = 2
+nhigh      = 2
+expo       = 0.0      # δ‑function in k‑space (flat within the single shell)
+tcorr      = 0.1      # OU correlation time
+dtdrive    = 0.1      # update force every 0.1 code‑time
+f_shear    = 1.0      # purely solenoidal (divergence‑free)
+rseed      = -1       # random seed (‑1 → clock‑based)
+</turbulence>
