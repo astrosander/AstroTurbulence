@@ -109,6 +109,7 @@ def main(
     dx: float,
     seed: int,
     out: Path,
+    save_fluctuations_only: bool = False,
 ):
     rng = np.random.default_rng(seed)
     seed_ne, seed_bz = rng.integers(0, 2**31, size=2)
@@ -118,6 +119,9 @@ def main(
 
     print(f"• generating B_z  (β={beta_bz},  mean={mean_bz}) …")
     bz = make_bz_cube(N, beta_bz, seed_bz, mean_bz)
+    
+    # Also save fluctuations only (without mean field) for comparison
+    bz_fluctuations = bz - mean_bz if mean_bz != 0 else bz
 
     X, Y, Z = make_coords(N, dx)
 
@@ -125,12 +129,47 @@ def main(
     with h5py.File(out, "w") as h5:
         h5.create_dataset("gas_density", data=ne, compression="gzip")
         h5.create_dataset("k_mag_field", data=bz, compression="gzip")
+        h5.create_dataset("k_mag_field_fluctuations", data=bz_fluctuations, compression="gzip")  # Add fluctuations-only field
         h5.create_dataset("x_coor",      data=X,  compression="gzip")
         h5.create_dataset("y_coor",      data=Y,  compression="gzip")
         h5.create_dataset("z_coor",      data=Z,  compression="gzip")
+        
+        # Store metadata about the cube
+        h5.attrs["beta_ne"] = beta_ne
+        h5.attrs["beta_bz"] = beta_bz
+        h5.attrs["mean_bz"] = mean_bz
+        h5.attrs["dx"] = dx
+        h5.attrs["seed"] = seed
 
     print("done.")
 
+
+def generate_test_suite(base_name="synthetic_test", N=512):
+    """
+    Generate a suite of test cubes with different parameters for systematic testing.
+    Based on Dr. Lazarian's suggestions to test pure power laws.
+    """
+    test_cases = [
+        # (beta_ne, beta_bz, mean_bz, description)
+        (11/3, 11/3, 0.0, "kolmogorov_no_mean"),
+        (11/3, 11/3, 1.0, "kolmogorov_with_mean"),
+        (11/3, 11/3, 5.0, "kolmogorov_strong_mean"),
+        (8/3, 8/3, 0.0, "steep_powerlaw"),
+        (14/3, 14/3, 0.0, "shallow_powerlaw"),
+    ]
+    
+    for i, (beta_ne, beta_bz, mean_bz, desc) in enumerate(test_cases):
+        filename = f"{base_name}_{desc}.h5"
+        print(f"\n=== Generating {filename} ===")
+        main(
+            N=N,
+            beta_ne=beta_ne,
+            beta_bz=beta_bz,
+            mean_bz=mean_bz,
+            dx=1.0,
+            seed=2025 + i,
+            out=Path(filename)
+        )
 
 # ──────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
@@ -151,14 +190,20 @@ if __name__ == "__main__":
                    help="random seed (default 2025)")
     p.add_argument("--out", required=True,
                    help="output filename (HDF5)")
+    p.add_argument("--generate-suite", action="store_true",
+                   help="generate a test suite of cubes with different parameters")
 
     args = p.parse_args()
-    main(
-        N=args.N,
-        beta_ne=args.beta_ne,
-        beta_bz=args.beta_bz,
-        mean_bz=args.mean_bz,
-        dx=args.dx,
-        seed=args.seed,
-        out=Path(args.out),
-    )
+    
+    if args.generate_suite:
+        generate_test_suite(base_name="synthetic_test", N=args.N)
+    else:
+        main(
+            N=args.N,
+            beta_ne=args.beta_ne,
+            beta_bz=args.beta_bz,
+            mean_bz=args.mean_bz,
+            dx=args.dx,
+            seed=args.seed,
+            out=Path(args.out),
+        )
