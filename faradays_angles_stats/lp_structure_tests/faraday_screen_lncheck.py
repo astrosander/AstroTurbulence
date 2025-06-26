@@ -18,6 +18,7 @@ import h5py
 import numpy as np
 import matplotlib.pyplot as plt
 from numpy.fft import rfftn, irfftn, fftshift
+from numpy.fft import fftn, ifftn
 from scipy.stats import binned_statistic
 from scipy.signal import savgol_filter
 
@@ -68,9 +69,9 @@ def autocorr_complex(field2d, dx=1.0, **kwa):
     """
     Real part of ⟨f(x) f*(x+R)⟩, *normalised* so that S(R=0)=1.
     """
-    ac = irfftn(np.abs(rfftn(field2d))**2, s=field2d.shape) / field2d.size
+    ac = ifftn(np.abs(fftn(field2d))**2) / field2d.size   # works for complex
     ac = fftshift(ac).real
-    ac /= ac[ac.shape[0] // 2, ac.shape[1] // 2]    # normalise
+    ac /= ac.max()
     return radial_average(ac, dx=dx, **kwa)
 
 
@@ -80,9 +81,11 @@ def local_log_slope(R, D, win=9, poly=2):
     """
     logR  = np.log10(R)
     logD  = np.log10(D)
-    logDs = savgol_filter(logD, win, poly)
-    slope = np.gradient(logDs, logR, edge_order=2)
-    return slope
+    # ignore bins with tiny signal before smoothing
+    good  = logD > -3
+    logDs = savgol_filter(logD[good], win, poly)
+    slope = np.gradient(logDs, logR[good], edge_order=2)
+    return logR[good], slope
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -111,11 +114,17 @@ def main(cube: Path,
     ax1.loglog(R, D_phi, "k", lw=1.8, label=r"$D_\Phi$  (direct)")
 
     for lam in lam_list:
-        P       = np.exp(1j * 2.0 * lam**2 * Phi)
+        # --- safe 2π ambiguity handling: set wrapped pixels to zero weight
+        wrap = np.abs(2.0 * lam**2 * Phi) > np.pi
+        weight = (~wrap).astype(float)             # 1 for good pixels, 0 else
+        P = np.exp(1j * 2.0 * lam**2 * Phi) * weight
         R_S, S  = autocorr_complex(P, dx=dx, nbins=nbins, log_bins=True)
 
         # interpolate to the R-grid
+        if len(R_S) < 4:                 # guard against empty sample set
+            continue
         S_interp = np.interp(R, R_S, S)
+
         valid    = (S_interp > 1e-4)        # avoid −log tiny
         D_est    = np.empty_like(S_interp)
         D_est[:] = np.nan
@@ -146,7 +155,8 @@ def main(cube: Path,
     slope = local_log_slope(R, D_phi, win=11, poly=2)
 
     fig2, ax2 = plt.subplots(figsize=(6, 4.2))
-    ax2.semilogx(R, slope, "k", lw=1.5,
+    logRgood, slope = local_log_slope(R, D_phi, win=11, poly=2)
+    ax2.semilogx(10**logRgood, slope, "k", lw=1.5,
                  label=r"$d\ln D_\Phi / d\ln R$")
     ax2.axhline(5/3, color="tab:red", ls=":", lw=1.1, label=r"$5/3$")
     ax2.fill_between(R, 5/3 - 0.15, 5/3 + 0.15,

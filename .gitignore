@@ -2,3 +2,5 @@ athena_simulation/Turb.hst
 faradays_angles_stats/cube.h5
 faradays_angles_stats/lp_structure_tests/ms01ma08.mhd_w.00300.vtk.h5
 faradays_angles_stats/lp_structure_tests/synthetic_kolmogorov.h5
+synthetic_kolmogorov.h5
+faradays_angles_stats/lp_structure_tests/synthetic_powerbox.h5

@@ -75,13 +75,12 @@ def structure_function_2d(field, dx=1.0, nbins=NBINS, r_min=1e-3):
     D = 2.0 * f.var() - 2.0 * ac
     D[D < 0] = 0      # numerical noise guard
 
-    ny, nx             = field.shape
-    y_idx, x_idx       = np.indices((ny, nx))
-    y_idx              = y_idx - ny // 2
-    x_idx              = x_idx - nx // 2
+    ny, nx = field.shape
+    y_idx  = np.arange(ny)[:, None] - ny//2
+    x_idx  = np.arange(nx)[None, :] - nx//2
     R                  = np.hypot(x_idx, y_idx) * dx
 
-    r_max = R.max() / 2.0
+    r_max = R.max()*0.45
     if LOG_BINS:
         bins = np.logspace(np.log10(r_min), np.log10(r_max), nbins + 1)
     else:
@@ -158,6 +157,7 @@ def main(cube_path: Path,
     ax[1].set(xlabel="R  (same units as dx)",
               ylabel=r"$D_{\varphi}(R,\lambda)$",
               title="Polarization-angle structure")
+    ax[1].set_ylim(top=0.6)  # Limit y-axis max to 0.5
     ax[1].legend(frameon=False)
 
     fig.savefig('fig1_rm_angle.pdf', bbox_inches='tight')
@@ -169,6 +169,7 @@ def main(cube_path: Path,
 if __name__ == "__main__":
     main(Path("synthetic_kolmogorov.h5"),
     # main(Path("ms01ma08.mhd_w.00300.vtk.h5"),
+    # main(Path("synthetic_powerbox.h5"),
          ne_key="gas_density",
          bz_key="k_mag_field",
          lam_list=(0.06, 0.11, 0.21))
