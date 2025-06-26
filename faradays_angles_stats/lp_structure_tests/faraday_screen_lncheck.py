@@ -174,7 +174,8 @@ def main(cube: Path,
 
 # ────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    main(Path("synthetic_kolmogorov.h5"),
+    # main(Path("synthetic_kolmogorov.h5"),
+    main(Path("synthetic_tuned.h5"),
     # main(Path("ms01ma08.mhd_w.00300.vtk.h5"),
          ne_key="gas_density",
          bz_key="k_mag_field",
