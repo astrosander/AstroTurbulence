@@ -20,9 +20,10 @@ import numpy as np
 
 # ───────────────────── PATHS (EDIT!) ────────────────────────────────
 REF_CUBE   = Path("ms01ma08.mhd_w.00300.vtk.h5")   # Athena snapshot
+# SYN_CUBE   = Path("synthetic_kolmogorov.h5")         # raw synthetic file
 SYN_CUBE   = Path("synthetic_powerbox.h5")         # raw synthetic file
 OUT_CUBE   = Path("synthetic_tuned.h5")            # output filename
-SCALE_WHAT = "ne"          # "bz"  or  "ne"
+SCALE_WHAT = "bz"          # "bz"  or  "ne"
 # ────────────────────────────────────────────────────────────────────
 
 
@@ -58,16 +59,16 @@ syn_ne, syn_bz, _, syn_dz = load_cube(SYN_CUBE)
 sigma_syn = rm_rms(syn_ne, syn_bz, syn_dz)
 print(f"σΦ_syn  = {sigma_syn:.3e}")
 
-print("Means:")
-syn_bz+= ref_bz.mean()
+# print("Means:")
+# syn_bz+= ref_bz.mean()
 
-print(ref_ne.mean(), ref_bz.mean())
-print(syn_ne.mean(), syn_bz.mean())
+# print(ref_ne.mean(), ref_bz.mean())
+# print(syn_ne.mean(), syn_bz.mean())
 
 # 3. scaling factor
 factor = sigma_ref / sigma_syn
 
-print(f"Scaling factor = {factor:.3f}  (will apply to {SCALE_WHAT})")
+print(f"Scaling factor = {factor:.5 f}  (will apply to {SCALE_WHAT})")
 
 if SCALE_WHAT.lower() == "bz":
     syn_bz *= factor

@@ -109,9 +109,15 @@ def main(cube: Path,
     # reference structure function
     R, D_phi = structure_function_2d(Phi, dx=dx, nbins=nbins, log_bins=True)
 
+    sigma_phi = Phi.std(ddof=0)
+    plateau   = 2.0 * sigma_phi**2
+
     # ─── figure 1 : collapse test ───────────────────────────────────
     fig1, ax1 = plt.subplots(figsize=(6, 4.5))
     ax1.loglog(R, D_phi, "k", lw=1.8, label=r"$D_\Phi$  (direct)")
+    ax1.axhline(plateau,
+            color="red", ls=":", lw=1.2,
+            label=r"$2\sigma_{\Phi}^{2}$ (saturation)")
 
     for lam in lam_list:
         # --- safe 2π ambiguity handling: set wrapped pixels to zero weight
@@ -129,7 +135,8 @@ def main(cube: Path,
         D_est    = np.empty_like(S_interp)
         D_est[:] = np.nan
         D_est[valid] = -np.log(S_interp[valid]) / (2.0 * lam**4)
-
+        if lam > 0.2:
+            continue
         ax1.loglog(R[valid], D_est[valid],
                    "--", lw=1.1,
                    label=fr"$-\ln S/(2\lambda^4)$,  $\lambda={lam:.2f}$ m")
@@ -139,7 +146,7 @@ def main(cube: Path,
         #              D_est[valid][1] * (R[valid] / R[valid][1]) ** (5/3),
         #              "--", lw=0.5,
         #              label=r"$\propto R^{5/3}$")
-
+            
         ax1.loglog(R[valid],
            D_est[valid][1] * (R[valid] / R[valid][1]) ** (5/3),
            ":", lw=1.0, color="gray",
@@ -175,8 +182,8 @@ def main(cube: Path,
 # ────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     # main(Path("synthetic_kolmogorov.h5"),
-    main(Path("synthetic_tuned.h5"),
-    # main(Path("ms01ma08.mhd_w.00300.vtk.h5"),
+    # main(Path("synthetic_tuned.h5"),
+    main(Path("ms01ma08.mhd_w.00300.vtk.h5"),
          ne_key="gas_density",
          bz_key="k_mag_field",
          lam_list=(0.06, 0.11, 0.21))
