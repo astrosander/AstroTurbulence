@@ -61,7 +61,18 @@ def wrap_pi(angle):
 # ───────── main routine ──────────────────────────────────────────────
 def main():
     cube = Path("synthetic_tuned.h5")
-    lambdas = (0.30, 0.50, 0.80, 1.0, 1.5)
+
+    # lambdas = (0.30, 0.50, 0.80, 1.0, 1.5)
+
+    lambdas = ()
+
+    x=0.3
+    while x<=0.8:
+    	print(x)
+    	lambdas += (round(x, 4),)
+    	x+=0.05
+
+
 
     # --- load cube and build Φ map
     with h5py.File(cube, "r") as f:
@@ -73,6 +84,11 @@ def main():
     Phi = (ne * bz).sum(axis=2) * dz
     Phi_rms = Phi.std()
     print(f"Φ_rms = {Phi_rms:.3g}")
+
+    sigma_Phi = Phi.std(ddof=0)          # RMS rotation measure
+    lambda_crit = (np.pi**2 / (12*sigma_Phi**2))**0.25
+    print("sigma_Phi =", sigma_Phi)
+    print("λ_crit =", lambda_crit, "metres")
 
     plateau = math.pi**2 / 6.0      # correct mod-π saturation
 
