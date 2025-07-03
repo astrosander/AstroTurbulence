@@ -160,7 +160,7 @@ def main(cube_path: Path,
     ax[1].set_ylim(top=0.6)  # Limit y-axis max to 0.5
     ax[1].legend(frameon=False)
 
-    fig.savefig('fig1_rm_angle.pdf', bbox_inches='tight')
+    fig.savefig('figures/fig1_rm_angle.pdf', bbox_inches='tight')
     fig.tight_layout()
     plt.show()
 

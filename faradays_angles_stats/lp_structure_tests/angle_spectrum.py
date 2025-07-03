@@ -160,7 +160,7 @@ def _demo(paths: Sequence[str]) -> None:
 
     ax.legend()
     fig.tight_layout()
-    fig.savefig("fig_angle_spectrum.pdf", bbox_inches="tight")
+    fig.savefig("figures/fig_angle_spectrum.pdf", bbox_inches="tight")
     plt.show()
 
 

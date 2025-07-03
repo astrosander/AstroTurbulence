@@ -100,5 +100,5 @@ axR.legend(frameon=False, fontsize=8)
 
 fig.suptitle("Magnetic-field structure function  (z-slice, B$_z$)")
 fig.tight_layout()
-fig.savefig('fig5_bfield_structure_function.pdf',  bbox_inches='tight')
+fig.savefig('figures/fig5_bfield_structure_function.pdf',  bbox_inches='tight')
 plt.show()

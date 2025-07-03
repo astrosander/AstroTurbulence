@@ -89,7 +89,7 @@ def main():
     ax.set_title("Angle-SF saturation for wrapped field (mod π)")
     ax.legend(frameon=False, fontsize=8)
     fig.tight_layout()
-    fig.savefig("wrap_saturation_fixed.pdf", bbox_inches="tight")
+    fig.savefig("figures/wrap_saturation_fixed.pdf", bbox_inches="tight")
     plt.show()
 
 if __name__ == "__main__":

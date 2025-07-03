@@ -156,7 +156,7 @@ def main(cube: Path,
             title="Log-collapse: simulation vs theory")
     ax1.legend(fontsize=7, frameon=False)
     fig1.tight_layout()
-    fig1.savefig('fig2_collapse.pdf',  bbox_inches='tight')
+    fig1.savefig('figures/fig2_collapse.pdf',  bbox_inches='tight')
 
     # ─── figure 2 : inertial-range slope ────────────────────────────
     slope = local_log_slope(R, D_phi, win=11, poly=2)
@@ -174,7 +174,7 @@ def main(cube: Path,
             title="Inertial-range exponent")
     ax2.legend(frameon=False)
     fig2.tight_layout()
-    fig2.savefig('fig3_slope.pdf',     bbox_inches='tight')
+    fig2.savefig('figures/fig3_slope.pdf',     bbox_inches='tight')
 
     plt.show()
 
