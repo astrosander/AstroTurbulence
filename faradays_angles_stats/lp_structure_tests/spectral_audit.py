@@ -108,10 +108,10 @@ k_ne_A, P_ne_A, k_bz_A, P_bz_A, R_A, D_A, dxA = analyse_cube(CUBE_ATHENA)
 k_ne_S, P_ne_S, k_bz_S, P_bz_S, R_S, D_S, dxS = analyse_cube(CUBE_SYNTHETIC)
 
 # Kolmogorov reference slopes
-refPk_A = P_bz_A[2]*(k_bz_A/k_bz_A[2])**(-11/3)
+refPk_A = P_bz_A[1]*(k_bz_A/k_bz_A[1])**(-11/3)
 refSF_A = D_A[5]*(R_A/R_A[5])**(2/3)
 
-refPk_S = P_bz_S[2]*(k_bz_S/k_bz_S[2])**(-11/3)
+refPk_S = P_bz_S[1]*(k_bz_S/k_bz_S[1])**(-11/3)
 refSF_S = D_S[5]*(R_S/R_S[5])**(2/3)
 
 # ────────── plot … two columns (Athena | Synthetic) ─────────────────

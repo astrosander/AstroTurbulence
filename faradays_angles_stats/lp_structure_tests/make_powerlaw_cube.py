@@ -134,31 +134,13 @@ def main(
 
 # ──────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    p = argparse.ArgumentParser(
-        description="Generate a synthetic cube with power-law spectra"
-    )
-    p.add_argument("--N", type=int, default=256,
-                   help="linear size of the cube (default 256)")
-    p.add_argument("--beta_ne", type=float, default=11/3,
-                   help="spectral index β for n_e (default 11/3 ≈ Kolmogorov)")
-    p.add_argument("--beta_bz", type=float, default=11/3,
-                   help="spectral index β for B_z (default 11/3)")
-    p.add_argument("--mean_bz", type=float, default=0.0,
-                   help="uniform mean B_z to add (default 0)")
-    p.add_argument("--dx", type=float, default=1.0,
-                   help="physical pixel size (for coordinate arrays)")
-    p.add_argument("--seed", type=int, default=2025,
-                   help="random seed (default 2025)")
-    p.add_argument("--out", required=True,
-                   help="output filename (HDF5)")
 
-    args = p.parse_args()
     main(
-        N=args.N,
-        beta_ne=args.beta_ne,
-        beta_bz=args.beta_bz,
-        mean_bz=args.mean_bz,
-        dx=args.dx,
-        seed=args.seed,
-        out=Path(args.out),
+        N=256,
+        beta_ne=11/3,
+        beta_bz=11/3,
+        mean_bz=0.0,
+        dx=1.0,
+        seed=2025,
+        out=Path("synthetic_kolmogorov.h5"),
     )

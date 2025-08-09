@@ -68,7 +68,7 @@ print(f"σΦ_syn  = {sigma_syn:.3e}")
 # 3. scaling factor
 factor = sigma_ref / sigma_syn
 
-print(f"Scaling factor = {factor:.5 f}  (will apply to {SCALE_WHAT})")
+print(f"Scaling factor = {factor:.5}")
 
 if SCALE_WHAT.lower() == "bz":
     syn_bz *= factor

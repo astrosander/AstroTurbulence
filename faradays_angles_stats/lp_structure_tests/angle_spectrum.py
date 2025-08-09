@@ -132,11 +132,7 @@ def _plot_reference(ax: plt.Axes,
               label=rf"$k^{{{slope:.2f}}}$")
 
 
-# ---------- CLI / demo -------------------------------------------------------
 def _demo(paths: Sequence[str]) -> None:
-    if not paths:
-        print(__doc__)
-        return
 
     spectra = batch_spectrum([Path(p) for p in paths])
     if not spectra:
@@ -165,4 +161,4 @@ def _demo(paths: Sequence[str]) -> None:
 
 
 if __name__ == "__main__":
-    _demo(sys.argv[1:])
+    _demo(("ms01ma08.mhd_w.00300.vtk.h5", "synthetic_tuned.h5"))

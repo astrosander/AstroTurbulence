@@ -71,7 +71,7 @@ def structure_function_2d(field, dx=1.0, nbins=NBINS, r_min=1e-3):
     power = np.abs(rfftn(f)) ** 2
     ac    = irfftn(power, s=f.shape) / f.size
     ac    = fftshift(ac)
-
+    
     D = 2.0 * f.var() - 2.0 * ac
     D[D < 0] = 0      # numerical noise guard
 
