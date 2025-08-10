@@ -2,207 +2,108 @@
 # -*- coding: utf-8 -*-
 
 """
-LP16 noise & beam observing guide — one big figure (12 heatmaps)
+LP16 theory ⇄ experiment: single, self-explanatory validation figure.
 
-Figure layout (4 rows × 3 cols):
-Rows 1–2: order = 'beam_then_noise'
-Rows 3–4: order = 'noise_then_beam'
+Panel A: r vs SNR for Re⟨PP⟩ and Im⟨PP⟩ (GLOBAL solid, LOCAL dashed),
+         16–84% bands across θ and R. Gray line at r=1 = LP16 ideal.
+Panel B: Gain = r_local − r_global for Re and Im, with 16–84% bands.
+         Green shading marks the "positive improvement" region.
 
-Within each order:
-  Row A (top of the pair):  Re⟨PP⟩   → [Global r, Local r, Gain (Local−Global)]
-  Row B (bottom of the pair): Im⟨PP⟩ → [Global r, Local r, Gain (Local−Global)]
-
-Axes per heatmap:
-  x-axis: SNR per pixel (∞, 20, 10, 7, 5, 3, 2)
-  y-axis: FWHM (px) (0, 1, 2, 4, 8)
-
-Cell value: median across θ ∈ {0..90°}, R ∈ {0.15,0.22,0.30,0.40}, and trials (only valid bins).
-Annotations: each cell shows the median (or '—' if insufficient data).
-
-Input:
-  - JSONL log produced by the white-noise simulation script.
-
-Output:
-  - img/LP16_noise_observing_guide.png
-  - img/LP16_noise_observing_guide.pdf
+Outputs:
+  img/LP16_single_validating.png
+  img/LP16_single_validating.pdf
 """
 
-import json
-import math
-import glob
-import pathlib
+import json, glob, pathlib
 from collections import defaultdict
-
 import numpy as np
 import matplotlib.pyplot as plt
 
-# -------------------- CONFIG -------------------- #
+# --------- CONFIG ---------
 OUT_DIR = pathlib.Path("img")
-# If you want to hardcode a specific file, set LOG_PATH; otherwise it picks the latest lp16_noisegrid_*.jsonl in img/.
-LOG_PATH = None  # e.g., pathlib.Path("img/lp16_noisegrid_N256_ns192_nofaraday.jsonl")
+LOG_PATH = None  # set explicit path if desired; else latest img/lp16_noisegrid_*.jsonl is used
 
-# Safety / validity thresholds
-MIN_GLOBAL_BINS = 20   # require at least this many effective φ-bins in global frame
-MIN_LOCAL_BINS  = 20   # same for local
-MIN_SAMPLES_PER_CELL = 10  # require at least this many (θ,R,trial) samples per (SNR,FWHM,order) cell
+# Choose the single configuration to display
+FWHM_PX = 4
+ORDER   = "beam_then_noise"     # or "noise_then_beam"
 
-# Heatmap styling
-DPI = 220
-FIGSIZE = (13.0, 12.0)
-CMAP_R = "coolwarm"   # for r
-CMAP_G = "PiYG"       # for gain
-NAN_COLOR = "#efefef"
-
-# ------------------------------------------------ #
+# Validity thresholds & plotting
+MIN_GLOBAL_BINS = 20
+MIN_LOCAL_BINS  = 20
+MIN_SAMPLES_PER_POINT = 8
+DPI = 240
+FIGSIZE = (9.5, 7.2)
+LW = 2.2
+ALPHA_BAND = 0.22
+Y_LIMS_TOP = (0.52, 1.02)
+Y_LIMS_GAIN = (-0.02, 0.26)
+# --------------------------
 
 def find_latest_log():
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    # img\\lp16_noisegrid_N256_ns192_nofaraday.jsonl
-
-    # cands = sorted(glob.glob(str(OUT_DIR / "lp16_noisegrid_*.jsonl")))
-    # print(cands)
-    # if not cands:
-    #     raise FileNotFoundError("No JSONL logs found in 'img/'.")
-    return pathlib.Path("img\\lp16_noisegrid_N256_ns192_nofaraday.jsonl")
+    return pathlib.Path("img/lp16_noisegrid_N256_ns192_nofaraday.jsonl")
 
 def read_jsonl(path):
     recs = []
     with open(path, "r", encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if not line:
-                continue
+        for ln in fh:
+            ln = ln.strip()
+            if not ln: continue
             try:
-                recs.append(json.loads(line))
+                recs.append(json.loads(ln))
             except json.JSONDecodeError:
-                # skip malformed lines
                 pass
     if not recs:
-        raise RuntimeError(f"No records found in {path}")
+        raise RuntimeError(f"No records in {path}")
     return recs
 
-def unique_sorted(values):
-    # Handles None/NaN by converting None→np.inf for SNR use-case later if needed.
-    uniq = []
-    for v in values:
-        if v not in uniq:
-            uniq.append(v)
-    try:
-        return sorted(uniq)
-    except Exception:
-        return uniq
-
-def prepare_axes_categories(records):
-    # Collect unique SNRs (convert None to np.inf for display) and FWHM px
-    snrs = []
-    fwhms = []
-    orders = []
+def snr_axis(records, order_name, fwhm_px):
+    snrs = set()
     for r in records:
+        if str(r.get("order","")) != order_name: continue
+        if int(r.get("fwhm_px",-1)) != int(fwhm_px): continue
         s = r.get("snr_px", None)
         s = np.inf if (s is None) else float(s)
-        snrs.append(s)
-        fwhms.append(int(r.get("fwhm_px", 0)))
-        orders.append(str(r.get("order", "")))
-    snr_sorted = sorted(set(snrs), key=lambda x: (np.isfinite(x), x), reverse=True)  # put ∞ first
-    fwhm_sorted = sorted(set(fwhms))
-    order_sorted = [o for o in ["beam_then_noise", "noise_then_beam"] if o in set(orders)]
-    return snr_sorted, fwhm_sorted, order_sorted
+        snrs.add(s)
+    snr_sorted = sorted(snrs, key=lambda x: (np.isfinite(x), x), reverse=True)  # ∞ first
+    x = np.arange(len(snr_sorted))
+    labels = [("∞" if not np.isfinite(s) else str(int(s))) for s in snr_sorted]
+    return snr_sorted, x, labels
 
-def median_or_nan(vals):
-    vals = np.asarray([v for v in vals if np.isfinite(v)], dtype=float)
-    if vals.size == 0:
-        return np.nan
-    return float(np.nanmedian(vals))
-
-def build_heat_matrices(records, snr_sorted, fwhm_sorted, order_name, field_global, field_local):
-    """
-    Build three matrices (FWHM x SNR): global r, local r, gain (local-global).
-    Only counts records that meet bin coverage thresholds.
-    """
-    nF, nS = len(fwhm_sorted), len(snr_sorted)
-    M_g = np.full((nF, nS), np.nan, dtype=float)
-    M_l = np.full((nF, nS), np.nan, dtype=float)
-    M_gain = np.full((nF, nS), np.nan, dtype=float)
-    Cnt = np.zeros((nF, nS), dtype=int)  # counts used (for info)
-
-    # Group everything by (fwhm, snr)
-    # Each record includes *both* global and local stats for the same (θ,R,trial).
-    by_cell = defaultdict(list)
+def group_by_snr(records, order_name, fwhm_px):
+    by = defaultdict(list)
     for r in records:
-        if str(r.get("order","")) != order_name:
-            continue
-        snr = r.get("snr_px", None)
-        snr = np.inf if (snr is None) else float(snr)
-        fwhm = int(r.get("fwhm_px", 0))
-        by_cell[(fwhm, snr)].append(r)
+        if str(r.get("order","")) != order_name: continue
+        if int(r.get("fwhm_px",-1)) != int(fwhm_px): continue
+        s = r.get("snr_px", None)
+        s = np.inf if (s is None) else float(s)
+        by[s].append(r)
+    return by
 
-    # Fill matrices
-    for iF, f in enumerate(fwhm_sorted):
-        for jS, s in enumerate(snr_sorted):
-            lst = by_cell.get((f, s), [])
-            gvals, lvals, gains = [], [], []
-            for r in lst:
-                # Global validity
-                if r.get("global_eff_bins", 0) < MIN_GLOBAL_BINS:
-                    pass_valid_g = False
-                else:
-                    pass_valid_g = True
-                # Local validity
-                has_local = (r.get("local_sigma", None) is not None) and (r.get("local_eff_bins", 0) >= MIN_LOCAL_BINS)
-                pass_valid_l = bool(has_local)
+def robust_summary(vals):
+    a = np.asarray(vals, float)
+    a = a[np.isfinite(a)]
+    if a.size == 0:
+        return np.nan, np.nan, np.nan
+    return float(np.nanmedian(a)), float(np.nanpercentile(a,16)), float(np.nanpercentile(a,84))
 
-                # Pull numbers
-                rv_g = r.get(field_global, None)
-                rv_l = r.get(field_local, None)
+def collect_series(cell_recs, f_g, f_l):
+    rg, rl, gn = [], [], []
+    for r in cell_recs:
+        okg = r.get("global_eff_bins",0) >= MIN_GLOBAL_BINS
+        okl = (r.get("local_eff_bins",0) >= MIN_LOCAL_BINS) and (r.get("local_sigma",None) is not None)
+        vg = r.get(f_g, None); vl = r.get(f_l, None)
+        if okg and isinstance(vg,(int,float)) and np.isfinite(vg): rg.append(float(vg))
+        if okl and isinstance(vl,(int,float)) and np.isfinite(vl): rl.append(float(vl))
+        if okg and okl and isinstance(vg,(int,float)) and isinstance(vl,(int,float)) and np.isfinite(vg) and np.isfinite(vl):
+            gn.append(float(vl - vg))
+    mg, lg, hg = robust_summary(rg) if len(rg) >= MIN_SAMPLES_PER_POINT else (np.nan, np.nan, np.nan)
+    ml, ll, hl = robust_summary(rl) if len(rl) >= MIN_SAMPLES_PER_POINT else (np.nan, np.nan, np.nan)
+    mgain, lgain, hgain = robust_summary(gn) if len(gn) >= MIN_SAMPLES_PER_POINT else (np.nan, np.nan, np.nan)
+    return (mg, lg, hg), (ml, ll, hl), (mgain, lgain, hgain), len(gn)
 
-                if pass_valid_g and (rv_g is not None) and np.isfinite(rv_g):
-                    gvals.append(float(rv_g))
-                if pass_valid_l and (rv_l is not None) and np.isfinite(rv_l):
-                    lvals.append(float(rv_l))
-                if pass_valid_g and pass_valid_l and (rv_g is not None) and (rv_l is not None) and np.isfinite(rv_g) and np.isfinite(rv_l):
-                    gains.append(float(rv_l - rv_g))
-
-            # Require enough samples to be confident
-            if len(gvals) >= MIN_SAMPLES_PER_CELL:
-                M_g[iF, jS] = median_or_nan(gvals)
-            if len(lvals) >= MIN_SAMPLES_PER_CELL:
-                M_l[iF, jS] = median_or_nan(lvals)
-            if len(gains) >= MIN_SAMPLES_PER_CELL:
-                M_gain[iF, jS] = median_or_nan(gains)
-            Cnt[iF, jS] = len(gains)  # store the stricter count (both valid)
-
-    return M_g, M_l, M_gain, Cnt
-
-def draw_heat(ax, M, x_labels, y_labels, title, vmin, vmax, cmap, annotate=True, nan_color="#efefef"):
-    """
-    Draw a categorical heatmap (rows=y, cols=x) using imshow; annotate with numbers.
-    """
-    # Mask NaNs with special color
-    cm = plt.get_cmap(cmap).copy()
-    cm.set_bad(nan_color)
-    A = np.ma.masked_invalid(M)
-
-    im = ax.imshow(A, origin="lower", vmin=vmin, vmax=vmax, cmap=cm, aspect="auto")
-    ax.set_title(title, fontsize=11)
-    ax.set_xticks(np.arange(len(x_labels)))
-    ax.set_yticks(np.arange(len(y_labels)))
-    ax.set_xticklabels(x_labels, fontsize=9)
-    ax.set_yticklabels(y_labels, fontsize=9)
-    ax.set_xlabel("SNR per pixel", fontsize=9)
-    ax.set_ylabel("FWHM (px)", fontsize=9)
-
-    # Grid lines
-    ax.set_xticks(np.arange(-0.5, len(x_labels), 1), minor=True)
-    ax.set_yticks(np.arange(-0.5, len(y_labels), 1), minor=True)
-    ax.grid(which="minor", color="w", linewidth=0.8, alpha=0.6)
-
-    if annotate:
-        for i in range(M.shape[0]):
-            for j in range(M.shape[1]):
-                val = M[i, j]
-                txt = "—" if not np.isfinite(val) else f"{val:.2f}"
-                ax.text(j, i, txt, ha="center", va="center", fontsize=8, color="black")
-    return im
+def annotate_values(ax, x, y, label):
+    if np.isfinite(y):
+        ax.text(x, y+0.007, f"{y:.2f}", ha="center", va="bottom", fontsize=9, color="black")
 
 def main():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -210,102 +111,138 @@ def main():
     print(f"Reading: {log_path}")
     recs = read_jsonl(log_path)
 
-    # Category axes
-    snr_sorted, fwhm_sorted, order_sorted = prepare_axes_categories(recs)
-    snr_labels = [("∞" if not np.isfinite(s) else (str(int(s)) if float(int(s)) == s else f"{s:g}")) for s in snr_sorted]
-    fwhm_labels = [str(f) for f in fwhm_sorted]
+    # Field names
+    F_RE_G = "global_r_RePP_m24"
+    F_RE_L = "local_r_RePP_m24"
+    F_IM_G = "global_r_ImPP_m24"
+    F_IM_L = "local_r_ImPP_m24"
 
-    # Build matrices for each order and each observable set
-    # Field names in logs:
-    #   Re global:  'global_r_RePP_m24'
-    #   Re local:   'local_r_RePP_m24'
-    #   Im global:  'global_r_ImPP_m24'
-    #   Im local:   'local_r_ImPP_m24'
-    grids = {}
-    for order in order_sorted:
-        Re_g, Re_l, Re_gain, C_re = build_heat_matrices(
-            recs, snr_sorted, fwhm_sorted, order,
-            field_global="global_r_RePP_m24",
-            field_local ="local_r_RePP_m24",
-        )
-        Im_g, Im_l, Im_gain, C_im = build_heat_matrices(
-            recs, snr_sorted, fwhm_sorted, order,
-            field_global="global_r_ImPP_m24",
-            field_local ="local_r_ImPP_m24",
-        )
-        grids[order] = dict(Re_g=Re_g, Re_l=Re_l, Re_gain=Re_gain,
-                            Im_g=Im_g, Im_l=Im_l, Im_gain=Im_gain)
+    snr_sorted, xpos, snr_labels = snr_axis(recs, ORDER, FWHM_PX)
+    by_snr = group_by_snr(recs, ORDER, FWHM_PX)
 
-    # Color limits
-    r_vmin, r_vmax = -1.0, 1.0
-    # Gain symmetric limit across all gains
-    all_gains = []
-    for o in order_sorted:
-        g1 = grids[o]["Re_gain"]; g2 = grids[o]["Im_gain"]
-        all_gains.extend(list(np.nan_to_num(g1, nan=np.nan).ravel()))
-        all_gains.extend(list(np.nan_to_num(g2, nan=np.nan).ravel()))
-    all_gains = np.array([x for x in all_gains if np.isfinite(x)], dtype=float)
-    g_abs = 0.0 if all_gains.size==0 else float(np.nanmax(np.abs(all_gains)))
-    g_abs = max(g_abs, 0.2)  # ensure some dynamic range
-    g_vmin, g_vmax = -g_abs, g_abs
+    # Build curves
+    curves = {
+        "ReG": {"m":[], "l":[], "h":[]},
+        "ReL": {"m":[], "l":[], "h":[]},
+        "ImG": {"m":[], "l":[], "h":[]},
+        "ImL": {"m":[], "l":[], "h":[]},
+        "GainRe": {"m":[], "l":[], "h":[]},
+        "GainIm": {"m":[], "l":[], "h":[]},
+        "Nused": []
+    }
 
-    # Figure layout: 4 rows × 3 cols (two orders × [Re-row, Im-row])
-    n_rows_total = 2 * len(order_sorted)
-    fig, axes = plt.subplots(n_rows_total, 3, figsize=FIGSIZE, constrained_layout=True)
+    for s in snr_sorted:
+        cell = by_snr.get(s, [])
+        (mg, lg, hg), (ml, ll, hl), (gRe_m,gRe_l,gRe_h), nused1 = collect_series(cell, F_RE_G, F_RE_L)
+        (mg2,lg2,hg2),(ml2,ll2,hl2),(gIm_m,gIm_l,gIm_h), nused2 = collect_series(cell, F_IM_G, F_IM_L)
 
-    # If only one order present, make sure axes is 2D
-    if n_rows_total == 1:
-        axes = np.array([axes])
+        curves["ReG"]["m"].append(mg);   curves["ReG"]["l"].append(lg);   curves["ReG"]["h"].append(hg)
+        curves["ReL"]["m"].append(ml);   curves["ReL"]["l"].append(ll);   curves["ReL"]["h"].append(hl)
+        curves["ImG"]["m"].append(mg2);  curves["ImG"]["l"].append(lg2);  curves["ImG"]["h"].append(hg2)
+        curves["ImL"]["m"].append(ml2);  curves["ImL"]["l"].append(ll2);  curves["ImL"]["h"].append(hl2)
+        curves["GainRe"]["m"].append(gRe_m); curves["GainRe"]["l"].append(gRe_l); curves["GainRe"]["h"].append(gRe_h)
+        curves["GainIm"]["m"].append(gIm_m); curves["GainIm"]["l"].append(gIm_l); curves["GainIm"]["h"].append(gIm_h)
+        curves["Nused"].append(int(min(nused1, nused2)))
 
-    heat_r_axes = []  # for shared colorbar (r)
-    heat_g_axes = []  # for shared colorbar (gain)
+    # Compute baseline r(∞) and average gain over noisy SNRs
+    idx_inf = 0  # because ∞ is placed first
+    rinf_ReG = curves["ReG"]["m"][idx_inf]
+    rinf_ReL = curves["ReL"]["m"][idx_inf]
+    rinf_ImG = curves["ImG"]["m"][idx_inf]
+    rinf_ImL = curves["ImL"]["m"][idx_inf]
+    # average gains excluding ∞
+    mask_noisy = np.arange(len(snr_sorted)) != idx_inf
+    mean_gain_re = np.nanmean(np.array(curves["GainRe"]["m"], float)[mask_noisy])
+    mean_gain_im = np.nanmean(np.array(curves["GainIm"]["m"], float)[mask_noisy])
 
-    row = 0
-    for order in order_sorted:
-        # Titles per order
-        row_Re = row
-        row_Im = row + 1
-        # RE row
-        im0 = draw_heat(axes[row_Re, 0], grids[order]["Re_g"], snr_labels, fwhm_labels,
-                        title=f"{order} — Re⟨PP⟩  (GLOBAL r, m=2+4)",
-                        vmin=r_vmin, vmax=r_vmax, cmap=CMAP_R)
-        im1 = draw_heat(axes[row_Re, 1], grids[order]["Re_l"], snr_labels, fwhm_labels,
-                        title=f"{order} — Re⟨PP⟩  (LOCAL r, m=2+4)",
-                        vmin=r_vmin, vmax=r_vmax, cmap=CMAP_R)
-        im2 = draw_heat(axes[row_Re, 2], grids[order]["Re_gain"], snr_labels, fwhm_labels,
-                        title=f"{order} — Re⟨PP⟩  (GAIN = LOCAL − GLOBAL)",
-                        vmin=g_vmin, vmax=g_vmax, cmap=CMAP_G)
-        heat_r_axes.extend([axes[row_Re,0], axes[row_Re,1]])
-        heat_g_axes.append(axes[row_Re,2])
+    # Plot
+    fig = plt.figure(figsize=FIGSIZE, constrained_layout=True)
+    gs = fig.add_gridspec(nrows=2, ncols=1, height_ratios=[3, 2])
+    ax_top = fig.add_subplot(gs[0,0])
+    ax_bot = fig.add_subplot(gs[1,0])
 
-        # IM row
-        im3 = draw_heat(axes[row_Im, 0], grids[order]["Im_g"], snr_labels, fwhm_labels,
-                        title=f"{order} — Im⟨PP⟩  (GLOBAL r, m=2+4)",
-                        vmin=r_vmin, vmax=r_vmax, cmap=CMAP_R)
-        im4 = draw_heat(axes[row_Im, 1], grids[order]["Im_l"], snr_labels, fwhm_labels,
-                        title=f"{order} — Im⟨PP⟩  (LOCAL r, m=2+4)",
-                        vmin=r_vmin, vmax=r_vmax, cmap=CMAP_R)
-        im5 = draw_heat(axes[row_Im, 2], grids[order]["Im_gain"], snr_labels, fwhm_labels,
-                        title=f"{order} — Im⟨PP⟩  (GAIN = LOCAL − GLOBAL)",
-                        vmin=g_vmin, vmax=g_vmax, cmap=CMAP_G)
-        heat_r_axes.extend([axes[row_Im,0], axes[row_Im,1]])
-        heat_g_axes.append(axes[row_Im,2])
+    # Background SNR regimes (very light so it's obvious but not distracting)
+    def span(ax, x0, x1, color, label=None):
+        ax.axvspan(x0, x1, color=color, alpha=0.06, ec=None)
+        if label:
+            ax.text((x0+x1)/2, ax.get_ylim()[1]-0.03*(ax.get_ylim()[1]-ax.get_ylim()[0]),
+                    label, ha="center", va="top", fontsize=9, color="black")
 
-        row += 2
+    # Label high/moderate/low regimes by x-index ranges (∞,20,10 | 7,5 | 3,2)
+    # (works for your SNR set; adjust if needed)
+    n = len(xpos)
+    labels_map = {lab:(i) for i,lab in enumerate(snr_labels)}
+    if set(['∞','20','10','7','5','3','2']).issubset(set(snr_labels)):
+        span(ax_top, labels_map['∞']-0.5, labels_map['10']+0.5, "#1f77b4", "High SNR")
+        span(ax_top, labels_map['7']-0.5,  labels_map['5']+0.5,  "#ff7f0e", "Moderate")
+        span(ax_top, labels_map['3']-0.5,  labels_map['2']+0.5,  "#2ca02c", "Low SNR")
+        span(ax_bot, labels_map['∞']-0.5, labels_map['10']+0.5, "#1f77b4")
+        span(ax_bot, labels_map['7']-0.5,  labels_map['5']+0.5,  "#ff7f0e")
+        span(ax_bot, labels_map['3']-0.5,  labels_map['2']+0.5,  "#2ca02c")
 
-    # Shared colorbars
-    cbar_r = fig.colorbar(im0, ax=heat_r_axes, shrink=0.95, pad=0.02)
-    cbar_r.set_label("Correlation r", rotation=90)
-    cbar_g = fig.colorbar(im2, ax=heat_g_axes, shrink=0.95, pad=0.02)
-    cbar_g.set_label("Gain Δr (LOCAL − GLOBAL)", rotation=90)
+    # Panel A — r vs SNR
+    def draw_with_band(ax, x, m, l, h, color, ls, label):
+        m = np.array(m, float); l = np.array(l, float); h = np.array(h, float)
+        ax.plot(x, m, ls, color=color, lw=LW, marker='o', label=label)
+        ax.fill_between(x, l, h, color=color, alpha=ALPHA_BAND, linewidth=0)
 
-    fig.suptitle("LP16 under white noise & beam — median correlations over θ and R\n"
-                 "(Values annotated in cells; blank = insufficient samples)",
-                 fontsize=14, y=1.02)
+    draw_with_band(ax_top, xpos, curves["ReG"]["m"], curves["ReG"]["l"], curves["ReG"]["h"], "#1f77b4", "-",  "Re⟨PP⟩ GLOBAL")
+    draw_with_band(ax_top, xpos, curves["ReL"]["m"], curves["ReL"]["l"], curves["ReL"]["h"], "#1f77b4", "--", "Re⟨PP⟩ LOCAL")
+    draw_with_band(ax_top, xpos, curves["ImG"]["m"], curves["ImG"]["l"], curves["ImG"]["h"], "#2ca02c", "-",  "Im⟨PP⟩ GLOBAL")
+    draw_with_band(ax_top, xpos, curves["ImL"]["m"], curves["ImL"]["l"], curves["ImL"]["h"], "#2ca02c", "--", "Im⟨PP⟩ LOCAL")
 
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    png = OUT_DIR / "LP16_noise_observing_guide.png"
-    pdf = OUT_DIR / "LP16_noise_observing_guide.pdf"
+    ax_top.axhline(1.0, color="gray", lw=1.0, ls=":", label="LP16 ideal r=1")
+    ax_top.set_xlim(xpos[0]-0.4, xpos[-1]+0.4)
+    ax_top.set_ylim(*Y_LIMS_TOP)
+    ax_top.set_xticks(xpos); ax_top.set_xticklabels(snr_labels)
+    ax_top.set_ylabel("Correlation r (median ± 16–84%)")
+    ax_top.grid(True, alpha=0.25, linestyle='--')
+    ax_top.set_title(f"LP16 validation — order: {ORDER}, FWHM={FWHM_PX}px — aggregated over θ and R")
+
+    # Callouts at a couple of points (∞ and SNR=3 if present)
+    if '∞' in snr_labels:
+        i = snr_labels.index('∞')
+        annotate_values(ax_top, xpos[i], curves["ReG"]["m"][i], "ReG")
+        annotate_values(ax_top, xpos[i], curves["ImG"]["m"][i], "ImG")
+    if '3' in snr_labels:
+        i = snr_labels.index('3')
+        annotate_values(ax_top, xpos[i], curves["ReL"]["m"][i], "ReL")
+        annotate_values(ax_top, xpos[i], curves["ImL"]["m"][i], "ImL")
+
+    # Panel B — gains
+    ax_bot.axhline(0.0, color="k", lw=1.0)
+    # green band for positive improvement
+    ax_bot.axhspan(0.0, ax_bot.get_ylim()[1], color="#55a868", alpha=0.07, zorder=0)
+
+    draw_with_band(ax_bot, xpos, curves["GainRe"]["m"], curves["GainRe"]["l"], curves["GainRe"]["h"], "#1f77b4", "-", "Gain (Re) LOCAL−GLOBAL")
+    draw_with_band(ax_bot, xpos, curves["GainIm"]["m"], curves["GainIm"]["l"], curves["GainIm"]["h"], "#2ca02c", "-", "Gain (Im) LOCAL−GLOBAL")
+
+    ax_bot.set_xlim(xpos[0]-0.4, xpos[-1]+0.4)
+    ax_bot.set_ylim(*Y_LIMS_GAIN)
+    ax_bot.set_xticks(xpos); ax_bot.set_xticklabels(snr_labels)
+    ax_bot.set_xlabel("SNR per pixel")
+    ax_bot.set_ylabel("Δr = LOCAL − GLOBAL")
+    ax_bot.grid(True, alpha=0.25, linestyle='--')
+
+    # Legend & text box
+    leg = ax_top.legend(loc="lower right", ncol=2, frameon=False)
+    txt = (
+        f"Noise order: {ORDER}\n"
+        f"Beam FWHM: {FWHM_PX} px\n"
+        f"r(∞): Re[G/L]={rinf_ReG:.2f}/{rinf_ReL:.2f}, Im[G/L]={rinf_ImG:.2f}/{rinf_ImL:.2f}\n"
+        f"Avg gain (SNR<∞): Re {mean_gain_re:+.2f}, Im {mean_gain_im:+.2f}\n"
+        "Bands: 16–84% across θ∈{0…90°}, R∈{0.15,0.22,0.30,0.40}"
+    )
+    ax_top.text(0.01, 0.04, txt, transform=ax_top.transAxes, ha="left", va="bottom",
+                fontsize=9, bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="#cccccc", alpha=0.9))
+
+    # Footer: sample counts per SNR for transparency
+    counts_str = "samples per SNR: " + ", ".join([f"{lab}:{n}" for lab,n in zip(snr_labels, curves["Nused"])])
+    fig.text(0.5, 0.01, counts_str, ha="center", va="bottom", fontsize=9, color="#444444")
+
+    # Save
+    png = OUT_DIR / "LP16_single_validating.png"
+    pdf = OUT_DIR / "LP16_single_validating.pdf"
     fig.savefig(png, dpi=DPI, bbox_inches="tight")
     fig.savefig(pdf, dpi=DPI, bbox_inches="tight")
     print(f"Saved:\n  {png}\n  {pdf}")
