@@ -1,3 +1,5 @@
+# To compile: ffmpeg -y -framerate 30 -i frames/frame_%03d.png -c:v libx264 -crf 18 -pix_fmt yuv420p -movflags +faststart Bfield_256.mp4
+
 import os
 import h5py
 import numpy as np
