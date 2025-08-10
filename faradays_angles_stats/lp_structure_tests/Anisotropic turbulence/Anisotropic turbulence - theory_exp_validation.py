@@ -36,7 +36,7 @@ nbins_phi  = 256
 # Image/build params
 N, nsamp   = 256, 192
 p          = 3.0
-include_faraday = False
+include_faraday = True
 ne0, lambda_m, rm_coeff = 1.0, 0.21, 0.812
 
 # Local alignment from P: σ = factor * R_pix (auto-tuned per R)
@@ -182,7 +182,6 @@ def inpaint_cyclic(y, valid):
     for i, y_i in enumerate(y):
         if np.abs(y_i) < 1e-7:
             y[i] = np.nan
-            # y[i] = 100.0
             valid[i] = False
     return y
 
