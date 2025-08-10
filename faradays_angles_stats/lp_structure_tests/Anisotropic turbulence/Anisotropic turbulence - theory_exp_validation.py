@@ -178,12 +178,21 @@ def ring_azimuth(arr, R_pixels, ring_width, nbins, min_bin_frac):
 
 def inpaint_cyclic(y, valid):
     """Safe cyclic inpaint for plotting only. If no valid bins, return all-NaN."""
+        
+    for i, y_i in enumerate(y):
+        if np.abs(y_i) < 1e-7:
+            y[i] = np.nan
+            # y[i] = 100.0
+            valid[i] = False
+    return y
+
     if valid is None or y is None or y.size == 0:
         return y
     if valid.all():
         return y.copy()
     if not np.any(valid):
         return np.full_like(y, np.nan, dtype=float)
+
     x = np.arange(y.size)
     xv = x[valid]; yv = y[valid]
     # wrap endpoint for cyclic interpolation
@@ -364,14 +373,14 @@ for theta_deg in theta_list:
 
             ax = axes[0,1]
             ax.plot(phi, y_re_pp_g_plot, lw=1.2, label="data")
-            ax.plot(phi, y_pp4_g_plot,  lw=1.2, ls="--", label="LP16 m=4")
+            # ax.plot(phi, y_pp4_g_plot,  lw=1.2, ls="--", label="LP16 m=4")
             ax.plot(phi, y_pp24_g_plot, lw=1.2, ls=":",  label="LP16 m=2+4")
             ax.set_title(f"GLOBAL Re⟨PP⟩  r4={r_pp4_g:.2f}  r2+4={r_pp24_g:.2f}")
             ax.legend(loc="best")
 
             ax = axes[0,2]
             ax.plot(phi, y_im_pp_g_plot, lw=1.2, label="data")
-            ax.plot(phi, y_ip4_g_plot,  lw=1.2, ls="--", label="LP16 m=4")
+            # ax.plot(phi, y_ip4_g_plot,  lw=1.2, ls="--", label="LP16 m=4")
             ax.plot(phi, y_ip24_g_plot, lw=1.2, ls=":",  label="LP16 m=2+4")
             ax.axhline(0, ls=":", lw=1)
             ax.set_title(f"GLOBAL Im⟨PP⟩  r4={r_ip4_g:.2f}  r2+4={r_ip24_g:.2f}")
@@ -386,7 +395,7 @@ for theta_deg in theta_list:
 
             ax = axes[1,1]
             ax.plot(phi, y_re_pp_l_plot, lw=1.2, label="data")
-            ax.plot(phi, y_pp4_l_plot,  lw=1.2, ls="--", label="LP16 m=4")
+            # ax.plot(phi, y_pp4_l_plot,  lw=1.2, ls="--", label="LP16 m=4")
             ax.plot(phi, y_pp24_l_plot, lw=1.2, ls=":",  label="LP16 m=2+4")
             ax.set_title(f"LOCAL Re⟨PP⟩  r4={best.get('r_pp4',float('nan')):.2f}  r2+4={best.get('r_pp24',float('nan')):.2f}")
             ax.legend(loc="best")
