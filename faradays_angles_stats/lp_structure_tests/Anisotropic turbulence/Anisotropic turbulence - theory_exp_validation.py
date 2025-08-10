@@ -12,20 +12,31 @@ filename   = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angl
 theta_list = [30, 45, 60]        # LOS tilt angles (deg) relative to +z
 N          = 256                  # pixels per side in the POS map
 nsamp      = 192                  # samples along each ray
-p          = 3.0                  # CR electron spectral index
+p          = 3.0                  # CR electron index (~3 → emissivity ∝ |B_perp|^2)
 R0_frac    = 0.30                 # ring radius as a fraction of half-image
 ring_width_pix = 1.0              # ring thickness (pixels)
 nbins_phi  = 181                  # azimuth bins
-add_uniform_B0   = True           # add mean field to boost anisotropy
-B0_amp_factor    = 0.5            # × Brms
+
+# Mean field to boost anisotropy (optional)
+add_uniform_B0   = True
+B0_amp_factor    = 0.5            # × Brms, direction = +z
+
+# Normalization choice
+normalize_by_C0  = True           # divide correlation by C(0)
+
+# Optional internal Faraday rotation (set to True to get non-zero Im signal)
+include_faraday  = False
+ne0              = 1.0            # cm^-3 (uniform electron density)
+lambda_m         = 0.21           # observing wavelength in meters (e.g., 1.4 GHz → 0.21 m)
+rm_coeff         = 0.812          # rad m^-2 per (cm^-3 μG pc); here we treat L in arbitrary units → relative test
+
 savefig    = True
-out_prefix = "anisotropy_compare"
+out_prefix = "anisotropy_compare_phasefit"
 # ====================================================== #
 
-# --------------- Helpers ---------------- #
 def load_cube(fname):
     with h5py.File(fname, "r") as f:
-        Bx = f["i_mag_field"][:].transpose(2, 1, 0).astype(np.float32)  # (x,y,z)
+        Bx = f["i_mag_field"][:].transpose(2, 1, 0).astype(np.float32)
         By = f["j_mag_field"][:].transpose(2, 1, 0).astype(np.float32)
         Bz = f["k_mag_field"][:].transpose(2, 1, 0).astype(np.float32)
         x_edges = f["x_coor"][0, 0, :]
@@ -36,38 +47,33 @@ def load_cube(fname):
     return (Bx, By, Bz), L, nx, Brms
 
 def geometry(theta_deg):
-    th = np.radians(theta_deg)
+    th = np.radians(theta_deg).astype(np.float32)
     n_hat  = np.array([np.sin(th), 0.0, np.cos(th)], dtype=np.float32)   # LOS
     e1_hat = np.array([np.cos(th), 0.0, -np.sin(th)], dtype=np.float32)  # POS x̂
     e2_hat = np.array([0.0, 1.0, 0.0], dtype=np.float32)                 # POS ŷ
     return n_hat, e1_hat, e2_hat
 
 def make_pos_idx(N, nsamp, L, nx, n_hat, e1_hat, e2_hat):
-    # POS pixel centers in physical units
     i_idx, j_idx = np.indices((N, N), dtype=np.float32)
     x0 = ((i_idx - N/2) / N)[..., None] * L * e1_hat + \
          ((j_idx - N/2) / N)[..., None] * L * e2_hat     # (N,N,3)
 
-    # LOS sample coordinates
     s  = np.linspace(-L/2, L/2, nsamp, dtype=np.float32) # (nsamp,)
     ds = float(s[1] - s[0])
 
-    # --- FIX: build LOS offsets with explicit dims for broadcasting ---
-    # los_offsets: (nsamp,3) → add new axes to become (1,1,nsamp,3)
     los_offsets = (s[:, None] * n_hat[None, :])[None, None, :, :]        # (1,1,nsamp,3)
     pos_phys = x0[..., None, :] + los_offsets                            # (N,N,nsamp,3)
-    # ------------------------------------------------------------------
 
-    # Map to array index space [0, nx-1] with periodic wrap
     pos_frac = (pos_phys / L) % 1.0
     pos_idx  = pos_frac * (nx - 1)
-    pos_idx  = pos_idx.reshape(-1, 3).T.astype(np.float32)  # (3, N*N*nsamp) for map_coordinates
+    pos_idx  = pos_idx.reshape(-1, 3).T.astype(np.float32)               # (3, N*N*nsamp)
     return pos_idx, ds
 
 def interp_field(field, pos_idx, N, nsamp):
     return ndi.map_coordinates(field, pos_idx, order=1, mode="wrap").reshape(N, N, nsamp)
 
-def synth_P(Bx, By, Bz, pos_idx, N, nsamp, n_hat, p, ds, B0_amp=None):
+def synth_P(Bx, By, Bz, pos_idx, N, nsamp, n_hat, p, ds, B0_amp=None,
+            include_faraday=False, ne0=1.0, lambda_m=0.21, rm_coeff=0.812):
     # Interpolate B along rays
     Bx_l = interp_field(Bx, pos_idx, N, nsamp)
     By_l = interp_field(By, pos_idx, N, nsamp)
@@ -87,15 +93,27 @@ def synth_P(Bx, By, Bz, pos_idx, N, nsamp, n_hat, p, ds, B0_amp=None):
     eps = Bperp_mag ** ((p + 1) / 2.0)
     psi = 0.5 * np.arctan2(B_perp[..., 1], B_perp[..., 0])  # radians
 
-    # Pure emitter (no Faraday rotation)
-    P = np.sum(eps * np.exp(2j * psi), axis=-1) * ds        # (N,N)
+    # Internal Faraday rotation (optional)
+    if include_faraday:
+        # crude cumulative RM along s: Φ_k = 0.812 ∑ ne * B_par * Δs
+        # Units here are relative; choose ne0 and lambda_m to tune signal
+        Phi = rm_coeff * ne0 * np.cumsum(B_par, axis=-1) * ds   # (N,N,nsamp)
+        phase = 2.0 * (psi + (lambda_m**2) * Phi)
+    else:
+        phase = 2.0 * psi
+
+    P = np.sum(eps * np.exp(1j * phase), axis=-1) * ds        # (N,N)
     return P
 
-def correlation(P):
+def correlation(P, normalize_by_C0=True):
     F  = np.fft.fft2(P)
     C  = np.fft.ifft2(F * F.conj())
-    C  = np.fft.fftshift(C) / P.size
-    return C.real, C.imag
+    C  = np.fft.fftshift(C)
+    if normalize_by_C0:
+        C0 = C[C.shape[0]//2, C.shape[1]//2].real
+        if C0 != 0:
+            C = C / C0
+    return C.real.astype(np.float64), C.imag.astype(np.float64)
 
 def ring_azimuth(C_re, C_im, R0_frac, ring_width_pix, nbins):
     N = C_re.shape[0]
@@ -108,7 +126,7 @@ def ring_azimuth(C_re, C_im, R0_frac, ring_width_pix, nbins):
     R0 = R0_frac * (N/2.0)
     mask = np.abs(R - R0) < ring_width_pix
 
-    bins = np.linspace(-np.pi, np.pi, nbins, dtype=np.float32)
+    bins = np.linspace(-np.pi, np.pi, nbins, dtype=np.float64)
     centers = 0.5 * (bins[:-1] + bins[1:])
     counts, _ = np.histogram(phi[mask], bins=bins)
 
@@ -120,77 +138,92 @@ def ring_azimuth(C_re, C_im, R0_frac, ring_width_pix, nbins):
     im_phi = az_avg(C_im)
     return centers, counts, re_phi, im_phi
 
-def fit_component(phi, y, counts, mode="cos"):
-    """Weighted LS fit: re ≈ a0 + a1 cos(2φ), im ≈ b0 + b1 sin(2φ)."""
-    basis = np.cos(2.0 * phi) if mode == "cos" else np.sin(2.0 * phi)
+def fit_phaseaware(phi, y, counts, basis="cos+sin"):
+    """
+    Weighted LS with both cos and sin bases:
+      y ≈ a0 + a_c cos(2φ) + a_s sin(2φ)
+    Returns: model, (a0, a_c, a_s), R^2, amplitude A, phase φ0
+      where A = sqrt(a_c^2 + a_s^2), φ0 = 0.5*atan2(a_s, a_c)
+    """
     w = counts.astype(np.float64)
-    X0 = np.ones_like(phi, dtype=np.float64)
-    # Solve (X^T W X) β = X^T W y
-    X = np.stack([X0, basis], axis=1)
-    WX = w[:, None] * X
+    Xcols = [np.ones_like(phi, dtype=np.float64)]
+    if "cos" in basis:
+        Xcols.append(np.cos(2.0 * phi))
+    if "sin" in basis:
+        Xcols.append(np.sin(2.0 * phi))
+    X = np.stack(Xcols, axis=1)  # shape (n, 1+Nbasis)
+
+    WX   = w[:, None] * X
     XtWX = X.T @ WX
     XtWy = X.T @ (w * y)
-    coeffs = np.linalg.pinv(XtWX, rcond=1e-10) @ XtWy
+    coeffs = np.linalg.pinv(XtWX, rcond=1e-12) @ XtWy
     y_model = X @ coeffs
-    # Weighted R^2
+
     y_mean_w = (w @ y) / np.sum(w) if np.sum(w) > 0 else np.mean(y)
     ss_res = np.sum(w * (y - y_model)**2)
     ss_tot = np.sum(w * (y - y_mean_w)**2)
     r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else np.nan
-    return y_model, coeffs, r2
-# -------------------------------------- #
 
-# ============== MAIN ============== #
+    if X.shape[1] == 3:
+        a0, a_c, a_s = coeffs
+        A = np.hypot(a_c, a_s)
+        phi0 = 0.5 * np.arctan2(a_s, a_c)
+    else:
+        a0, A, phi0 = coeffs[0], 0.0, 0.0
+    return y_model, coeffs, r2, A, phi0
+
+# ===================== MAIN ===================== #
 (Bx, By, Bz), L, nx, Brms = load_cube(filename)
 B0_amp = B0_amp_factor * Brms if add_uniform_B0 else None
-print(f"Uniform B0 amplitude: {B0_amp if B0_amp else 0:.4g} (same units as cube)")
+print(f"Uniform B0 amplitude: {B0_amp if B0_amp else 0:.5g} (same units as cube)")
+print(f"Internal Faraday: {include_faraday} (λ={lambda_m} m, ne0={ne0})\n")
 
-# Prepare figure with 2 columns (Re, Im) and rows = number of angles
 nrows = len(theta_list)
-fig, axes = plt.subplots(nrows, 2, figsize=(10, 3.2 * nrows))
+fig, axes = plt.subplots(nrows, 2, figsize=(10, 3.3 * nrows))
 if nrows == 1:
-    axes = np.array([axes])  # ensure 2D array
+    axes = np.array([axes])
 
 for r, theta_deg in enumerate(theta_list):
-    print(f"\n=== Processing θ = {theta_deg}° ===")
+    print(f"=== Processing θ = {theta_deg}° ===")
     n_hat, e1_hat, e2_hat = geometry(theta_deg)
     pos_idx, ds = make_pos_idx(N, nsamp, L, nx, n_hat, e1_hat, e2_hat)
-    P = synth_P(Bx, By, Bz, pos_idx, N, nsamp, n_hat, p, ds, B0_amp=B0_amp)
-    C_re, C_im = correlation(P)
+    P = synth_P(Bx, By, Bz, pos_idx, N, nsamp, n_hat, p, ds, B0_amp=B0_amp,
+                include_faraday=include_faraday, ne0=ne0, lambda_m=lambda_m, rm_coeff=rm_coeff)
+
+    C_re, C_im = correlation(P, normalize_by_C0=normalize_by_C0)
     phi_cent, counts, re_phi, im_phi = ring_azimuth(C_re, C_im, R0_frac, ring_width_pix, nbins_phi)
 
-    # Fit "theory" shapes
-    re_model, (a0, a1), r2_re = fit_component(phi_cent, re_phi, counts, mode="cos")
-    im_model, (b0, b1), r2_im = fit_component(phi_cent, im_phi, counts, mode="sin")
+    # Phase-aware fits (cos+sin)
+    re_model, (a0, ac, as_), r2_re, A_re, phi0_re = fit_phaseaware(phi_cent, re_phi, counts, basis="cos+sin")
+    im_model, (b0, bc, bs),  r2_im, A_im, phi0_im = fit_phaseaware(phi_cent, im_phi, counts, basis="cos+sin")
+
+    # Print compact diagnostics
+    print(f"Re: a0={a0:.3e}, A={A_re:.3e}, phi0={phi0_re:.3f} rad, R^2={r2_re:.3f}")
+    print(f"Im: b0={b0:.3e}, A={A_im:.3e}, phi0={phi0_im:.3f} rad, R^2={r2_im:.3f}")
 
     # --------- Plot (Re) --------- #
     ax_re = axes[r, 0]
     ax_re.plot(phi_cent, re_phi, lw=1.4, label="data")
-    ax_re.plot(phi_cent, re_model, lw=1.2, ls="--", label=r"theory: $a_0+a_1\cos 2\varphi$")
+    ax_re.plot(phi_cent, re_model, lw=1.2, ls="--",
+               label=r"fit: $a_0+a_c\cos 2\varphi+a_s\sin 2\varphi$")
     ax_re.set_xlabel(r"$\varphi$ (rad)")
-    ax_re.set_ylabel(r"Re$\{C\}$")
-    ax_re.set_title(fr"θ={theta_deg}°,  fit: $a_0={a0:.3g},\,a_1={a1:.3g},\,R^2={r2_re:.3f}$")
-
-    print(fr"θ={theta_deg}°,  fit: $a_0={a0:.3g},\,a_1={a1:.3g},\,R^2={r2_re:.3f}$")
-
+    ax_re.set_ylabel(r"Re$\{C\}$" + ("" if not normalize_by_C0 else "  (norm.)"))
+    ax_re.set_title(fr"θ={theta_deg}°,  A={A_re:.2e},  φ0={phi0_re:.2f} rad,  $R^2$={r2_re:.2f}")
     ax_re.legend(loc="best")
 
     # --------- Plot (Im) --------- #
     ax_im = axes[r, 1]
     ax_im.plot(phi_cent, im_phi, lw=1.4, label="data")
-    ax_im.plot(phi_cent, im_model, lw=1.2, ls="--", label=r"theory: $b_0+b_1\sin 2\varphi$")
+    ax_im.plot(phi_cent, im_model, lw=1.2, ls="--",
+               label=r"fit: $b_0+b_c\cos 2\varphi+b_s\sin 2\varphi$")
     ax_im.set_xlabel(r"$\varphi$ (rad)")
-    ax_im.set_ylabel(r"Im$\{C\}$")
-    ax_im.set_title(fr"θ={theta_deg}°,  fit: $b_0={b0:.3g},\,b_1={b1:.3g},\,R^2={r2_im:.3f}$")
-
-
-    print(fr"θ={theta_deg}°,  fit: $b_0={b0:.3g},\,b_1={b1:.3g},\,R^2={r2_im:.3f}$")
-    
+    ax_im.set_ylabel(r"Im$\{C\}$" + ("" if not normalize_by_C0 else "  (norm.)"))
+    ax_im.set_title(fr"θ={theta_deg}°,  A={A_im:.2e},  φ0={phi0_im:.2f} rad,  $R^2$={r2_im:.2f}")
     ax_im.legend(loc="best")
 
 plt.tight_layout()
 if savefig:
-    out = f"{out_prefix}_R{R0_frac:.2f}_N{N}_ns{nsamp}.png"
+    out = f"{out_prefix}_R{R0_frac:.2f}_N{N}_ns{nsamp}{'_faraday' if include_faraday else ''}.png"
     plt.savefig(out, dpi=180, bbox_inches="tight")
-    print(f"Saved figure → {out}")
+    print(f"\nSaved figure → {out}")
 plt.show()
