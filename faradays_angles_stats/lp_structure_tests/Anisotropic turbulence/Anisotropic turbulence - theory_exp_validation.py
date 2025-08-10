@@ -28,15 +28,16 @@ import matplotlib.pyplot as plt
 # ===================== USER SETTINGS ===================== #
 filename   = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\ms01ma08.mhd_w.00300.vtk.h5"
 
-theta_list = [0, 15, 30, 45, 60, 75, 90]
-R_fracs    = [0.15, 0.22, 0.30, 0.40]      # radii as fractions of (N/2)
+theta_list = list(np.linspace(0.0, 90.0, 19))#[0, 15, 30, 45, 60, 75, 90]
+
+R_fracs    = list(np.linspace(0.15, 0.40, 11))# [0.15, 0.22, 0.30, 0.40]      # radii as fractions of (N/2)
 ring_width = 4.0                            # ring half-thickness [px] in |R - R0| < ring_width
 nbins_phi  = 256
 
 # Image/build params
 N, nsamp   = 256, 192
 p          = 3.0
-include_faraday = True
+include_faraday = False
 ne0, lambda_m, rm_coeff = 1.0, 0.21, 0.812
 
 # Local alignment from P: σ = factor * R_pix (auto-tuned per R)
@@ -408,7 +409,7 @@ for theta_deg in theta_list:
 
             for ax in axes[-1,:]: ax.set_xlabel("φ (rad)")
             fig.suptitle(f"θ={theta_deg}°,  R={R_frac:.2f}·(N/2) px", y=0.98)
-            fn = out_dir / f"bestcorr_{tag}_th{theta_deg:02d}_R{R_frac:.2f}.png"
+            fn = out_dir / f"bestcorr_{tag}_th{int(theta_deg):02d}_R{R_frac:.2f}.png"
             plt.tight_layout(); plt.savefig(fn, dpi=dpi_plot, bbox_inches="tight"); plt.close(fig)
 
 print(f"Saved logs → {log_file}")
