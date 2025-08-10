@@ -32,8 +32,8 @@ OUT_DIR = pathlib.Path("img")
 LOG_PATH = None  # e.g., pathlib.Path("img/lp16_bestcorr_N256_ns192_nofaraday.jsonl")
 
 # Order to display
-THETA_ORDER = [0, 15, 30, 45, 60, 75, 90]
-R_ORDER     = [0.15, 0.22, 0.30, 0.40]
+THETA_ORDER = list(np.linspace(0.0, 90.0, 19))#[0, 15, 30, 45, 60, 75, 90]
+R_ORDER     = list(np.linspace(0.15, 0.40, 11))#[0.15, 0.22, 0.30, 0.40]
 
 # Figure settings
 DPI = 200

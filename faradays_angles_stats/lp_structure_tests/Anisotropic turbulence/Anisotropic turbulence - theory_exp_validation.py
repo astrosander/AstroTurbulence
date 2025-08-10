@@ -409,7 +409,7 @@ for theta_deg in theta_list:
 
             for ax in axes[-1,:]: ax.set_xlabel("φ (rad)")
             fig.suptitle(f"θ={theta_deg}°,  R={R_frac:.2f}·(N/2) px", y=0.98)
-            fn = out_dir / f"bestcorr_{tag}_th{int(theta_deg):02d}_R{R_frac:.2f}.png"
+            fn = out_dir / f"bestcorr_{tag}_th{int(theta_deg    ):02d}_R{R_frac:.2f}.png"
             plt.tight_layout(); plt.savefig(fn, dpi=dpi_plot, bbox_inches="tight"); plt.close(fig)
 
 print(f"Saved logs → {log_file}")
