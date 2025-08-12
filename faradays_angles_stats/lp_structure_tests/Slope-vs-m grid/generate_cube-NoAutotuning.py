@@ -15,17 +15,22 @@ Output: img/slope_vs_m_Dphi.png
 """
 
 import pathlib
+import os
+from concurrent.futures import ProcessPoolExecutor, as_completed
+import matplotlib as mpl
+mpl.use("Agg", force=True)
 import numpy as np
 import matplotlib.pyplot as plt
 
 # ---------------- User controls ---------------- #
-out_dir = pathlib.Path("img"); out_dir.mkdir(parents=True, exist_ok=True)
+# Save relative to this script's directory to avoid CWD issues
+out_dir = (pathlib.Path(__file__).parent / "img"); out_dir.mkdir(parents=True, exist_ok=True)
 
 N                = 512                 # base map size
 pad_factor       = 2                   # zero-padding factor
 seed             = 12345
-m_vals           = np.linspace(0.30, 1.50, 121)
-n_realizations   = 4                   # few realizations per m
+m_vals           = np.linspace(0.30, 1.50, 1)
+n_realizations   = 20                  # independent measurements per m (parallelized)
 
 # Spectral band (cycles per box in FFT units)
 kmin_pix         = 2.0
@@ -48,6 +53,9 @@ deriv_band_frac    = 0.25              # keep where dlogD/dlogR within ±25% of 
 win_bins_fallback  = 28                # sliding-fit window length (bins)
 
 dpi = 170
+
+# Modern plotting style
+# plt.style.use("seaborn-v0_8-whitegrid")
 
 # ---------------- Helpers ---------------- #
 def rng_for(m, r):
@@ -251,14 +259,95 @@ def measure_slope_for_m(m, n_real=4):
         return np.nan
     return float(np.median(slopes))
 
-# ---------------- Survey ---------------- #
-measured = []
-for m in m_vals:
-    s = measure_slope_for_m(m, n_real=n_realizations)
-    measured.append(s)
-    print(f"m={m:5.3f}  →  slope(D_phi vs R) = {s:6.3f}")
 
-measured = np.array(measured, float)
+def measure_slope_single(m, r):
+    """Compute a single slope measurement for given m and seed index r.
+    Returns np.nan on failure.
+    """
+    try:
+        rng = rng_for(m, r)
+        rm  = make_rm_map(N, m, rng, kmin_pix=kmin_pix, kmax_pix=kmax_pix)
+        C   = autocorr2d_unbiased(rm, apod_alpha=apod_alpha, pad_factor=pad_factor)
+        M   = C.shape[0]
+        c0  = C[M//2, M//2]
+
+        # R-range from spectral cuts, in padded pixels
+        R_low  = max(2.0, R_low_pix_fac  * (N / kmax_pix) / pad_factor)
+        R_high = min(0.48*M, R_high_pix_fac * (N / kmin_pix) / pad_factor)
+
+        # Adaptive radial profile to ensure enough bins
+        Rv, C_Rv = radial_profile_adaptive(
+            C, R_low, R_high,
+            nbins_init=nbins_R_init,
+            min_counts_init=min_counts_init,
+            needed_bins=30, max_tries=5
+        )
+        if Rv.size < 20:
+            return np.nan
+
+        D = structure_function_from_corr_unscaled(c0, C_Rv)
+        eps = 1e-12 * (np.nanmax(D) if np.isfinite(np.nanmax(D)) else 1.0)
+        D = np.maximum(D, eps)
+
+        # slight smoothing
+        D = smooth_running_mean(D, smooth_win_bins)
+
+        logR = np.log(Rv); logD = np.log(D)
+
+        slope = local_derivative_plateau(
+            logR, logD,
+            width_bins=plateau_width_bins,
+            max_curv=max_curv,
+            band_frac=deriv_band_frac
+        )
+        if slope is None:
+            slope = best_window_regression(logR, logD, win_bins=win_bins_fallback)
+        return float(slope)
+    except Exception:
+        return np.nan
+
+# ---------------- Survey (parallel across seeds for each m) ---------------- #
+if __name__ == "__main__":
+    num_workers = max(1, os.cpu_count() or 1)
+
+    # Prepare containers
+    slopes_by_m = [[] for _ in range(len(m_vals))]
+
+    # Submit all (m, seed) jobs at once for efficient parallelism
+    futures = {}
+    with ProcessPoolExecutor(max_workers=num_workers) as ex:
+        for i, m in enumerate(m_vals):
+            for r in range(n_realizations):
+                fut = ex.submit(measure_slope_single, float(m), int(r))
+                futures[fut] = i
+
+        # Collect in order of completion, group by correct m index
+        for fut in as_completed(futures):
+            slope_val = fut.result()
+            i = futures[fut]
+            slopes_by_m[i].append(slope_val)
+
+    # Convert to arrays and compute stats
+    measured_median = np.array([np.nanmedian(v) if len(v) else np.nan for v in slopes_by_m], dtype=float)
+    p16 = np.array([np.nanpercentile(v, 16) if len(v) else np.nan for v in slopes_by_m], dtype=float)
+    p84 = np.array([np.nanpercentile(v, 84) if len(v) else np.nan for v in slopes_by_m], dtype=float)
+    yerr = np.vstack([measured_median - p16, p84 - measured_median])
+
+    # Flat lists of all points for global least-squares fit
+    m_all = []
+    y_all = []
+    for i, m in enumerate(m_vals):
+        vals = [vv for vv in slopes_by_m[i] if np.isfinite(vv)]
+        if not vals:
+            continue
+        m_all.extend([float(m)] * len(vals))
+        y_all.extend(vals)
+    m_all = np.array(m_all, dtype=float)
+    y_all = np.array(y_all, dtype=float)
+
+    # Print brief per-m summary
+    for m, med, low, high in zip(m_vals, measured_median, p16, p84):
+        print(f"m={m:5.3f}  →  median slope = {med:6.3f}  (16–84%: {low:6.3f}…{high:6.3f})")
 
 # ---------------- Plot ---------------- #
 def running_median(y, w=9):
@@ -273,18 +362,51 @@ def running_median(y, w=9):
     pad = (w-1)//2
     return np.r_[np.repeat(med[0], pad), med, np.repeat(med[-1], pad)]
 
-fig, ax = plt.subplots(figsize=(6.8, 4.8))
-ax.plot(m_vals, measured, "o", ms=3.2, label="measured slope of $D_\\phi(R)$")
-ax.plot(m_vals, running_median(measured, w=13), "-", lw=1.6, label="running median")
-m_line = np.linspace(m_vals.min()*0.95, m_vals.max()*1.05, 400)
-ax.plot(m_line, m_line, "--", lw=1.5, label="LP16: slope = m")
-ax.set_xlabel("m  (in $D_{RM}\\propto R^m$)")
-ax.set_ylabel("Measured slope of $D_\\phi(R)$")
-ax.set_title("Slope of $D_\\phi(R)$ vs m (band-pass, unbiased, adaptive)")
-ax.grid(True, alpha=0.28)
-ax.legend(loc="best")
-fig.tight_layout()
-fig.savefig(out_dir / "slope_vs_m_Dphi.png", dpi=dpi, bbox_inches="tight")
-plt.close(fig)
+    # ---------------- Plot ---------------- #
+    fig, ax = plt.subplots(figsize=(7.2, 4.6), dpi=dpi)
 
-print(f"Saved → {(out_dir / 'slope_vs_m_Dphi.png').resolve()}")
+    # Scatter all individual measurements for context (light alpha)
+    if m_all.size and y_all.size:
+        ax.scatter(m_all, y_all, s=6, alpha=0.18, color="tab:blue", label="all seeds")
+
+    # Error bars for median with 16–84 percentile spread
+    ax.errorbar(
+        m_vals,
+        measured_median,
+        yerr=yerr,
+        fmt="o",
+        ms=3.4,
+        color="tab:blue",
+        ecolor="tab:blue",
+        elinewidth=1.0,
+        capsize=2.0,
+        alpha=0.9,
+        label="median ± 1σ (16–84%)",
+    )
+
+    # Running median smoother for visual guide
+    ax.plot(m_vals, running_median(measured_median, w=13), "-", lw=1.6, color="tab:orange", label="running median")
+
+    # Reference line y = m
+    m_line = np.linspace(m_vals.min()*0.95, m_vals.max()*1.05, 400)
+    ax.plot(m_line, m_line, "--", lw=1.3, color="0.35", label="LP16: slope = m")
+
+    # Global least-squares fit using all seed data
+    if m_all.size >= 2 and y_all.size >= 2:
+        A = np.vstack([m_all, np.ones_like(m_all)]).T
+        fit_slope, fit_intercept = np.linalg.lstsq(A, y_all, rcond=None)[0]
+        y_fit = fit_slope * m_line + fit_intercept
+        ax.plot(m_line, y_fit, "-", lw=2.0, color="tab:green", label=f"LSQ fit: y = {fit_slope:.3f}·m + {fit_intercept:.3f}")
+
+    ax.set_xlabel("m  (in $D_{RM}\\propto R^m$)")
+    ax.set_ylabel("Slope of $D_\\phi(R)$")
+    ax.set_title("Slope of $D_\\phi(R)$ vs m — parallel seeds, error bars, LSQ fit")
+    ax.grid(True, alpha=0.28)
+    ax.legend(loc="best", frameon=False)
+    fig.tight_layout()
+    fig.savefig(out_dir / "slope_vs_m_Dphi.png", bbox_inches="tight")
+    # fig.savefig(out_dir / "slope_vs_m_Dphi.pdf", bbox_inches="tight")
+    # plt.show()
+    plt.close(fig)
+
+    print(f"Saved → {(out_dir / 'slope_vs_m_Dphi.png').resolve()}")
