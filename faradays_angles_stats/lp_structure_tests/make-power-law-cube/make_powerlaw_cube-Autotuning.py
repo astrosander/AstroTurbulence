@@ -112,6 +112,8 @@ def make_bz_cube(N, beta, seed, mean_target, rms_target, dx=1.0):
     bz = scale_to_mean_rms(g, mean_target, rms_target)     # exact sample mean & RMS
     return bz
 
+def make_field_constant(N, mean_target):
+    return np.full((N, N, N), float(mean_target), dtype=np.float32)
 
 # ──────────────────────────────────────────────────────────────────────
 # 6) coordinate arrays
@@ -151,15 +153,28 @@ def main(
     seed: int,
     out: Path,
     write_coords: bool = True,
+    constant_bz: bool = True,
+    constant_nz: bool = True,
 ):
     rng = np.random.default_rng(seed)
     seed_ne, seed_bz = rng.integers(0, 2**31, size=2)
 
-    print(f"• generating n_e  (β={beta_ne}) …")
-    ne = make_ne_cube(N, beta_ne, seed_ne, mean_ne, rms_ne, dx=dx)
 
-    print(f"• generating B_z  (β={beta_bz}) …")
-    bz = make_bz_cube(N, beta_bz, seed_bz, mean_bz, rms_bz, dx=dx)
+    if constant_nz:
+        print(f"• generating n_e  (constant field) …")
+        ne = make_field_constant(N, mean_ne)
+    else:
+        print(f"• generating n_e  (β={beta_ne}) …")
+        ne = make_ne_cube(N, beta_ne, seed_ne, mean_ne, rms_ne, dx=dx)
+
+
+    if constant_bz:
+        print(f"• generating B_z  (constant field) …")
+        bz = make_field_constant(N, mean_bz)
+    else:
+        print(f"• generating B_z  (β={beta_bz}) …")
+        bz = make_bz_cube(N, beta_bz, seed_bz, mean_bz, rms_bz, dx=dx)
+
 
     stats("gas_density", ne)
     stats("k_mag_field", bz)
@@ -197,6 +212,6 @@ if __name__ == "__main__":
         rms_bz=BZ_RMS,
         dx=1.0,
         seed=2025,
-        out=Path("synthetic_kolmogorov.h5"),
+        out=Path("../synthetic_kolmogorov_bz_nz.h5"),
         write_coords=True,
     )
