@@ -154,7 +154,7 @@ def main(
     out: Path,
     write_coords: bool = True,
     constant_bz: bool = True,
-    constant_nz: bool = True,
+    constant_nz: bool = False,
 ):
     rng = np.random.default_rng(seed)
     seed_ne, seed_bz = rng.integers(0, 2**31, size=2)
@@ -212,6 +212,6 @@ if __name__ == "__main__":
         rms_bz=BZ_RMS,
         dx=1.0,
         seed=2025,
-        out=Path("../synthetic_kolmogorov_bz_nz.h5"),
+        out=Path("../synthetic_kolmogorov_bz.h5"),
         write_coords=True,
     )
