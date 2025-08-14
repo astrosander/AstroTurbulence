@@ -118,33 +118,45 @@ def plot_row(ax_left, ax_right, R, Dphi, lam_list, title_prefix):
 # ──────────────────────────────────────────────────────────────────────
 def main():
     # Fixed inputs
-    athena_path    = "ms01ma08.mhd_w.00300.vtk.h5"
-    synthetic_path = "synthetic_kolmogorov.h5"
+    
+    # athena_path    = "ms01ma08.mhd_w.00300.vtk.h5"
+    athena_path    = "synthetic_kolmogorov_bz.h5"
+    synthetic_path = "synthetic_kolmogorov_nz.h5"
+    synthetic_path1 = "synthetic_kolmogorov_normal.h5"
+
     lam_list       = (0.06, 0.11, 0.21)
 
     # compute both datasets
     R_A, D_A = load_compute(athena_path)
     R_S, D_S = load_compute(synthetic_path)
+    R_S1, D_S1 = load_compute(synthetic_path1)
 
     # 2x2 grid: top (Athena), bottom (Synthetic)
-    fig, axs = plt.subplots(2, 2, figsize=(12, 8), sharex=False, sharey=False)
+    fig, axs = plt.subplots(3, 2, figsize=(12, 12), sharex=False, sharey=False)
 
     # Top row: Athena
-    plot_row(axs[0, 0], axs[0, 1], R_A, D_A, lam_list, title_prefix="Athena")
+    plot_row(axs[0, 0], axs[0, 1], R_A, D_A, lam_list, title_prefix=r"Constant magnetic field $B$")
 
     # Bottom row: Synthetic
-    plot_row(axs[1, 0], axs[1, 1], R_S, D_S, lam_list, title_prefix="Synthetic")
+    plot_row(axs[1, 0], axs[1, 1], R_S, D_S, lam_list, title_prefix=r"Constant density $n_e$")
+
+    # Bottom row: Synthetic1
+    plot_row(axs[2, 0], axs[2, 1], R_S1, D_S1, lam_list, title_prefix=r"Variable $n_e$ and $B$")
 
     # Red vertical floating labels on the left of each row
-    fig.text(0.02, 0.75, "ATHENA", rotation=90, color="red",
+    fig.text(0.02, 0.85, "$B=$const", rotation=90, color="red",
              va="center", ha="center", fontsize=12, fontweight="bold")
-    fig.text(0.02, 0.25, "SYNTHETIC", rotation=90, color="red",
+
+    fig.text(0.02, 0.50, "$n_e=$const", rotation=90, color="red",
+             va="center", ha="center", fontsize=12, fontweight="bold")
+
+    fig.text(0.02, 0.15, "Synthetic spectrum", rotation=90, color="red",
              va="center", ha="center", fontsize=12, fontweight="bold")
 
     # layout & save
     os.makedirs("figures", exist_ok=True)
     fig.tight_layout(rect=(0.05, 0.0, 1.0, 1.0))  # leave room for vertical labels
-    fig.savefig('figures/fig_rm_angle_2x2.png', bbox_inches='tight')
+    fig.savefig('figures/fig_rm_angle_3x2.png', bbox_inches='tight')
     plt.show()
 
 
