@@ -81,7 +81,7 @@ class Params:
     seed_By: int = 4
 
     # Output
-    out_prefix: str = "freq_regime_separation"
+    out_prefix: str = "img/freq_regime_separation"
     make_plots: bool = True
     dpi: int = 140
 
@@ -311,7 +311,7 @@ def plot_results(res, PRM: Params) -> None:
     plt.title("RM structure function")
     plt.grid(True, which='both', alpha=0.3)
     plt.tight_layout()
-    plt.savefig(f"{PRM.out_prefix}_RM_structure.pdf", dpi=PRM.dpi)
+    plt.savefig(f"{PRM.out_prefix}_RM_structure.pdf", dpi=PRM.dpi);plt.savefig(f"{PRM.out_prefix}_RM_structure.png", dpi=PRM.dpi)
 
     # D_phi vs R for each frequency
     plt.figure(figsize=(6,4))
@@ -323,7 +323,7 @@ def plot_results(res, PRM: Params) -> None:
     plt.grid(True, which='both', alpha=0.3)
     plt.legend()
     plt.tight_layout()
-    plt.savefig(f"{PRM.out_prefix}_Dphi_vs_R.pdf", dpi=PRM.dpi)
+    plt.savefig(f"{PRM.out_prefix}_Dphi_vs_R.pdf", dpi=PRM.dpi);plt.savefig(f"{PRM.out_prefix}_Dphi_vs_R.png", dpi=PRM.dpi)
 
     # Check λ^4 scaling (Faraday-dominated)
     plt.figure(figsize=(6,4))
@@ -331,34 +331,34 @@ def plot_results(res, PRM: Params) -> None:
         lam = res["lambdas_m"][i]
         plt.loglog(r, res["Dphi_lambda"][i]/(lam**4 + 1e-30), marker='o', linestyle='-', label=f"{int(fMHz)} MHz")
     plt.xlabel("R (pixels)")
-    plt.ylabel("D_φ(R, λ) / λ^4")
-    plt.title("Check λ^4 scaling (Faraday dominated)")
+    plt.ylabel("$D_\\phi(R, \\lambda) / \\lambda^4$")
+    plt.title("Check $λ^4$ scaling (Faraday dominated)")
     plt.grid(True, which='both', alpha=0.3)
     plt.legend()
     plt.tight_layout()
-    plt.savefig(f"{PRM.out_prefix}_Dphi_over_lambda4.pdf", dpi=PRM.dpi)
+    plt.savefig(f"{PRM.out_prefix}_Dphi_over_lambda4.pdf", dpi=PRM.dpi);plt.savefig(f"{PRM.out_prefix}_Dphi_over_lambda4.png", dpi=PRM.dpi)
 
     # Slope vs frequency
     plt.figure(figsize=(6,4))
     plt.semilogx(res["freqs_MHz"], res["slopes"], marker='o', linestyle='-')
     plt.xlabel("Frequency [MHz]")
-    plt.ylabel("Slope α (D_φ ∝ R^α)")
-    plt.title("Measured inertial-range slope vs ν")
+    plt.ylabel("Slope $\\alpha$ ($D_\\phi \\propto R^\\alpha$)")
+    plt.title("Measured inertial-range slope vs $\\nu$")
     plt.grid(True, which='both', alpha=0.3)
     plt.tight_layout()
-    plt.savefig(f"{PRM.out_prefix}_slope_vs_freq.pdf", dpi=PRM.dpi)
+    plt.savefig(f"{PRM.out_prefix}_slope_vs_freq.pdf", dpi=PRM.dpi);plt.savefig(f"{PRM.out_prefix}_slope_vs_freq.png", dpi=PRM.dpi)
 
     # ---- NEW: D_phi(λ) averaged over R ----
     plt.figure(figsize=(6,4))
     lam = res["lambdas_m"]
     Dbar = res["Dphi_lambda_avg"]
     plt.loglog(lam, np.maximum(Dbar, 1e-30), marker='o', linestyle='-')
-    plt.xlabel("Wavelength λ [m]")
+    plt.xlabel("Wavelength $\\lambda$")
     plt.ylabel(r"$\overline{D_\varphi}(\lambda)$  (avg over R)")
     plt.title(r"Angle structure (avg over $R$) vs $\lambda$")
     plt.grid(True, which='both', alpha=0.3)
     plt.tight_layout()
-    plt.savefig(f"{PRM.out_prefix}_Dphi_avg_vs_lambda.pdf", dpi=PRM.dpi)
+    plt.savefig(f"{PRM.out_prefix}_Dphi_avg_vs_lambda.pdf", dpi=PRM.dpi);plt.savefig(f"{PRM.out_prefix}_Dphi_avg_vs_lambda.png", dpi=PRM.dpi)
 
     # ---- NEW: linearization plot log(1 - 2 D_phi(λ)) vs log λ ----
     S = np.maximum(res["S_lambda"], 1e-300)  # guard for log
@@ -385,7 +385,7 @@ def plot_results(res, PRM: Params) -> None:
     if np.isfinite(m) or np.isfinite(m2):
         plt.legend()
     plt.tight_layout()
-    plt.savefig(f"{PRM.out_prefix}_linearization_log1m2Dphi_vs_lambda.pdf", dpi=PRM.dpi)
+    plt.savefig(f"{PRM.out_prefix}_linearization_log1m2Dphi_vs_lambda.pdf", dpi=PRM.dpi);plt.savefig(f"{PRM.out_prefix}_linearization_log1m2Dphi_vs_lambda.png", dpi=PRM.dpi)
 
 def save_npz(res, PRM: Params) -> str:
     path = f"{PRM.out_prefix}_results.npz"
