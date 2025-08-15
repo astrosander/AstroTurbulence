@@ -1,351 +1,240 @@
 #!/usr/bin/env python3
 
+import os
+import json
+import h5py
 import numpy as np
-import numpy.fft as nfft
 import matplotlib.pyplot as plt
 from dataclasses import dataclass, asdict
-from typing import Tuple, Dict
+from typing import Optional, Tuple, List, Dict
+from numpy.fft import rfftn, irfftn, fftshift
 
 @dataclass
-class Params:
-    nx: int = 256
-    ny: int = 256
-    nz_screen: int = 128
-    nz_halo: int = 1
-    dx_pc: float = 2.0
+class DatasetSpec:
+    path: str
+    label: str
+    phi_key: Optional[str] = None
+    ne_key: Optional[str] = "gas_density"
+    bz_key: Optional[str] = "k_mag_field"
+    x_key: Optional[str] = "x_coor"
+    z_key: Optional[str] = "z_coor"
 
-    beta_Bz_screen: float = 11/3
-    beta_ne_screen: float = 11/3
-    beta_Bx_halo: float = 11/3
-    beta_By_halo: float = 11/3
+DATASETS: List[DatasetSpec] = [
+    # Example placeholders; replace with your files and labels:
+    DatasetSpec(path="../ms01ma08.mhd_w.00300.vtk.h5", label="Athena"),
+    DatasetSpec(path="../synthetic_kolmogorov_normal.h5", label="Synthetic cube"),
+    # DatasetSpec(path="../synthetic_kolmogorov_nz.h5", label="$n_e$ = const"),
+    # DatasetSpec(path="Phi_map.npz", label="Precomputed Φ", phi_key="Phi", ne_key=None, bz_key=None),
+]
 
-    amp_Bz_screen: float = 1.0
-    amp_ne_screen: float = 1.0
-    amp_Bx_halo: float = 1.0
-    amp_By_halo: float = 1.0
+WAVELENGTHS_M: Tuple[float, ...] = (0.06, 0.11, 0.21, 0.40)
+FREQUENCIES_MHZ: Tuple[float, ...] = ()
 
-    mean_ne_screen: float = 0.2
-    mean_Bz_screen: float = 0.0
+NBINS     = 480
+LOG_BINS  = True
+R_MIN     = 1e-3
+R_MAX_FRAC= 0.45
+FIT_R_MIN = 4.0
+FIT_R_MAX = 32.0
 
-    use_sqB_for_Pi: bool = True
-    normalize_Pi_amplitude: bool = True
+OUT_DIR   = "figures"
+OUT_PREFIX= "freq_regime_separation"
 
-    C_RM: float = 0.81
+def _axis_spacing(coord_1d, name="axis") -> float:
+    c = np.unique(coord_1d.ravel())
+    dif = np.diff(np.sort(c))
+    dif = dif[dif > 0]
+    if dif.size: return float(np.median(dif))
+    print(f"[!] {name}: could not determine spacing – using 1.0")
+    return 1.0
 
-    freqs_MHz: Tuple[float, ...] = (100, 2000, 2400, 3000,  3600, 4000, 4800, 6000, 10000, 100000, 10**10)
+def _bin_mean(x, y, bins):
+    idx = np.digitize(x, bins) - 1
+    good = (idx >= 0) & (idx < len(bins)-1) & np.isfinite(y)
+    sums  = np.bincount(idx[good], weights=y[good], minlength=len(bins)-1)
+    counts= np.bincount(idx[good], minlength=len(bins)-1)
+    out   = np.full(len(bins)-1, np.nan, float)
+    m = counts > 0
+    out[m] = sums[m]/counts[m]
+    centers = 0.5*(bins[1:]+bins[:-1])
+    return centers, out
 
-    r_min_pix: int = 2
-    r_max_pix: int = 80
-    n_r_bins: int = 40
+def structure_function_2d(field2d: np.ndarray, dx: float, nbins=480, r_min=1e-3, r_max_frac=0.45, log_bins=True):
+    f = field2d.astype(float)
+    f = f - f.mean()
+    var = float(np.var(f))
+    F  = rfftn(f)
+    ac = irfftn(np.abs(F)**2, s=f.shape) / f.size
+    ac = fftshift(ac)
+    Dmap = 2.0*(var - ac)
+    Dmap[Dmap < 0] = 0.0
 
-    fit_r_min_pix: int = 4
-    fit_r_max_pix: int = 32
+    ny, nx = f.shape
+    y = np.arange(ny)[:,None] - ny//2
+    x = np.arange(nx)[None,:] - nx//2
+    R = np.hypot(y, x) * dx
 
-    seed_Bz: int = 1
-    seed_ne: int = 2
-    seed_Bx: int = 3
-    seed_By: int = 4
-
-    out_prefix: str = "img/freq_regime_separation"
-    make_plots: bool = True
-    dpi: int = 140
-
-PRM = Params()
-
-def _k_grid(nx: int, ny: int, nz: int, dx: float):
-    kx = 2.0*np.pi*nfft.fftfreq(nx, d=dx)
-    ky = 2.0*np.pi*nfft.fftfreq(ny, d=dx)
-    kz = 2.0*np.pi*nfft.fftfreq(nz, d=dx)
-    KX, KY, KZ = np.meshgrid(kx, ky, kz, indexing='ij')
-    K = np.sqrt(KX**2 + KY**2 + KZ**2)
-    return KX, KY, KZ, K
-
-def generate_powerlaw_3d(shape, beta: float, amp: float=1.0, seed: int=0, dx: float=1.0) -> np.ndarray:
-    nx, ny, nz = shape
-    rng = np.random.default_rng(seed)
-    _, _, _, K = _k_grid(nx, ny, nz, dx)
-    phase = rng.uniform(0, 2*np.pi, size=(nx, ny, nz))
-    with np.errstate(divide='ignore'):
-        Pk = np.where(K > 0, K**(-beta), 0.0)
-    Ak = np.sqrt(Pk)
-    fk = Ak * (np.cos(phase) + 1j*np.sin(phase))
-    fk[0, 0, 0] = 0.0
-    field = np.real(nfft.ifftn(fk))
-    field -= np.mean(field)
-    std = np.std(field)
-    if std > 0:
-        field = field / std
-    return amp * field
-
-def make_faraday_screen(PRM: Params) -> Dict[str, np.ndarray]:
-    nx, ny, nzs = PRM.nx, PRM.ny, PRM.nz_screen
-    dx = PRM.dx_pc
-    ne = generate_powerlaw_3d((nx, ny, nzs), PRM.beta_ne_screen, PRM.amp_ne_screen, PRM.seed_ne, dx)
-    Bz = generate_powerlaw_3d((nx, ny, nzs), PRM.beta_Bz_screen, PRM.amp_Bz_screen, PRM.seed_Bz, dx)
-    ne = ne + PRM.mean_ne_screen
-    Bz = Bz + PRM.mean_Bz_screen
-    RM = PRM.C_RM * np.sum(ne * Bz, axis=2) * PRM.dx_pc
-    return {"ne": ne, "Bz": Bz, "RM": RM}
-
-def make_halo_polarization(PRM: Params) -> Dict[str, np.ndarray]:
-    nx, ny, nzh = PRM.nx, PRM.ny, PRM.nz_halo
-    dx = PRM.dx_pc
-    Bx = generate_powerlaw_3d((nx, ny, nzh), PRM.beta_Bx_halo, PRM.amp_Bx_halo, PRM.seed_Bx, dx)
-    By = generate_powerlaw_3d((nx, ny, nzh), PRM.beta_By_halo, PRM.amp_By_halo, PRM.seed_By, dx)
-    if nzh > 1:
-        bx = np.sum(Bx, axis=2) / nzh
-        by = np.sum(By, axis=2) / nzh
+    r_max = float(R.max()) * float(r_max_frac)
+    if log_bins:
+        bins = np.logspace(np.log10(max(r_min,1e-8)), np.log10(r_max), nbins+1)
     else:
-        bx = Bx[..., 0]
-        by = By[..., 0]
-    Bc = bx + 1j*by
-    if PRM.use_sqB_for_Pi:
-        Pi = Bc**2
-    else:
-        Pi = np.exp(2j*np.angle(Bc))
-    if PRM.normalize_Pi_amplitude:
-        amp = np.abs(Pi)
-        amp[amp == 0] = 1.0
-        Pi = Pi / amp
-    return {"Bx": Bx, "By": By, "Pi": Pi}
+        bins = np.linspace(0.0, r_max, nbins+1)
+    Rc, Dr = _bin_mean(R.ravel(), Dmap.ravel(), bins)
+    m = ~np.isnan(Dr) & (Rc > r_min)
+    return Rc[m], Dr[m], var
 
-def radial_profile_from_map(Map: np.ndarray, r_edges: np.ndarray):
-    ny, nx = Map.shape
-    y = np.fft.fftfreq(ny) * ny
-    x = np.fft.fftfreq(nx) * nx
-    X, Y = np.meshgrid(x, y)
-    R = np.sqrt(X**2 + Y**2)
-    r = R.ravel()
-    m = Map.ravel()
-    inds = np.digitize(r, r_edges) - 1
-    nb = len(r_edges) - 1
-    prof = np.zeros(nb, dtype=float)
-    for i in range(nb):
-        mask = (inds == i)
-        prof[i] = np.nan if not np.any(mask) else m[mask].mean()
-    r_centers = 0.5*(r_edges[:-1] + r_edges[1:])
-    return r_centers, prof
+def load_phi(spec: DatasetSpec) -> Tuple[np.ndarray, float, float]:
+    path = os.path.expanduser(spec.path)
+    if not os.path.exists(path):
+        raise FileNotFoundError(path)
+    ext = os.path.splitext(path)[1].lower()
 
-def corr2d_periodic(field: np.ndarray) -> np.ndarray:
-    F = nfft.fft2(field)
-    corr = np.real(nfft.ifft2(F * np.conj(F)))
-    corr = np.fft.fftshift(corr)
-    corr /= np.max(corr)
-    return corr
+    if ext in (".npz", ".npy"):
+        if ext == ".npz":
+            data = np.load(path)
+            key = spec.phi_key if spec.phi_key else "Phi"
+            if key not in data: raise KeyError(f"{path}: no '{key}' in npz")
+            Phi = data[key]
+        else:
+            Phi = np.load(path)
+        if Phi.ndim != 2: raise ValueError(f"{path}: expected 2D Φ, got {Phi.shape}")
+        dx = dz = 1.0
+        return Phi.astype(float), dx, dz
 
-def structure_function_from_map(field: np.ndarray, r_edges: np.ndarray):
-    f = field - np.mean(field)
-    var = np.var(f)
-    corr_map = corr2d_periodic(f)
-    D_map = 2 * (var - corr_map*var)
-    return radial_profile_from_map(D_map, r_edges)
+    with h5py.File(path, "r") as f:
+        if spec.phi_key and spec.phi_key in f:
+            Phi = f[spec.phi_key][:]
+            if Phi.ndim != 2: raise ValueError(f"{path}:{spec.phi_key} not 2D")
+            dx = _axis_spacing(f[spec.x_key][:,0,0], "x_coor") if (spec.x_key and spec.x_key in f) else 1.0
+            return Phi.astype(float), dx, 1.0
 
-def angle_structure_function_from_P(P: np.ndarray, r_edges: np.ndarray):
-    eps = 1e-12
-    Pn = P / np.maximum(np.abs(P), eps)
-    S_map = np.real(corr2d_periodic(Pn))
-    Dphi_map = 0.5 * (1.0 - S_map)
-    return radial_profile_from_map(Dphi_map, r_edges)
+        if "Phi" in f:
+            Phi = f["Phi"][:]
+            if Phi.ndim != 2: raise ValueError(f"{path}: 'Phi' not 2D")
+            dx = _axis_spacing(f[spec.x_key][:,0,0], "x_coor") if (spec.x_key and spec.x_key in f) else 1.0
+            return Phi.astype(float), dx, 1.0
 
-def fit_loglog_slope(r: np.ndarray, y: np.ndarray, rmin: float, rmax: float):
-    mask = (r >= rmin) & (r <= rmax) & np.isfinite(y) & (y > 0)
-    if np.count_nonzero(mask) < 3:
-        return np.nan, np.nan
-    X = np.log(r[mask]); Y = np.log(y[mask])
+        if (spec.ne_key in f) and (spec.bz_key in f):
+            ne = f[spec.ne_key][:]
+            bz = f[spec.bz_key][:]
+            if ne.shape != bz.shape or ne.ndim != 3:
+                raise ValueError(f"{path}: ne/bz shapes mismatch or not 3D")
+            dx = _axis_spacing(f[spec.x_key][:,0,0], "x_coor") if (spec.x_key and spec.x_key in f) else 1.0
+            dz = _axis_spacing(f[spec.z_key][0,0,:], "z_coor") if (spec.z_key and spec.z_key in f) else 1.0
+            Phi = (ne * bz).sum(axis=2) * dz
+            return Phi.astype(float), dx, dz
+
+    raise RuntimeError(f"{path}: could not load Φ")
+
+def Dphi_from_DPhi(DPhi: np.ndarray, lam: float) -> np.ndarray:
+    return 0.5 * (1.0 - np.exp(-2.0 * (lam**4) * DPhi))
+
+def fit_loglog(R: np.ndarray, Y: np.ndarray, rmin: float, rmax: float) -> Tuple[float,float]:
+    m = (R >= rmin) & (R <= rmax) & np.isfinite(Y) & (Y > 0)
+    if np.count_nonzero(m) < 3: return np.nan, np.nan
+    X = np.log(R[m]); Z = np.log(Y[m])
     A = np.vstack([X, np.ones_like(X)]).T
-    alpha, logC = np.linalg.lstsq(A, Y, rcond=None)[0]
-    return float(alpha), float(np.exp(logC))
+    a, logC = np.linalg.lstsq(A, Z, rcond=None)[0]
+    return float(a), float(np.exp(logC))
 
-def simulateAnd_analyze(PRM: Params):
-    scr = make_faraday_screen(PRM)
-    halo = make_halo_polarization(PRM)
-    RM = scr["RM"]; Pi = halo["Pi"]
-
-    r_edges = np.linspace(PRM.r_min_pix, PRM.r_max_pix, PRM.n_r_bins+1)
-    r_centers = 0.5*(r_edges[:-1] + r_edges[1:])
-
-    r_RM, Dphi_RM = structure_function_from_map(RM, r_edges)
-    sigma_RM2 = float(np.var(RM))
-
-    c = 299_792_458.0
-    freqs_Hz = np.array(PRM.freqs_MHz, float) * 1e6
-    lambdas_m = c / freqs_Hz
-
-    Dphi_lambda = []
-    slopes = []
-    amps = []
-    for lam in lambdas_m:
-        phase = 2.0 * (lam**2) * RM
-        P = Pi * np.exp(1j * phase)
-        r_phi, Dphi = angle_structure_function_from_P(P, r_edges)
-        Dphi_lambda.append(Dphi)
-        a, C = fit_loglog_slope(r_phi, Dphi, PRM.fit_r_min_pix, PRM.fit_r_max_pix)
-        slopes.append(a); amps.append(C)
-    Dphi_lambda = np.array(Dphi_lambda); slopes = np.array(slopes); amps = np.array(amps)
-
-    with np.errstate(invalid="ignore"):
-         Dphi_lambda_avg = np.nanmean(Dphi_lambda, axis=1)
-
-    S_lambda = 1.0 - 2.0 * Dphi_lambda_avg
-    valid = np.isfinite(S_lambda) & (S_lambda > 0) & np.isfinite(lambdas_m) & (lambdas_m > 0)
-    if np.count_nonzero(valid) >= 3:
-         X = np.log(lambdas_m[valid])
-         Y = np.log(S_lambda[valid])
-         A = np.vstack([X, np.ones_like(X)]).T
-         lin_slope, lin_intercept = np.linalg.lstsq(A, Y, rcond=None)[0]
-         lin_slope = float(lin_slope); lin_intercept = float(lin_intercept)
-    else:
-         lin_slope, lin_intercept = np.nan, np.nan
-
-    moderate = valid & (S_lambda > 0.1)
-    if np.count_nonzero(moderate) >= 3:
-         X2 = np.log(lambdas_m[moderate]); Y2 = np.log(S_lambda[moderate])
-         A2 = np.vstack([X2, np.ones_like(X2)]).T
-         lin_slope_mod, lin_intercept_mod = np.linalg.lstsq(A2, Y2, rcond=None)[0]
-         lin_slope_mod = float(lin_slope_mod); lin_intercept_mod = float(lin_intercept_mod)
-    else:
-         lin_slope_mod, lin_intercept_mod = np.nan, np.nan
-
-    R0 = max(PRM.fit_r_min_pix, PRM.r_min_pix)
-    idx0 = np.argmin(np.abs(r_RM - R0))
-    DPhi_R0 = float(Dphi_RM[idx0]) if np.isfinite(Dphi_RM[idx0]) else np.nan
-    eps = 0.1
-    lam_high_m = (eps / (2.0 * DPhi_R0))**0.25 if (np.isfinite(DPhi_R0) and DPhi_R0 > 0) else np.nan
-    lam_low_m  = (10.0 / (4.0 * sigma_RM2))**0.25 if (sigma_RM2 > 0) else np.nan
-    freq_high_MHz = (c / lam_high_m) / 1e6 if (np.isfinite(lam_high_m) and lam_high_m > 0) else np.nan
-    freq_low_MHz  = (c / lam_low_m)  / 1e6 if (np.isfinite(lam_low_m)  and lam_low_m  > 0) else np.nan
-
-    return {
-        "params": asdict(PRM),
-        "r_centers_pix": r_centers,
-        "RM_Dphi": Dphi_RM,
-        "lambdas_m": lambdas_m,
-        "freqs_MHz": np.array(PRM.freqs_MHz, float),
-        "Dphi_lambda": Dphi_lambda,
-        "slopes": slopes,
-        "amps": amps,
-        "sigma_RM2": sigma_RM2,
-        "Dphi_lambda_avg": Dphi_lambda_avg,
-        "S_lambda": S_lambda,
-        "lin_slope_all": lin_slope,
-        "lin_intercept_all": lin_intercept,
-        "lin_slope_moderate": lin_slope_mod,
-        "lin_intercept_moderate": lin_intercept_mod,
-
-        "DPhi_R0": DPhi_R0,
-        "freq_high_MHz": freq_high_MHz,
-        "freq_low_MHz": freq_low_MHz,
-    }
-
-def plot_results(res, PRM: Params) -> None:
-    r = res["r_centers_pix"]
-    plt.figure(figsize=(6,4))
-    plt.loglog(r, res["RM_Dphi"], marker='o', linestyle='-')
-    plt.xlabel("R (pixels)")
-    plt.ylabel("$D_\\Phi(R)$")
-    plt.title("RM structure function")
-    plt.grid(True, which='both', alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(f"{PRM.out_prefix}_RM_structure.pdf", dpi=PRM.dpi);plt.savefig(f"{PRM.out_prefix}_RM_structure.png", dpi=PRM.dpi)
-
-    plt.figure(figsize=(6,4))
-    for i, fMHz in enumerate(res["freqs_MHz"]):
-        plt.loglog(r, res["Dphi_lambda"][i], marker='o', markersize=2,linestyle='-', label=f"{int(fMHz)} MHz")
-    plt.xlabel("R (pixels)")
-    plt.ylabel("$D_\\phi(R, \\lambda)$")
-    plt.title("Polarization-angle structure vs R at different ν")
-    plt.grid(True, which='both', alpha=0.3)
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(f"{PRM.out_prefix}_Dphi_vs_R.pdf", dpi=PRM.dpi);plt.savefig(f"{PRM.out_prefix}_Dphi_vs_R.png", dpi=PRM.dpi)
-
-    plt.figure(figsize=(6,4))
-    for i, fMHz in enumerate(res["freqs_MHz"]):
-        lam = res["lambdas_m"][i]
-        plt.loglog(r, res["Dphi_lambda"][i]/(lam**4 + 1e-30), marker='o', linestyle='-', label=f"{int(fMHz)} MHz")
-    plt.xlabel("R (pixels)")
-    plt.ylabel("$D_\\phi(R, \\lambda) / \\lambda^4$")
-    plt.title("Check $λ^4$ scaling (Faraday dominated)")
-    plt.grid(True, which='both', alpha=0.3)
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(f"{PRM.out_prefix}_Dphi_over_lambda4.pdf", dpi=PRM.dpi);plt.savefig(f"{PRM.out_prefix}_Dphi_over_lambda4.png", dpi=PRM.dpi)
-
-    plt.figure(figsize=(6,4))
-    plt.semilogx(res["freqs_MHz"], res["slopes"], marker='o', linestyle='-')
-    plt.xlabel("Frequency [MHz]")
-    plt.ylabel("Slope $\\alpha$ ($D_\\phi \\propto R^\\alpha$)")
-    plt.title("Measured inertial-range slope vs $\\nu$")
-    plt.grid(True, which='both', alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(f"{PRM.out_prefix}_slope_vs_freq.pdf", dpi=PRM.dpi);plt.savefig(f"{PRM.out_prefix}_slope_vs_freq.png", dpi=PRM.dpi)
-
-    plt.figure(figsize=(6,4))
-    lam = res["lambdas_m"]
-    Dbar = res["Dphi_lambda_avg"]
-    plt.loglog(lam, np.maximum(Dbar, 1e-30), marker='o', linestyle='-')
-    plt.xlabel("Wavelength $\\lambda$")
-    plt.ylabel(r"$\overline{D_\varphi}(\lambda)$  (avg over R)")
-    plt.title(r"Angle structure (avg over $R$) vs $\lambda$")
-    plt.grid(True, which='both', alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(f"{PRM.out_prefix}_Dphi_avg_vs_lambda.pdf", dpi=PRM.dpi);plt.savefig(f"{PRM.out_prefix}_Dphi_avg_vs_lambda.png", dpi=PRM.dpi)
-
-    S = np.maximum(res["S_lambda"], 1e-300)
-    mask = (S > 0) & np.isfinite(S) & (lam > 0)
-    X = np.log(lam[mask]); Y = np.log(S[mask])
-
-    plt.figure(figsize=(6,4))
-    plt.plot(X, Y, marker='o', linestyle='None')
-    m = res["lin_slope_all"]; b = res["lin_intercept_all"]
-    if np.isfinite(m) and np.isfinite(b):
-         xline = np.linspace(np.min(X), np.max(X), 200)
-         yline = m * xline + b
-         plt.plot(xline, yline, linestyle='-', label=f"fit: slope={m:.2f}")
-    m2 = res.get("lin_slope_moderate", np.nan); b2 = res.get("lin_intercept_moderate", np.nan)
-    if np.isfinite(m2) and np.isfinite(b2):
-         yline2 = m2 * xline + b2
-         plt.plot(xline, yline2, linestyle='--', label=f"moderate-only slope={m2:.2f}")
-    plt.xlabel(r"$\log \lambda$")
-    plt.title(r"Linearization: expect $\propto \lambda^4$ (slope $\approx 4$)")
-    plt.grid(True, alpha=0.3)
-    if np.isfinite(m) or np.isfinite(m2):
-        plt.legend()
-    plt.tight_layout()
-    plt.savefig(f"{PRM.out_prefix}_linearization_log1m2Dphi_vs_lambda.pdf", dpi=PRM.dpi);plt.savefig(f"{PRM.out_prefix}_linearization_log1m2Dphi_vs_lambda.png", dpi=PRM.dpi)
-
-def save_npz(res, PRM: Params) -> str:
-    path = f"{PRM.out_prefix}_results.npz"
-    np.savez_compressed(path, **res)
-    return path
+def rotations_rms(lam: float, sigma_phi: float) -> float:
+    return (lam*lam * sigma_phi) / (2.0*np.pi)
 
 def main():
-    res = simulateAnd_analyze(PRM)
-    print("=== Frequency Regime Separation (LP16-based) ===")
-    print(f"Grid: {PRM.nx}x{PRM.ny}, nz_screen={PRM.nz_screen}, dx={PRM.dx_pc} pc")
-    print(f"β_3D screen (Bz, n_e) = ({PRM.beta_Bz_screen:.3f}, {PRM.beta_ne_screen:.3f}); "
-        f"β_3D halo (Bx, By) = ({PRM.beta_Bx_halo:.3f}, {PRM.beta_By_halo:.3f})")
-    print(f"σ_Φ^2 = {res['sigma_RM2']:.4e} [rad^2 m^-4]")
-    R0 = max(PRM.fit_r_min_pix, PRM.r_min_pix)
-    print(f"D_Φ(R0={R0} px) ≈ {res['DPhi_R0']:.4e}")
-    print("Slope α(ν) from D_φ ∝ R^α:")
-    for fMHz, a in zip(res["freqs_MHz"], res["slopes"]):
-        print(f"  {int(fMHz):4d} MHz : α = {a:.3f}")
-    print("Heuristic regime boundaries (LP16-style):")
-    print(f"  High-ν / halo-dominated if ν ≳ {res['freq_high_MHz']:.1f} MHz  (2 λ^4 D_Φ(R0) ≲ 0.1)")
-    print(f"  Low-ν  / saturated        if ν ≲ {res['freq_low_MHz']:.1f} MHz  (4 λ^4 σ_Φ^2 ≳ 10)")
+    os.makedirs(OUT_DIR, exist_ok=True)
 
-    print("Linearization from ⟨R⟩-averaged angle structure:")
-    print("  Fit of log(1 - 2 * D̄_φ(λ)) vs log λ (all valid points): "
-         f"slope = {res['lin_slope_all']:.3f}")
-    print("  Fit restricted to moderate rotation (S>0.1): "
-         f"slope = {res['lin_slope_moderate']:.3f}")
+    lam_list = list(WAVELENGTHS_M)
+    if FREQUENCIES_MHZ:
+        c = 299_792_458.0
+        lam_from_nu = [c/(1e6*nu) for nu in FREQUENCIES_MHZ]
+        lam_list += lam_from_nu
+    lam_list = tuple(sorted(lam_list))
 
-    npz = save_npz(res, PRM)
-    print(f"Saved results: {npz}")
-    if PRM.make_plots:
-        plot_results(res, PRM)
-        print(f"Saved figures: {PRM.out_prefix}_*.pdf")
+    all_out = {"params": {
+        "datasets": [asdict(d) for d in DATASETS],
+        "wavelengths_m": lam_list,
+        "nbins": NBINS, "log_bins": LOG_BINS,
+        "r_min": R_MIN, "r_max_frac": R_MAX_FRAC,
+        "fit_r_min": FIT_R_MIN, "fit_r_max": FIT_R_MAX,
+    }}
+
+    for ds_idx, spec in enumerate(DATASETS):
+        Phi, dx, dz = load_phi(spec)
+        sigma_phi = float(Phi.std())
+        R, Dphi_RM, var_phi = structure_function_2d(Phi, dx=dx, nbins=NBINS, r_min=R_MIN,
+                                                   r_max_frac=R_MAX_FRAC, log_bins=LOG_BINS)
+
+        alpha_phi, _ = fit_loglog(R, Dphi_RM, FIT_R_MIN*dx, FIT_R_MAX*dx)
+
+        plt.figure(figsize=(6,4))
+        plt.loglog(R, Dphi_RM, lw=1.8, label="$D_\\Phi(R)$")
+        mid = len(R)//3 if len(R)>=3 else 1
+        if mid < len(R) and Dphi_RM[mid] > 0:
+            plt.loglog(R, Dphi_RM[mid]*(R/R[mid])**(5/3), "--", lw=1.0, label=r"$\propto R^{5/3}$")
+        plt.xlabel("R")
+        plt.ylabel(r"$D_{\Phi}(R)$")
+        plt.title(f"{spec.label}: RM structure (fit: α={alpha_phi:.2f})")
+        plt.grid(True, which="both", alpha=0.3)
+        plt.legend(frameon=False)
+        plt.tight_layout()
+        out1 = os.path.join(OUT_DIR, f"{OUT_PREFIX}_{ds_idx}_RM_structure")
+        plt.savefig(out1 + ".png", dpi=160); plt.savefig(out1 + ".pdf")
+        plt.close()
+
+        plt.figure(figsize=(6,4))
+        slopes = []
+        N_labels = []
+        for lam in lam_list:
+            Y = Dphi_from_DPhi(Dphi_RM, lam)
+            a, _ = fit_loglog(R, Y, FIT_R_MIN*dx, FIT_R_MAX*dx)
+            slopes.append(a)
+            N = rotations_rms(lam, sigma_phi)
+            N_labels.append(N)
+            plt.loglog(R, Y, lw=1.35, label=fr"$\mathcal{{N}}_{{\rm rms}}={N:.3g}$")
+            mid = len(R)//3 if len(R)>=3 else 1
+            if mid < len(R) and Y[mid] > 0:
+                plt.loglog(R, Y[mid]*(R/R[mid])**(5/3), "--", lw=0.8, alpha=0.6)
+
+        plt.xlabel("R")
+        plt.ylabel(r"$D_{\varphi}(R,\lambda)$")
+        plt.title(f"Polarization-angle structure ({spec.label})")
+        plt.grid(True, which="both", alpha=0.3)
+        plt.legend(frameon=False, ncol=2)
+        plt.tight_layout()
+        out2 = os.path.join(OUT_DIR, f"{OUT_PREFIX}_{ds_idx}_Dphi_vs_R")
+        plt.savefig(out2 + ".png", dpi=160); plt.savefig(out2 + ".pdf")
+        plt.close()
+
+        plt.figure(figsize=(6,4))
+        for lam, N in zip(lam_list, N_labels):
+            Y = Dphi_from_DPhi(Dphi_RM, lam) / (lam**4 + 1e-300)
+            plt.loglog(R, Y, lw=1.35, label=fr"$\mathcal{{N}}_{{\rm rms}}={N:.3g}$")
+        plt.xlabel("R")
+        plt.ylabel(r"$D_{\varphi}(R,\lambda)/\lambda^4$")
+        plt.title(f"$\\lambda^4$ collapse ({spec.label})")
+        plt.grid(True, which="both", alpha=0.3)
+        plt.legend(frameon=False, ncol=2)
+        plt.tight_layout()
+        out3 = os.path.join(OUT_DIR, f"{OUT_PREFIX}_{ds_idx}_Dphi_over_lambda4")
+        plt.savefig(out3 + ".png", dpi=160); plt.savefig(out3 + ".pdf")
+        plt.close()
+
+        base = f"ds{ds_idx}_{os.path.splitext(os.path.basename(spec.path))[0]}"
+        all_out[base] = dict(
+            R=R, Dphi_RM=Dphi_RM, alpha_phi=alpha_phi, var_phi=var_phi, sigma_phi=sigma_phi,
+            lambdas_m=np.array(lam_list), N_rms=np.array(N_labels),
+            slopes=np.array(slopes)
+        )
+
+    out_npz = os.path.join(OUT_DIR, f"{OUT_PREFIX}_summary.npz")
+    np.savez_compressed(out_npz, **{
+        "meta": json.dumps(all_out["params"], indent=2),
+        **{k: v for k, v in all_out.items() if k != "params"}
+    })
+    print(f"Saved summary: {out_npz}")
+    print(f"Figures in:    {os.path.abspath(OUT_DIR)}")
+    if not DATASETS:
+        print("[note] No datasets listed yet. Edit DATASETS in the script.")
 
 if __name__ == "__main__":
     main()
