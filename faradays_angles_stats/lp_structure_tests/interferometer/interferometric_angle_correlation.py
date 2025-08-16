@@ -1,40 +1,4 @@
 #!/usr/bin/env python3
-"""
-Interferometric-Style Angle Correlation via cos(2f) & sin(2f)
-=============================================================
-
-Goal
-----
-Compute the correlation of polarization angles WITHOUT explicitly forming D_φ,
-by using the identity
-    ⟨cos 2(f1 − f2)⟩ = ⟨cos 2f1 cos 2f2⟩ + ⟨sin 2f1 sin 2f2⟩.
-Define maps A(x)=cos 2f(x), B(x)=sin 2f(x). Then the two-point correlation
-S(R) ≡ ⟨A(x)A(x+R)⟩ + ⟨B(x)B(x+R)⟩ is exactly the desired
-⟨cos 2(f1 − f2)⟩. Using Wiener–Khinchin, each term's correlation is the inverse
-FFT of its power spectrum, so the spectrum of S is simply |FFT(A)|^2 + |FFT(B)|^2.
-
-This "go-directly-to-spectrum" path mimics interferometry and avoids angle-wrap
-saturation when computing D_φ = ½(1 − S) explicitly.
-
-What the program does
----------------------
-• Loads an existing 2D Φ (RM) map *or* a precomputed f-map (angle map).
-• For each λ in LAMBDAS_M, constructs f = λ^2 Φ (ignored if an f-map is used).
-• Builds A = cos(2f), B = sin(2f), computes 2D spectra P_A = |FFT(A)|^2, P_B = |FFT(B)|^2.
-• S-spectrum P_S = P_A + P_B. (This is the Fourier representation of S.)
-• Inverse-FFT → S_map (properly normalized average correlation), optional D_φ = ½(1 − S).
-• Radial binning: P_S(k) vs k and S(R) vs R (both log–log), labeling each curve by
-  number of FULL rotations N_rms = λ^2 σ_Φ / (2π) for interpretability.
-
-Edit the CONFIG block below (no argparse).
-
-Outputs (in OUT_DIR)
---------------------
-  *_spectrum_k.png/.pdf     : Isotropic spectrum P_S(k) vs k (log–log)
-  *_S_of_R.png/.pdf         : Isotropic correlation S(R) (log–log)
-  *_Dphi_of_R.png/.pdf      : Optional D_φ(R)=½[1−S(R)] for reference (log–log)
-  *_summary.npz             : k, P(k), R, S(R), D_φ(R) arrays per λ, σ_Φ, N_rms, etc.
-"""
 
 import os
 import json
@@ -45,57 +9,41 @@ from dataclasses import dataclass, asdict
 from typing import Optional, Tuple, List, Dict
 from numpy.fft import fft2, ifft2, fftshift, fftfreq, rfftn, irfftn
 
-# ──────────────────────────────────────────────────────────────────────
-# CONFIG (edit)
-# ──────────────────────────────────────────────────────────────────────
-
 @dataclass
 class DatasetSpec:
     path: str
     label: str
-    # Choose one of the following representations:
-    #  - If you already have an angle map f(x) in radians, set f_key (e.g., "f") and leave phi_key=None.
-    #  - If you have a Φ map (RM, rad m^-2), set phi_key (e.g., "Phi") and leave f_key=None;
-    #    then we will form f = λ^2 Φ for each λ.
-    f_key: Optional[str] = None       # e.g. "f"
-    phi_key: Optional[str] = "Phi"    # e.g. "Phi" in HDF5/NPZ
-
-    # HDF5 dataset names for coordinates (optional, used for dx units only)
+    f_key: Optional[str] = None
+    phi_key: Optional[str] = "Phi"
     ne_key: Optional[str] = "gas_density"
     bz_key: Optional[str] = "k_mag_field"
     x_key: Optional[str] = "x_coor"
     z_key: Optional[str] = "z_coor"
 
-# Example placeholders — replace paths/keys with your files
 DATASETS: List[DatasetSpec] = [
-    # Example placeholders; replace with your files and labels:
     DatasetSpec(path="../ms01ma08.mhd_w.00300.vtk.h5", label="Athena"),
     DatasetSpec(path="../synthetic_kolmogorov_normal.h5", label="Synthetic cube"),
-    # DatasetSpec(path="../synthetic_kolmogorov_nz.h5", label="$n_e$ = const"),
-    # DatasetSpec(path="Phi_map.npz", label="Precomputed Φ", phi_key="Phi", ne_key=None, bz_key=None),
 ]
 
-# Wavelengths [meters] used only if loading Φ (RM) maps.
 LAMBDAS_M: Tuple[float, ...] = (0.06, 0.11, 0.21, 0.40)
 
-# Radial binning
 NBINS     = 240
 LOG_BINS  = True
-R_MIN     = 1e-3        # same units as dx
+R_MIN     = 1e-3
 R_MAX_FRAC= 0.45
-K_MIN     = 1e-3        # in 1/dx
+K_MIN     = 1e-3
 K_MAX_FRAC= 1.0
 
-# Output
 OUT_DIR   = "figures"
 OUT_PREFIX= "interf_corr"
 
-# Toggle this to also compute D_φ(R) for reference (not required to avoid saturation)
 COMPUTE_DPHI_REFERENCE = True
+K_HIGHPASS      = 0.0
+HIGHPASS_SOFT   = True
+HIGHPASS_ORDER  = 4
 
-# ──────────────────────────────────────────────────────────────────────
-# Helpers
-# ──────────────────────────────────────────────────────────────────────
+FLATTEN_LOWK = True
+K_FLAT_TO    = 1e-2
 
 def _axis_spacing(coord_1d, name="axis") -> float:
     c = np.unique(coord_1d.ravel())
@@ -106,11 +54,6 @@ def _axis_spacing(coord_1d, name="axis") -> float:
     return 1.0
 
 def load_map(spec: DatasetSpec) -> Tuple[np.ndarray, float, bool]:
-    """
-    Load either an angle map f(x) [radians] or a Φ (RM) map [rad m^-2].
-    Returns (arr2d, dx, is_f_map).
-    Supports .npz/.npy or HDF5.
-    """
     path = os.path.expanduser(spec.path)
     if not os.path.exists(path):
         raise FileNotFoundError(path)
@@ -131,20 +74,16 @@ def load_map(spec: DatasetSpec) -> Tuple[np.ndarray, float, bool]:
         else:
             arr = np.load(path)
             if arr.ndim != 2: raise ValueError("Numpy array must be 2D")
-            # Assume Φ if phi_key default, else assume f-map if told so
             is_f = bool(spec.f_key)
             return arr.astype(float), 1.0, is_f
 
-    # HDF5
     with h5py.File(path, "r") as f:
-        # Prefer f-map if present
         if spec.f_key and spec.f_key in f:
             f_map = f[spec.f_key][:]
             if f_map.ndim != 2: raise ValueError("f map must be 2D")
             dx = _axis_spacing(f[spec.x_key][:,0,0], "x_coor") if (spec.x_key and spec.x_key in f) else 1.0
             return f_map.astype(float), dx, True
         
-        # Try Φ
         if spec.phi_key and spec.phi_key in f:
             Phi = f[spec.phi_key][:]
             if Phi.ndim != 2: raise ValueError(f"{path}:{spec.phi_key} not 2D")
@@ -170,7 +109,6 @@ def load_map(spec: DatasetSpec) -> Tuple[np.ndarray, float, bool]:
     raise RuntimeError(f"{path}: could not load Φ")
 
 def radial_bin_map(Map2D: np.ndarray, dx: float, nbins=240, r_min=1e-3, r_max_frac=0.45, log_bins=True):
-    """Isotropic radial profile (R vs ⟨Map(R)⟩), assuming Map centered at pixel [Ny//2,Nx//2]."""
     Ny, Nx = Map2D.shape
     y = (np.arange(Ny) - Ny//2)[:,None]
     x = (np.arange(Nx) - Nx//2)[None,:]
@@ -193,10 +131,6 @@ def radial_bin_map(Map2D: np.ndarray, dx: float, nbins=240, r_min=1e-3, r_max_fr
     return centers[mask2], prof[mask2]
 
 def isotropic_spectrum(P2D: np.ndarray, dx: float, nbins=240, k_min=1e-3, k_max_frac=1.0, log_bins=True):
-    """
-    Radially average a 2D power spectrum onto k=|k| bins.
-    Uses wavenumbers in cycles per dx (from fftfreq).
-    """
     Ny, Nx = P2D.shape
     ky = fftfreq(Ny, d=dx)
     kx = fftfreq(Nx, d=dx)
@@ -229,97 +163,158 @@ def fit_loglog(x: np.ndarray, y: np.ndarray, xmin: float, xmax: float):
     a, b = np.linalg.lstsq(A, Y, rcond=None)[0]
     return float(a), float(np.exp(b))
 
-# ──────────────────────────────────────────────────────────────────────
-# Core
-# ──────────────────────────────────────────────────────────────────────
-
 def build_A_B_from_f(f_map: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    """Return A=cos(2f), B=sin(2f) as float64 arrays."""
     twof = 2.0 * f_map
     return np.cos(twof).astype(float), np.sin(twof).astype(float)
 
-def interferometric_spectrum(A: np.ndarray, B: np.ndarray) -> np.ndarray:
-    """
-    Return 2D spectrum P_S(k) = |FFT(A)|^2 + |FFT(B)|^2 (no normalization here).
-    For correlation via ifft2, we divide by Npix there to produce average correlation.
-    """
+def _make_highpass(shape: Tuple[int,int], dx: float, k0: float, soft: bool=True, order: int=4) -> np.ndarray:
+    Ny, Nx = shape
+    ky = fftfreq(Ny, d=dx)
+    kx = fftfreq(Nx, d=dx)
+    KY, KX = np.meshgrid(ky, kx, indexing="ij")
+    K = np.hypot(KY, KX)
+    if k0 <= 0:
+        return np.ones_like(K, dtype=float)
+    if soft:
+        eps = 1e-30
+        H = 1.0 / (1.0 + (k0 / (K + eps))**order)
+        H[K == 0.0] = 0.0
+        return H.astype(float)
+    else:
+        return (K >= k0).astype(float)
+
+def interferometric_spectrum(A: np.ndarray, B: np.ndarray, dx: float,
+                             k_highpass: float=0.0, hp_soft: bool=True, hp_order: int=4) -> np.ndarray:
     FA = fft2(A); FB = fft2(B)
+    if k_highpass > 0.0:
+        H = _make_highpass(FA.shape, dx, k_highpass, soft=hp_soft, order=hp_order)
+        FA = FA * H
+        FB = FB * H
     return (FA*np.conj(FA)).real + (FB*np.conj(FB)).real
 
+def _flatten_low_k(k1d: np.ndarray, Pk: np.ndarray, k0: float) -> np.ndarray:
+    if not (np.isfinite(k0) and k0 > 0):
+        return Pk
+    kmin, kmax = np.nanmin(k1d), np.nanmax(k1d)
+    if not (np.isfinite(kmin) and np.isfinite(kmax)):
+        return Pk
+    Pk_out = np.array(Pk, copy=True)
+    low = (k1d < k0) & np.isfinite(Pk_out)
+    if not np.any(low):
+        return Pk_out
+    if k0 <= kmin:
+        ref_val = Pk_out[np.nanargmin(k1d)]
+    else:
+        valid = np.isfinite(k1d) & np.isfinite(Pk_out)
+        pos   = valid & (k1d > 0) & (Pk_out > 0)
+        if np.sum(pos) >= 2:
+            ref_val = float(np.exp(np.interp(np.log(k0), np.log(k1d[pos]), np.log(Pk_out[pos]))))
+        else:
+            ref_val = float(np.interp(k0, k1d[valid], Pk_out[valid]))
+    Pk_out[low] = ref_val
+    return Pk_out
+
 def correlation_from_spectrum(P2D: np.ndarray) -> np.ndarray:
-    """
-    Average (cyclic) correlation map via Wiener–Khinchin:
-        C(R) = (1/Npix) * IFFT2( P2D )
-    """
     Ny, Nx = P2D.shape
     C = ifft2(P2D).real / (Nx*Ny)
     return fftshift(C)
 
-def run_once_on_f(f_map: np.ndarray, dx: float, label: str, out_prefix: str, lam_label: str):
-    # Build cos/sin maps
+def run_once_on_f(f_map: np.ndarray, dx: float, label: str, lam_label: str):
     A, B = build_A_B_from_f(f_map)
 
-    # Spectrum (interferometric)
-    P2D = interferometric_spectrum(A, B)
+    P2D = interferometric_spectrum(
+        A, B, dx=dx,
+        k_highpass=K_HIGHPASS,
+        hp_soft=HIGHPASS_SOFT,
+        hp_order=HIGHPASS_ORDER
+    )
 
-    # Isotropic spectrum
     k1d, Pk = isotropic_spectrum(P2D, dx=dx, nbins=NBINS, k_min=K_MIN, k_max_frac=K_MAX_FRAC, log_bins=LOG_BINS)
+    if FLATTEN_LOWK:
+        Pk = _flatten_low_k(k1d, Pk, K_FLAT_TO)
 
-    # Correlation S(R) and optional D_phi(R)
     S_map = correlation_from_spectrum(P2D)
     R1d, S_R = radial_bin_map(S_map, dx=dx, nbins=NBINS, r_min=R_MIN, r_max_frac=R_MAX_FRAC, log_bins=LOG_BINS)
 
-    # Sanity: S(0) ~ 1 because A^2 + B^2 = 1 pointwise
     center = np.unravel_index(np.argmax(S_map), S_map.shape)
-    # (No assert, but we can print later if needed)
 
-    # Optional D_phi(R) for reference
     if COMPUTE_DPHI_REFERENCE:
         Dphi_R = 0.5*(1.0 - S_R)
     else:
         Dphi_R = None
 
-    # ---- Plots ----
-    os.makedirs(OUT_DIR, exist_ok=True)
+    return dict(k1d=k1d, Pk=Pk, R1d=R1d, S_R=S_R, Dphi_R=Dphi_R, lam_label=lam_label)
 
-    # Spectrum plot
-    plt.figure(figsize=(6,4))
-    plt.loglog(k1d, Pk, lw=1.6, label=fr"{lam_label}")
-    plt.xlabel(r"$k$ (1 / dx)")
+def create_combined_plots(all_results: List[dict], label: str, base: str, ds_idx: int):
+    os.makedirs(OUT_DIR, exist_ok=True)
+    
+    plt.figure(figsize=(8,6))
+    for res in all_results:
+        plt.loglog(res["k1d"], res["Pk"], lw=1.6, label=res["lam_label"])
+    
+    if len(all_results) > 1 and len(all_results[0]["k1d"]) > 10:
+        mid_idx = len(all_results[0]["k1d"]) // 3
+        if mid_idx < len(all_results[0]["k1d"]) and all_results[0]["Pk"][mid_idx] > 0:
+            k_ref = all_results[0]["k1d"][mid_idx] 
+            P_ref = all_results[0]["Pk"][mid_idx]
+            
+            k_range = np.logspace(np.log10(all_results[0]["k1d"].min()), 
+                                  np.log10(all_results[0]["k1d"].max()), 200)
+            
+            plt.loglog(
+                k_range, 
+                P_ref * (k_range/k_ref)**(-11/3), 
+                "--", lw=1.0, alpha=0.7, 
+                label=r"$\propto k^{-11/3}$"
+            )
+
+    plt.xlabel(r"$k$")
     plt.ylabel(r"$P_S(k)$")
-    plt.title(f"{label}: spectrum of ⟨cos2f cos2f + sin2f sin2f⟩")
+    plt.title(f"{label}: $P_s(k)$")
     plt.grid(True, which="both", alpha=0.3)
-    plt.legend(frameon=False)
+    plt.legend(frameon=False, ncol=2, loc='best')
     plt.tight_layout()
-    plt.savefig(out_prefix+"_spectrum_k.png", dpi=160); plt.savefig(out_prefix+"_spectrum_k.pdf")
+    out_prefix = os.path.join(OUT_DIR, f"{OUT_PREFIX}_{ds_idx}_spectrum_k")
+    plt.savefig(out_prefix + ".png", dpi=160); plt.savefig(out_prefix + ".pdf")
     plt.close()
 
-    # S(R) plot
-    plt.figure(figsize=(6,4))
-    plt.loglog(R1d, S_R, lw=1.6, label=fr"{lam_label}")
-    plt.xlabel(r"$R$ (dx units)")
+    plt.figure(figsize=(8,6))
+    for res in all_results:
+        plt.loglog(res["R1d"], res["S_R"], lw=1.6, label=res["lam_label"])
+    plt.xlabel(r"$R$")
     plt.ylabel(r"$S(R)$")
     plt.title(f"{label}: interferometric correlation S(R)")
     plt.grid(True, which="both", alpha=0.3)
-    plt.legend(frameon=False)
+    plt.legend(frameon=False, ncol=2, loc='best')
     plt.tight_layout()
-    plt.savefig(out_prefix+"_S_of_R.png", dpi=160); plt.savefig(out_prefix+"_S_of_R.pdf")
+    out_prefix = os.path.join(OUT_DIR, f"{OUT_PREFIX}_{ds_idx}_S_of_R")
+    plt.savefig(out_prefix + ".png", dpi=160); plt.savefig(out_prefix + ".pdf")
     plt.close()
 
-    # D_phi(R) (optional)
-    if Dphi_R is not None:
-        plt.figure(figsize=(6,4))
-        plt.loglog(R1d, Dphi_R, lw=1.6, label=fr"{lam_label}")
-        plt.xlabel(r"$R$ (dx units)")
+    if COMPUTE_DPHI_REFERENCE:
+        plt.figure(figsize=(8,6))
+        for res in all_results:
+            if res["Dphi_R"] is not None:
+                plt.loglog(res["R1d"], res["Dphi_R"], lw=1.6, label=res["lam_label"])
+        
+        if len(all_results) > 1 and len(all_results[0]["R1d"]) > 10:
+            mid_idx = len(all_results[0]["R1d"]) // 3
+            if mid_idx < len(all_results[0]["R1d"]) and all_results[0]["Dphi_R"][mid_idx] > 0:
+                R_ref = all_results[0]["R1d"][mid_idx]
+                D_ref = all_results[0]["Dphi_R"][mid_idx]
+                R_range = np.logspace(np.log10(R_ref), np.log10(all_results[0]["R1d"].max()), 20)
+                plt.loglog(R_range, D_ref * (R_range/R_ref)**(5/3), "--", lw=1.0, alpha=0.7, 
+                          label=r"$\propto R^{5/3}$")
+        
+        plt.xlabel(r"$R$")
         plt.ylabel(r"$D_\varphi(R)$")
-        plt.title(f"{label}: reference $D_\\varphi(R)=\\frac{{1}}{{2}}(1-S)$")
+        plt.title(f"{label}: $D_\\varphi(R)=\\frac{{1}}{{2}}(1-S)$")
         plt.grid(True, which="both", alpha=0.3)
-        plt.legend(frameon=False)
+        plt.legend(frameon=False, ncol=2, loc='best')
         plt.tight_layout()
-        plt.savefig(out_prefix+"_Dphi_of_R.png", dpi=160); plt.savefig(out_prefix+"_Dphi_of_R.pdf")
+        out_prefix = os.path.join(OUT_DIR, f"{OUT_PREFIX}_{ds_idx}_Dphi_of_R")
+        plt.savefig(out_prefix + ".png", dpi=160); plt.savefig(out_prefix + ".pdf")
         plt.close()
-
-    return dict(k1d=k1d, Pk=Pk, R1d=R1d, S_R=S_R, Dphi_R=Dphi_R)
 
 def main():
     if not DATASETS:
@@ -339,37 +334,38 @@ def main():
         arr2d, dx, is_f = load_map(spec)
         label = spec.label
 
-        # If we loaded Φ, we will loop over wavelengths; if an f-map, do a single run.
-        sig_phi = float(np.std(arr2d)) if not is_f else np.nan  # Φ std only if Φ
+        sig_phi = float(np.std(arr2d)) if not is_f else np.nan
         base = f"ds{ds_idx}_{os.path.splitext(os.path.basename(spec.path))[0]}"
 
         if is_f:
             lam_label = "f-map input"
-            out_prefix = os.path.join(OUT_DIR, f"{OUT_PREFIX}_{ds_idx}_fmap")
-            res = run_once_on_f(arr2d, dx, label, out_prefix, lam_label)
+            res = run_once_on_f(arr2d, dx, label, lam_label)
             summary[f"{base}_fmap"] = {
                 "dx": dx, "k1d": res["k1d"], "Pk": res["Pk"], "R1d": res["R1d"], "S_R": res["S_R"],
                 "Dphi_R": (res["Dphi_R"] if COMPUTE_DPHI_REFERENCE else None),
                 "lam_label": lam_label
             }
+            create_combined_plots([res], label, base, ds_idx)
         else:
-            # Treat arr2d as Φ map; run for each λ with labels in FULL ROTATIONS N_rms
+            all_results = []
             for lam in LAMBDAS_M:
                 f_map = (lam**2) * arr2d
                 N_rms = (lam**2 * sig_phi) / (2.0*np.pi) if np.isfinite(sig_phi) else np.nan
                 lam_label = fr"$\mathcal{{N}}_{{\rm rms}}={N_rms:.3g}$"
-                out_prefix = os.path.join(OUT_DIR, f"{OUT_PREFIX}_{ds_idx}_lam{lam:.3f}m")
-                res = run_once_on_f(f_map, dx, label, out_prefix, lam_label)
+                res = run_once_on_f(f_map, dx, label, lam_label)
+                res["lambda_m"] = lam
+                res["N_rms"] = N_rms
+                all_results.append(res)
                 summary[f"{base}_lam{lam:.3f}"] = {
                     "dx": dx, "lambda_m": lam, "N_rms": N_rms,
                     "k1d": res["k1d"], "Pk": res["Pk"], "R1d": res["R1d"], "S_R": res["S_R"],
                     "Dphi_R": (res["Dphi_R"] if COMPUTE_DPHI_REFERENCE else None),
                     "sigma_Phi": sig_phi
                 }
+            
+            create_combined_plots(all_results, label, base, ds_idx)
 
-    # Save machine-readable bundle
     out_npz = os.path.join(OUT_DIR, f"{OUT_PREFIX}_summary.npz")
-    # Convert nested dict to JSON for meta; arrays go directly
     to_save = {"meta": json.dumps(summary["params"], indent=2)}
     for k, v in summary.items():
         if k == "params": continue
@@ -377,7 +373,6 @@ def main():
             key = f"{k}__{kk}"
             if isinstance(vv, (list, tuple, np.ndarray)):
                 to_save[key] = np.array(vv)
-    # The above simple flattener only stores array fields; meta holds the rest.
 
     np.savez_compressed(out_npz, **to_save)
     print(f"[done] Saved summary: {out_npz}")
