@@ -43,7 +43,7 @@ HIGHPASS_SOFT   = True
 HIGHPASS_ORDER  = 4
 
 FLATTEN_LOWK = True
-K_FLAT_TO    = 1e-2
+K_FLAT_TO    = 0#1e-2
 
 def _axis_spacing(coord_1d, name="axis") -> float:
     c = np.unique(coord_1d.ravel())
