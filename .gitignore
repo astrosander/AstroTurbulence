@@ -9,3 +9,4 @@ faradays_angles_stats/lp_structure_tests/synthetic_kolmogorov_nz.h5
 faradays_angles_stats/lp_structure_tests/synthetic_kolmogorov_bz_nz.h5
 faradays_angles_stats/lp_structure_tests/synthetic_kolmogorov_normal.h5
 faradays_angles_stats/lp_structure_tests/synthetic_kolmogorov_bz.h5
+*.h5
