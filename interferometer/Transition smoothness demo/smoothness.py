@@ -46,13 +46,13 @@ class Config:
     k_break: float = 0.06   # cycles/dx (pick inside inertial range)
 
     # transition sharpness values to test
-    s_list: Tuple[float, ...] = (2.0, 4.0, 8.0, 16.0, 32.0)
+    s_list: Tuple[float, ...] = (2.0, 3.0, 4.0)
 
     # averaging over realizations per s (reduces noise in E1D, alpha_est)
     n_real: int = 3
 
     # ring-average bins and fit bands
-    nbins: int = 280
+    nbins: int = 50
     kmin: float = 1e-3
     kmax_frac: float = 1.0
     fit_low: Tuple[float, float] = (0.01, 0.04)
@@ -240,15 +240,15 @@ def main(C=C):
     for (s, k, E, alpha_loc, alpha_tar, dalpha) in results:
         plt.loglog(k, E, lw=1.7, label=fr"$s={s:g}$")
     # add slope guides
-    x232=1.2
-    for slope, xfac, txt in [(C.alpha_low, 0.4, r"$+3/2$"), (C.alpha_high, 2.5, r"$-5/3$")]:
+    # x232=1.2
+    for slope, xfac, txt in [(C.alpha_low, 1.8, r"$+3/2$"), (C.alpha_high, 2.5, r"$-5/3$")]:
         kp = C.k_break / xfac if slope>0 else C.k_break * xfac
         # anchor line through a point on first curve
         yref = np.interp(kp, results[0][1], results[0][2])
         kr = np.logspace(np.log10(kp/6), np.log10(kp*6), 100)
         plt.loglog(kr, yref*(kr/kp)**slope, "--", lw=1.0, alpha=0.7)
-        plt.text(kp, yref*x232, txt, fontsize=10)
-        x232-=0.5
+        plt.text(kp, yref*0.7, txt, fontsize=10)
+        # x232-=0.5
     plt.axvline(C.k_break, color='k', ls=':', lw=1)
     plt.xlabel(r"$k$")
     plt.ylabel(r"$E(k)$")
