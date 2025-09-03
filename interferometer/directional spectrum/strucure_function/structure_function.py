@@ -1,35 +1,25 @@
 #!/usr/bin/env python3
 """
-Analyze a two-slope 3D cube (provided) and show what an observer sees in 2D
-===========================================================================
+2D observer analysis with full comparison:
+  numerical directional Dφ  vs  RM–based (from simulation)  vs  analytic two-slope model
+========================================================================================
 
-Inputs (from your generator's HDF5 file):
+Inputs (HDF5):
   gas_density : n_e(x,y,z)
   k_mag_field : B_z(x,y,z)
   x_coor, z_coor (optional for dx,dz)
 
-Outputs (fig/two_slope_observer/):
-  - proj_Bz_map.{png,pdf}         : projected Bz map (sum over z)
-  - proj_RM_map.{png,pdf}         : Faraday screen Φ=0.81∑ n_e B_z dz
-  - proj_Bz_E1D.{png,pdf}         : E1D(k) of projected Bz with slope guides
-  - proj_RM_E1D.{png,pdf}         : E1D(k) of Φ with slope guides
-  - Pdir_ring_{i}.{png,pdf}       : directional spectrum from f=λ^2Φ (per λ)
-  - S_of_R_{i}.{png,pdf}          : S(R)=IFFT{P_dir} (per λ)
-  - Dphi_of_R_{i}.{png,pdf}       : Dφ(R)=½[1−S(R)] (per λ)
+Outputs (fig/two_slope_compare/):
+  - proj_Bz_map.{png,pdf}        : LOS-summed Bz
+  - proj_RM_map.{png,pdf}        : Faraday screen Φ
+  - proj_Bz_E1D.{png,pdf}        : E1D of LOS Bz
+  - proj_RM_E1D.{png,pdf}        : E1D of Φ
+  For each λ index i:
+  - Pdir_ring_i.{png,pdf}        : ring spectrum of |FT cos2f|^2+|FT sin2f|^2
+  - S_of_R_i.{png,pdf}           : directional correlation S(R)
+  - Dphi_compare_i.{png,pdf}     : ***key panel*** Dφ_num vs Dφ_simRM vs Dφ_ana
 
-Notes
------
-• Your generator targets **3D shell slopes** α_low=+3/2, α_high=−5/3 in E_1D^(3D).
-  For a simple LOS sum/projection to the sky (projection–slice theorem),
-  the **observed 2D shell slope** is α^(2D)=α^(3D)−1. We plot guides at:
-    low-k:  +1/2,  high-k:  −8/3,  anchored near k≈k_break.
-
-• The directional part follows:
-    A=cos(2f), B=sin(2f),  P_dir=|FFT(A)|^2+|FFT(B)|^2,
-    S_map = IFFT2(P_dir)/Npix (Wiener–Khinchin, circular normalization),
-    Dφ(R)=½[1−S(R)] after radial averaging.
-
-Edit CONFIG below and run.
+Author: you
 """
 
 import os
@@ -37,98 +27,96 @@ import h5py
 import numpy as np
 import matplotlib.pyplot as plt
 from dataclasses import dataclass
-from typing import Tuple, Optional
+from typing import Tuple
 from numpy.fft import fft2, ifft2, fftfreq
+from scipy.special import gamma
+
+# from mpmath import hyper
+from mpmath import mp, hyper
+mp.dps = 100
+
+_hyp1f2_scalar = lambda a,b1,b2,zz: float(hyper([a],[b1,b2], float(zz)))
+hyp1f2_vec = np.vectorize(_hyp1f2_scalar, otypes=[float], excluded=[0,1,2])
+
 
 # ──────────────────────────────────────────────────────────────────────
-# CONFIG
+# Config
 # ──────────────────────────────────────────────────────────────────────
 
 @dataclass
 class Config:
-    h5_path: str = "../../../faradays_angles_stats/lp_structure_tests/mhd_fields.h5"  # ← output of your generator
-    # h5_path: str = "../../../faradays_angles_stats/lp_structure_tests/ms01ma08.mhd_w.00300.vtk.h5"  # ← output of your generator
-    outdir: str = "fig/two_slope_observer"
+    h5_path: str = "../../../faradays_angles_stats/lp_structure_tests/mhd_fields.h5"
+    # h5_path: str = "mhd_fields.h5"           # your cube (or synthetic_two_slope.h5)
+    outdir: str  = "fig/two_slope_compare"
 
-    # plotting & binning
+    # binning (log)
     nbins_k: int = 240
     nbins_R: int = 240
-    kmin: float = 1e-3
+    kmin: float  = 1e-3
     kmax_frac: float = 1.0
     R_min: float = 1e-2
     R_max_frac: float = 0.45
-    dpi: int = 160
+    dpi: int     = 160
 
-    # physical
-    C_RM: float = 0.81          # RM factor (rad m^-2 pc^-1 cm^3 μG^-1), scalar OK
-
-    # wavelengths to analyze (meters); feel free to add/remove
+    # RM constant and wavelengths (meters)
+    C_RM: float = 0.81
     lambdas_m: Tuple[float, ...] = (0.06, 0.11, 0.21)
 
-    # For slope guides on 2D spectra (projection–slice: α_2D = α_3D − 1)
-    alpha3D_low: float = +1.5
+    # Target 3D shell slopes and break (cycles/dx)
+    alpha3D_low:  float = +1.5
     alpha3D_high: float = -5.0/3.0
-    k_break_cyc: float = 0.06   # cycles per dx, same as in generator
-    guide_span: float = 8.0     # span× / ÷ around k_break for the guide lines
+    k_break_cyc:  float = 0.06
+    guide_span:   float = 8.0
 
 C = Config()
 
 # ──────────────────────────────────────────────────────────────────────
-# Helpers
+# I/O helpers
 # ──────────────────────────────────────────────────────────────────────
 
-def _axis_spacing_from_h5(arr, name: str, fallback: float) -> float:
+def _axis_spacing_1d(coord_1d, fallback=1.0) -> float:
     try:
-        u = np.unique(arr.ravel())
-        dif = np.diff(np.sort(u))
-        dif = dif[dif > 0]
-        if dif.size:
-            return float(np.median(dif))
+        u = np.unique(np.asarray(coord_1d).ravel())
+        d = np.diff(np.sort(u))
+        d = d[d > 0]
+        if d.size: return float(np.median(d))
     except Exception:
         pass
-    print(f"[!] {name}: using fallback dx={fallback}")
     return float(fallback)
 
 def load_cube(path: str):
     with h5py.File(path, "r") as f:
-        ne = f["gas_density"][:].astype(np.float64)
-        bz = f["k_mag_field"][:].astype(np.float64)
-        # dx, dz (units arbitrary but consistent)
-        if "x_coor" in f:
-            dx = _axis_spacing_from_h5(f["x_coor"][:,0,0], "x_coor", 1.0)
-        else:
-            dx = 1.0
-        if "z_coor" in f:
-            dz = _axis_spacing_from_h5(f["z_coor"][0,0,:], "z_coor", 1.0)
-        else:
-            dz = 1.0
+        ne = np.asarray(f["gas_density"][:], dtype=np.float64)
+        bz = np.asarray(f["k_mag_field"][:], dtype=np.float64)
+        dx = 1.0; dz = 1.0
+        if "x_coor" in f: dx = _axis_spacing_1d(f["x_coor"][:,0,0], 1.0)
+        if "z_coor" in f: dz = _axis_spacing_1d(f["z_coor"][0,0,:], 1.0)
     return ne, bz, dx, dz
 
-def project_maps(ne: np.ndarray, bz: np.ndarray, dz: float, C_RM: float):
-    """
-    Observer-like maps on the sky:
-      Bz_proj(x,y) = ∑_z B_z
-      Φ(x,y)       = 0.81 ∑_z n_e B_z dz
-    """
+# ──────────────────────────────────────────────────────────────────────
+# Observer maps & spectra
+# ──────────────────────────────────────────────────────────────────────
+
+def project_maps(ne, bz, dz, C_RM):
     Bz_proj = bz.sum(axis=2)
-    Phi = C_RM * (ne * bz).sum(axis=2) * dz
+    Phi     = C_RM * (ne * bz).sum(axis=2) * dz
     return Bz_proj, Phi
 
 def ring_average_2d(P2D: np.ndarray, dx: float, nbins: int, kmin: float, kmax_frac: float):
     ny, nx = P2D.shape
     ky = fftfreq(ny, d=dx); kx = fftfreq(nx, d=dx)
-    KY, KX = np.meshgrid(ky, kx, indexing='ij')
+    KY, KX = np.meshgrid(ky, kx, indexing="ij")
     K = np.hypot(KY, KX)
-    kmax = float(kmax_frac) * K.max()
+    kmax = K.max() * float(kmax_frac)
     bins = np.logspace(np.log10(max(kmin, 1e-8)), np.log10(kmax), nbins+1)
-    idx = np.digitize(K.ravel(), bins) - 1
-    p = P2D.ravel()
-    nb = nbins
+    idx  = np.digitize(K.ravel(), bins) - 1
+    p    = P2D.ravel()
+    nb   = nbins
     good = (idx>=0) & (idx<nb) & np.isfinite(p)
-    sums  = np.bincount(idx[good], weights=p[good], minlength=nb)
-    cnts  = np.bincount(idx[good], minlength=nb)
-    prof  = np.full(nb, np.nan, float)
-    nz    = cnts > 0
+    sums = np.bincount(idx[good], weights=p[good], minlength=nb)
+    cnts = np.bincount(idx[good], minlength=nb)
+    prof = np.full(nb, np.nan, float)
+    nz   = cnts > 0
     prof[nz] = sums[nz] / cnts[nz]
     kcent = 0.5*(bins[1:] + bins[:-1])
     m = np.isfinite(prof) & (kcent > kmin)
@@ -141,49 +129,144 @@ def radial_average_map(Map2D: np.ndarray, dx: float, nbins: int, r_min: float, r
     R = np.hypot(y, x) * dx
     rmax = R.max() * float(r_max_frac)
     bins = np.logspace(np.log10(max(r_min, 1e-8)), np.log10(rmax), nbins+1)
-    idx = np.digitize(R.ravel(), bins) - 1
-    m = Map2D.ravel()
-    nb = nbins
+    idx  = np.digitize(R.ravel(), bins) - 1
+    m    = Map2D.ravel()
+    nb   = nbins
     good = (idx>=0) & (idx<nb) & np.isfinite(m)
-    sums  = np.bincount(idx[good], weights=m[good], minlength=nb)
-    cnts  = np.bincount(idx[good], minlength=nb)
-    prof  = np.full(nb, np.nan, float)
-    nz    = cnts > 0
+    sums = np.bincount(idx[good], weights=m[good], minlength=nb)
+    cnts = np.bincount(idx[good], minlength=nb)
+    prof = np.full(nb, np.nan, float)
+    nz   = cnts > 0
     prof[nz] = sums[nz] / cnts[nz]
     rcent = 0.5*(bins[1:] + bins[:-1])
-    sel = nz & (rcent > r_min)
+    sel   = nz & (rcent > r_min)
     return rcent[sel], prof[sel]
 
 def E1D_from_map(Map2D: np.ndarray, dx: float, nbins: int, kmin: float, kmax_frac: float):
-    F = fft2(Map2D)
+    F  = fft2(Map2D)
     P2 = (F * np.conj(F)).real
     k1d, Pk = ring_average_2d(P2, dx, nbins, kmin, kmax_frac)
     E1D = 2*np.pi * k1d * Pk
     return k1d, E1D, P2
 
 def directional_spectrum_and_correlation(f: np.ndarray):
-    A = np.cos(2.0 * f)
-    B = np.sin(2.0 * f)
+    A  = np.cos(2.0 * f)
+    B  = np.sin(2.0 * f)
     FA = fft2(A); FB = fft2(B)
-    # 2D power of the complex spin-2 unit field e^{i2f}
-    P2_dir = (FA * np.conj(FA)).real + (FB * np.conj(FB)).real
+    P2_dir = (FA*np.conj(FA)).real + (FB*np.conj(FB)).real
+    norm   = np.sum(A*A + B*B)  # exact S(0)=1 normalization
+    S_map  = np.fft.fftshift(ifft2(P2_dir).real) / norm
+    return P2_dir, S_map, norm
 
-    # Autocorrelation via Wiener–Khinchin, normalized so S(0)=1 exactly
-    power0 = np.sum(A*A + B*B)                 # should be ~ Npix, but compute explicitly
-    S_map  = np.fft.fftshift(ifft2(P2_dir).real) / power0
+# ──────────────────────────────────────────────────────────────────────
+# RM correlation/structure function from the map (simulation-based)
+# ──────────────────────────────────────────────────────────────────────
 
-    return P2_dir, S_map, power0
+def Dphi_RM_from_map(Phi: np.ndarray, dx: float, nbins: int, r_min: float, r_max_frac: float):
+    F  = fft2(Phi)
+    P2 = (F * np.conj(F)).real
+    C_map = np.fft.fftshift(ifft2(P2).real) / Phi.size  # Wiener–Khinchin
+    R1d, C_R = radial_average_map(C_map, dx, nbins, r_min, r_max_frac)
+    C0 = float(np.max(C_map))  # center pixel after fftshift
+    D_RM = 2.0 * (C0 - C_R)
+    return R1d, D_RM, C0, C_map
+
+# ──────────────────────────────────────────────────────────────────────
+# Analytic D_Φ(R) and D_φ(R,λ)
+# ──────────────────────────────────────────────────────────────────────
+
+def C_high_constant():
+    """C_high = ∫_0^∞ q^{γ_h+1}(1−J0 q)dq for γ_h=−11/3.
+       Write q^{−1−m} with m=5/3 → 2^(−m) Γ(−m/2)/Γ(1+m/2)."""
+    m = 5.0/3.0
+    return (2.0**(-m)) * gamma(-m/2.0) / gamma(1.0 + m/2.0)
+
+import numpy as np
+from scipy.special import j0  # Bessel J0
+
+def Dphi_analytic_R_hankel(
+    R1d, lam, k_break_cyc, sigma_phi2,
+    alpha3D_low=+1.5, alpha3D_high=-(5.0/3.0),
+    k_span_lo=1e-4, k_span_hi=1e+4, n_k=4096
+):
+    """
+    Analytic D_phi(R,λ) from the broken power-law *2D* screen spectrum,
+    computed via a *numerical Hankel integral* in *radian* wavenumbers:
+
+        C_Φ(R) = 2π ∫_0^∞ k P_2D(k) J0(kR) dk,
+        D_Φ(R) = 2[σ_Φ^2 - C_Φ(R)],
+        D_φ(R,λ) = 1/2 [1 - exp(-2 λ^4 D_Φ(R))].
+
+    P_2D(k) is piecewise with exponents γ_low=α_low-2 and γ_high=α_high-2.
+    The overall amplitude is set so that ∫ 2π k P_2D(k) dk = σ_Φ^2.
+
+    Parameters
+    ----------
+    R1d : array of separations (same units as your map's dx)
+    lam : wavelength (m)
+    k_break_cyc : break in *cycles/dx*  → internally converted to *radians/dx*
+    sigma_phi2 : measured Var[Φ] on the map (same units)
+    k_span_lo/hi : log-range around k_b to integrate over
+    n_k : number of log-k points (4096 is usually fine)
+
+    Returns
+    -------
+    Dphi_ang : array, analytic D_phi(R,λ)
+    Dphi_RM  : array, analytic D_Φ(R)
+    """
+    # 1) exponents
+    gl = alpha3D_low  - 2.0   # -1/2
+    gh = alpha3D_high - 2.0   # -11/3
+
+    # 2) k in *radians* per dx
+    kb = 2.0 * np.pi * float(k_break_cyc)
+
+    # 3) log-k grid spanning around kb
+    kmin = kb * float(k_span_lo)
+    kmax = kb * float(k_span_hi)
+    k = np.exp(np.linspace(np.log(kmin), np.log(kmax), n_k))  # radians/dx
+
+    # piecewise spectrum shape (unit amplitude)
+    x = k / kb
+    Pshape = np.where(k < kb, x**gl, x**gh)   # dimensionless shape
+
+    # 4) normalize to measured σ_Φ^2 with *radian* convention
+    # σ_Φ^2 = ∫_0^∞ 2π k P_2D(k) dk  =  2π ∫  k * (A * Pshape) dk
+    # Integrate on log-k: ∫ f(k) dk = ∫ f(k) k d(ln k)  → use trapz over ln k.
+    G0 = 2.0 * np.pi * k * Pshape
+    I0 = np.trapz(G0, x=np.log(k))
+    A  = sigma_phi2 / I0
+    P2 = A * Pshape  # properly normalized P_2D(k)
+
+    # 5) C_Φ(R) via Hankel integral for each R (vectorized)
+    R = np.asarray(R1d, dtype=np.float64)
+    # precompute kR matrix efficiently: (len(R) x len(k))
+    kR = np.outer(R, k)  # shape (NR, Nk) — both in consistent units
+    J = j0(kR)
+    G = 2.0 * np.pi * k * P2  # integrand sans Bessel
+    # Hankel integral per R over log-k
+    C_R = J @ (G * np.gradient(np.log(k)))    # ≈ ∫ 2π k P2(k) J0(kR) dk
+    # (Using gradient for non-uniform spacing is a bit more accurate than trapz in a loop)
+
+    # 6) D_Φ(R) and D_φ(R,λ)
+    Dphi_RM = 2.0 * (sigma_phi2 - C_R)
+    # clip tiny negative roundoff (|·| ~ 1e-15) to zero
+    Dphi_RM = np.maximum(Dphi_RM, 0.0)
+    Dphi_ang = 0.5 * (1.0 - np.exp(-2.0 * (lam**4) * Dphi_RM))
+    return Dphi_ang, Dphi_RM
+
 
 # ──────────────────────────────────────────────────────────────────────
 # Plot helpers
 # ──────────────────────────────────────────────────────────────────────
 
-def _save_imshow(img, path, title, cmap="viridis"):
+def _imshow(img, path, title, cmap="viridis"):
     plt.figure(figsize=(5.4,4.8))
     plt.imshow(img, origin="lower", cmap=cmap)
     plt.colorbar(fraction=0.046, pad=0.04)
     plt.title(title)
-    plt.tight_layout(); plt.savefig(path+".png", dpi=C.dpi); plt.savefig(path+".pdf")
+    plt.tight_layout()
+    plt.savefig(path+".png", dpi=C.dpi); plt.savefig(path+".pdf")
     plt.close()
 
 def _slope_guides(ax, k_break, yref, span, slopes_with_labels):
@@ -199,192 +282,106 @@ def main(C=C):
     os.makedirs(C.outdir, exist_ok=True)
 
     ne, bz, dx, dz = load_cube(C.h5_path)
-    # print(dx*256)
-    # dx=1.0
-    print(f"[loaded] ne,bz shapes: {ne.shape}  dx={dx}  dz={dz}")
+    print(f"[load] ne,bz shapes: {ne.shape}, dx={dx}, dz={dz}")
 
-    # Project to sky plane
+    # Observer-plane fields
     Bz_proj, Phi = project_maps(ne, bz, dz, C.C_RM)
+    _imshow(Bz_proj, os.path.join(C.outdir, "proj_Bz_map"), r"Projected $B_z$ (sum over $z$)")
+    _imshow(Phi,     os.path.join(C.outdir, "proj_RM_map"), r"Faraday screen $\Phi$")
 
-    # Save maps
-    _save_imshow(Bz_proj, os.path.join(C.outdir, "proj_Bz_map"), "Projected $B_z$ (sum over z)")
-    _save_imshow(Phi,     os.path.join(C.outdir, "proj_RM_map"), "Faraday screen $\\Phi=0.81\\sum n_e B_z\\,dz$")
+    # Quick E1D spectra (projection-slice guides: α_2D = α_3D − 1 → +1/2 and −8/3)
+    kB  = C.k_break_cyc
+    s2D = [(C.alpha3D_low-1.0,  r"$+1/2$ guide"),
+           (C.alpha3D_high-1.0, r"$-8/3$ guide")]
 
-    # Ring spectra (2D observer). Expect α_2D = α_3D − 1 → (+1/2, −8/3).
-    kB = C.k_break_cyc
-    slopes_2D = [(C.alpha3D_low-1.0, r"$+1/2$ guide"),
-                 (C.alpha3D_high-1.0, r"$-8/3$ guide")]
-
-    # E1D: projected Bz
-    k_bz, E_bz, P2_bz = E1D_from_map(Bz_proj, dx, C.nbins_k, C.kmin, C.kmax_frac)
+    k_bz, E_bz, _ = E1D_from_map(Bz_proj, dx, C.nbins_k, C.kmin, C.kmax_frac)
     plt.figure(figsize=(6.6,5.0))
-    plt.loglog(k_bz, E_bz, lw=1.8, label=r"$E_{1\rm D}$ of $\sum_z B_z$")
-    yref = np.interp(kB, k_bz, E_bz)
-    _slope_guides(plt.gca(), kB, yref, C.guide_span, slopes_2D)
-    plt.axvline(kB, color='k', ls=':', lw=1.0, label=r"$k_b$")
-    plt.xlabel(r"$k$ (cycles/dx)"); plt.ylabel(r"$E_{1\rm D}(k)$")
-    plt.title("Projected $B_z$ spectrum (2D)")
+    plt.loglog(k_bz, E_bz, lw=1.8, label=r"$E_{1\rm D}[\sum B_z]$")
+    if np.isfinite(np.interp(kB, k_bz, E_bz, left=np.nan, right=np.nan)):
+        _slope_guides(plt.gca(), kB, np.interp(kB, k_bz, E_bz), C.guide_span, s2D)
+    plt.axvline(kB, color='k', ls=':', lw=1, label=r"$k_b$")
+    plt.xlabel(r"$k$"); plt.ylabel(r"$E_{1\rm D}(k)$"); plt.title("Projected $B_z$ spectrum (2D)")
     plt.grid(True, which='both', alpha=0.3); plt.legend(frameon=False)
     plt.tight_layout(); plt.savefig(os.path.join(C.outdir, "proj_Bz_E1D.png"), dpi=C.dpi)
     plt.savefig(os.path.join(C.outdir, "proj_Bz_E1D.pdf")); plt.close()
 
-    # E1D: RM (Phi)
-    k_phi, E_phi, P2_phi = E1D_from_map(Phi, dx, C.nbins_k, C.kmin, C.kmax_frac)
+    k_phi, E_phi, _ = E1D_from_map(Phi, dx, C.nbins_k, C.kmin, C.kmax_frac)
     plt.figure(figsize=(6.6,5.0))
-    plt.loglog(k_phi, E_phi, lw=1.8, label=r"$E_{1\rm D}$ of $\Phi$")
-    yref = np.interp(kB, k_phi, E_phi)
-    _slope_guides(plt.gca(), kB, yref, C.guide_span, slopes_2D)
-    plt.axvline(kB, color='k', ls=':', lw=1.0, label=r"$k_b$")
-    plt.xlabel(r"$k$ (cycles/dx)"); plt.ylabel(r"$E_{1\rm D}(k)$")
-    plt.title("Faraday screen spectrum (2D)")
+    plt.loglog(k_phi, E_phi, lw=1.8, label=r"$E_{1\rm D}[\Phi]$")
+    if np.isfinite(np.interp(kB, k_phi, E_phi, left=np.nan, right=np.nan)):
+        _slope_guides(plt.gca(), kB, np.interp(kB, k_phi, E_phi), C.guide_span, s2D)
+    plt.axvline(kB, color='k', ls=':', lw=1, label=r"$k_b$")
+    plt.xlabel(r"$k$"); plt.ylabel(r"$E_{1\rm D}(k)$"); plt.title("Faraday screen spectrum (2D)")
     plt.grid(True, which='both', alpha=0.3); plt.legend(frameon=False)
     plt.tight_layout(); plt.savefig(os.path.join(C.outdir, "proj_RM_E1D.png"), dpi=C.dpi)
     plt.savefig(os.path.join(C.outdir, "proj_RM_E1D.pdf")); plt.close()
 
-    # Directional spectrum/correlation from f=λ^2 Φ
+    # Measured σ_Φ^2 for analytic normalization, and D_Φ(R) directly from Φ
+    sigma_phi2 = float(np.var(Phi))
+    Rrm, Dphi_RM_num, C0_rm, _ = Dphi_RM_from_map(Phi, dx, C.nbins_R, C.R_min, C.R_max_frac)
+
+    # Directional spectra & correlations with full comparison
     for i, lam in enumerate(C.lambdas_m):
         f_map = (lam**2) * Phi
 
-        # P2_dir, S_map = directional_spectrum_and_correlation(f_map)
-        P2_dir, S_map, power0 = directional_spectrum_and_correlation(f_map)
-
-        # P_dir ring spectrum
+        # Directional estimator
+        P2_dir, S_map, _ = directional_spectrum_and_correlation(f_map)
         kdir, Pdir_ring = ring_average_2d(P2_dir, dx, C.nbins_k, C.kmin, C.kmax_frac)
-        # plt.figure(figsize=(6.6,5.0))
-        # plt.loglog(kdir, Pdir_ring, lw=1.8, label=fr"$P_{{\rm dir}}(k)$, $\lambda={lam:.2f}$ m")
-        # # plt.axvline(kB, color='k', ls=':', lw=1.0, label=r"$k_b$")
-        # plt.xlabel(r"$k$"); plt.ylabel(r"$\langle |\widehat{\cos2f}|^2 + |\widehat{\sin2f}|^2\rangle$")
-        # plt.title("Directional spectrum")
-        # # plt.xlim(1,256/(3.1415/2))
-        # plt.grid(True, which='both', alpha=0.3); plt.legend(frameon=False)
-        # plt.tight_layout(); plt.savefig(os.path.join(C.outdir, f"Pdir_ring_{i}.png"), dpi=C.dpi)
-        # plt.savefig(os.path.join(C.outdir, f"Pdir_ring_{i}.pdf")); plt.close()
         plt.figure(figsize=(6.6,5.0))
         plt.loglog(kdir, Pdir_ring, lw=1.8, label=fr"$P_{{\rm dir}}(k)$, $\lambda={lam:.2f}$ m")
-
-        # ── NEW: one -11/3 guide line across the plotted k-range, anchored to the spectrum
-        valid = np.isfinite(kdir) & np.isfinite(Pdir_ring) & (kdir > 0)
-        if np.count_nonzero(valid) > 5:
-            s = -11.0/3.0
-            # geometric-mean anchor within the valid range
-            kref = np.exp(np.mean(np.log(kdir[valid])))
-            yref = np.interp(kref, kdir[valid], Pdir_ring[valid])
-            kg = np.logspace(np.log10(kdir[valid].min()), np.log10(kdir[valid].max()), 200)
-            plt.loglog(kg, yref*(kg/kref)**s, "--", lw=1.0, alpha=0.9, label=r"$-11/3$")
-        # if np.count_nonzero(valid) > 5:
-        #     s = -5.0/3.0
-        #     # geometric-mean anchor within the valid range
-        #     kref = np.exp(np.mean(np.log(kdir[valid])))
-        #     yref = np.interp(kref, kdir[valid], Pdir_ring[valid])
-        #     kg = np.logspace(np.log10(kdir[valid].min()), np.log10(kdir[valid].max()), 200)
-        #     plt.loglog(kg, yref*(kg/kref)**s, "--", lw=1.0, alpha=0.9, label=r"$-5/3$")
-        # ── END NEW
-
-        # plt.axvline(kB, color='k', ls=':', lw=1.0, label=r"$k_b$")
-        plt.xlabel(r"$k$")
-        plt.ylabel(r"$\langle |\widehat{\cos2f}|^2 + |\widehat{\sin2f}|^2\rangle$")
+        plt.xlabel(r"$k$"); plt.ylabel(r"$|\widehat{\cos2f}|^2+|\widehat{\sin2f}|^2$")
         plt.title("Directional spectrum")
-        plt.grid(True, which='both', alpha=0.3)
-        plt.legend(frameon=False)
-        plt.tight_layout()
-        plt.savefig(os.path.join(C.outdir, f"Pdir_ring_{i}.png"), dpi=C.dpi)
-        plt.savefig(os.path.join(C.outdir, f"Pdir_ring_{i}.pdf"))
-        plt.close()
+        plt.grid(True, which='both', alpha=0.3); plt.legend(frameon=False)
+        plt.tight_layout(); plt.savefig(os.path.join(C.outdir, f"Pdir_ring_{i}.png"), dpi=C.dpi)
+        plt.savefig(os.path.join(C.outdir, f"Pdir_ring_{i}.pdf")); plt.close()
 
-        # S(R) and D_phi(R)
+        # Directional correlation and numerical angle structure function
         R1d, S_R = radial_average_map(S_map, dx, C.nbins_R, C.R_min, C.R_max_frac)
-        Dphi_R = 0.5 * (1.0 - S_R)
+        Dphi_num = 0.5 * (1.0 - S_R)
 
+        # RM-based (simulation) prediction on the same R grid (interpolate D_Φ^num)
+        Dphi_RM_interp = np.interp(R1d, Rrm, Dphi_RM_num, left=np.nan, right=np.nan)
+        Dphi_simRM = 0.5 * (1.0 - np.exp(-2.0 * (lam**4) * Dphi_RM_interp))
+
+        # Analytic Dφ(R,λ) on the same R grid
+        # Dphi_ana, _ = Dphi_analytic_R(
+        #     R1d, lam, C.k_break_cyc, sigma_phi2,
+        #     alpha3D_low=C.alpha3D_low, alpha3D_high=C.alpha3D_high
+        # )
+        Dphi_ana, _ = Dphi_analytic_R_hankel(
+            R1d, lam, C.k_break_cyc, sigma_phi2,
+            alpha3D_low=C.alpha3D_low, alpha3D_high=C.alpha3D_high,
+            k_span_lo=1e-4, k_span_hi=1e4, n_k=4096
+        )
+
+        # Plot S(R) (optional)
         plt.figure(figsize=(6.6,5.0))
-        plt.loglog(R1d, S_R, lw=1.8, label=fr"$S(R)$, $\lambda={lam:.2f}$ m")
-        plt.xlabel(r"$R$ (dx)"); plt.ylabel(r"$S(R)$")
+        plt.loglog(R1d, S_R, lw=1.8, label=fr"numerical $S(R)$, $\lambda={lam:.2f}$ m")
+        plt.xlabel(r"$R$"); plt.ylabel(r"$S(R)$")
         plt.title("Directional correlation")
         plt.grid(True, which='both', alpha=0.3); plt.legend(frameon=False)
         plt.tight_layout(); plt.savefig(os.path.join(C.outdir, f"S_of_R_{i}.png"), dpi=C.dpi)
         plt.savefig(os.path.join(C.outdir, f"S_of_R_{i}.pdf")); plt.close()
 
-        plt.figure(figsize=(6.6,5.0))
-        Dphi_R_scaled = Dphi_R / (lam**4)
-        plt.loglog(R1d, Dphi_R_scaled, lw=1.8, label=fr"$D_\varphi/\lambda^4$, $\lambda={lam:.2f}$ m")
+        # *** KEY PANEL: numerical vs RM-based (simulation) vs analytic ***
+        plt.figure(figsize=(6.8,5.2))
+        plt.loglog(R1d, Dphi_num,   lw=2.0,  label=r"numerical")
+        # plt.loglog(R1d, Dphi_simRM, lw=0.2,  label=r"From RM map (simulation)")
+        print(Dphi_ana)
+        plt.loglog(R1d, Dphi_ana,   "--", lw=2.0, label=r"Analytic two-slope")
+        # visual slope guide near small R (≈ 5/3)
+        if len(R1d) > 8:
+            Rref = R1d[len(R1d)//6]
+            yref = np.interp(Rref, R1d, Dphi_num)
+            Rg   = np.logspace(np.log10(Rref/6), np.log10(Rref*6), 200)
+            # plt.loglog(Rg, yref*(Rg/Rref)**(5/3), ":", lw=1.0, alpha=0.8, label=r"$\propto R^{5/3}$")
+        plt.xlabel(r"$R$"); plt.ylabel(r"$D_\varphi(R)$")
+        plt.title(fr"$D_\varphi$: numerical vs simulation–RM vs analytic  ($\lambda={lam:.2f}$ m)")
+        plt.grid(True, which='both', alpha=0.3); plt.legend(frameon=False, loc="best")
+        plt.tight_layout(); plt.savefig(os.path.join(C.outdir, f"Dphi_compare_{i}.png"), dpi=C.dpi)
+        plt.savefig(os.path.join(C.outdir, f"Dphi_compare_{i}.pdf")); plt.close()
 
-
-        plt.loglog(R1d, Dphi_R, lw=1.8, label=fr"$D_\varphi(R)$")#, $\lambda={lam:.2f}$ m
-        # add ∝ R^{5/3} guide just as a visual reference (halo-like regime)
-        if len(R1d) > 5:
-            Rref = R1d[len(R1d)//8]
-            yref = np.interp(Rref, R1d, Dphi_R)
-            Rg = np.logspace(np.log10(Rref/6), np.log10(Rref*6), 200)
-            plt.loglog(Rg, yref*(Rg/Rref)**(5/3), "--", lw=1.0, alpha=0.8, label=r"$\propto R^{5/3}$")
-        if len(R1d) > 5:
-            Rref = R1d[len(R1d)//8]
-            yref = np.interp(Rref, R1d, Dphi_R)
-            Rg = np.logspace(np.log10(Rref/6), np.log10(Rref*6), 200)
-            plt.loglog(Rg, yref*(Rg/Rref)**(2), "--", lw=1.0, alpha=0.8, label=r"$\propto R^{2}$")
-        plt.xlabel(r"$R$ (dx)"); plt.ylabel(r"$D_\varphi(R)$")
-        plt.title("Polarization-angle structure function")
-        plt.grid(True, which='both', alpha=0.3); plt.legend(frameon=False)
-        plt.tight_layout(); plt.savefig(os.path.join(C.outdir, f"Dphi_of_R_{i}.png"), dpi=C.dpi)
-        plt.savefig(os.path.join(C.outdir, f"Dphi_of_R_{i}.pdf")); plt.close()
-
-
-
-        # --- RECONSTRUCT THE SPECTRUM FROM THE CORRELATION (S_map) ---
-        # S_map = fftshift(ifft2(P2_dir).real) / Npix  ⇒  P2_dir ≈ fft2(ifftshift(S_map * Npix))
-        Npix = f_map.size
-        # P2_dir_rec = np.real(fft2(np.fft.ifftshift(S_map * Npix)))
-
-        # minor numerical safety: enforce non-negativity
-        # P2_dir_rec[P2_dir_rec < 0] = 0.0
-
-        P2_dir_rec = np.real(fft2(np.fft.ifftshift(S_map * power0)))
-        P2_dir_rec[P2_dir_rec < 0] = 0.0
-
-
-        # Ring-average the reconstructed 2D spectrum
-        kdir_rec, Pdir_ring_rec = ring_average_2d(P2_dir_rec, dx, C.nbins_k, C.kmin, C.kmax_frac)
-
-        # --- PLOT: original vs reconstructed and their ratio ---
-        fig = plt.figure(figsize=(6.6, 6.2))
-        gs = fig.add_gridspec(2, 1, height_ratios=[3, 1], hspace=0.05)
-
-        # Top: spectra
-        ax = fig.add_subplot(gs[0])
-        ax.loglog(kdir, Pdir_ring, lw=1.8, label=fr"orig $P_{{\rm dir}}(k)$")
-        ax.loglog(kdir_rec, Pdir_ring_rec, "--", lw=1.4, label="iFFT")
-        ax.set_xticklabels([])  # hide x tick labels on top panel
-        #ax.set_ylabel(r"$\langle |\widehat{\cos2f}|^2 + |\widehat{\sin2f}|^2\rangle$")
-        ax.set_title("Directional spectrum: original vs reconstructed")
-        ax.grid(True, which="both", alpha=0.3)
-        ax.legend(frameon=False)
-
-        # Bottom: ratio (reconstructed / original) on shared x-range
-        axr = fig.add_subplot(gs[1], sharex=ax)
-        # interpolate reconstructed onto original k-grid (valid overlap only)
-        valid = np.isfinite(kdir) & np.isfinite(Pdir_ring) & (kdir > 0)
-        valid_rec = np.isfinite(kdir_rec) & np.isfinite(Pdir_ring_rec) & (kdir_rec > 0)
-        if np.any(valid) and np.any(valid_rec):
-            kmin_ratio = max(kdir[valid].min(), kdir_rec[valid_rec].min())
-            kmax_ratio = min(kdir[valid].max(), kdir_rec[valid_rec].max())
-            mask = valid & (kdir >= kmin_ratio) & (kdir <= kmax_ratio)
-            if np.count_nonzero(mask) > 5:
-                P_rec_interp = np.interp(kdir[mask], kdir_rec[valid_rec], Pdir_ring_rec[valid_rec])
-                ratio = P_rec_interp / Pdir_ring[mask]
-                axr.semilogx(kdir[mask], ratio, lw=1.3)
-                axr.axhline(1.0, color="k", ls=":", lw=1.0)
-                # report a compact scalar error in the console
-                rel_err = np.nanmedian(np.abs(np.log10(ratio)))
-                print(f"[recon λ={lam:.2f} m] median |log10(ratio)| = {rel_err:.3g}")
-        axr.set_xlabel(r"$k$")
-        axr.set_ylabel("recon/orig")
-        axr.grid(True, which="both", alpha=0.3)
-
-        plt.tight_layout()
-        plt.savefig(os.path.join(C.outdir, f"Pdir_recon_check_{i}.png"), dpi=C.dpi)
-        plt.savefig(os.path.join(C.outdir, f"Pdir_recon_check_{i}.pdf"))
-        plt.close()
-
-
-    print(f"Saved figures → {os.path.abspath(C.outdir)}")
+    print(f"Saved → {os.path.abspath(C.outdir)}")
 
 if __name__ == "__main__":
     main()
