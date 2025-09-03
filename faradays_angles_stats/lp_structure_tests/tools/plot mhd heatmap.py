@@ -107,7 +107,8 @@ def plot_B_heatmap(filename, component="mag", k_slice="mid", show_colorbar=True)
     plt.show()
 
 # plot_B_heatmap(r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\ms01ma08.mhd_w.00300.vtk.h5", component="mag", k_slice="mid")
-plot_B_heatmap(r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\ms01ma08.mhd_w.00300.vtk.h5", component="mag", k_slice=4)
+# plot_B_heatmap(r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\ms01ma08.mhd_w.00300.vtk.h5", component="mag", k_slice=4)
+plot_B_heatmap(r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\mhd_fields.h5", component="mag", k_slice=4)
 
 # --- usage ---
 # plot_B_heatmap("path/to/file.h5", component="mag", k_slice="mid")
