@@ -4,8 +4,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-cube = Path("synthetic_kolmogorov_normal.h5")
-# cube = Path("ms01ma08.mhd_w.00300.vtk.h5")
+# cube = Path("synthetic_kolmogorov_normal.h5")
+cube = Path("ms01ma08.mhd_w.00300.vtk.h5")
 
 print(cube)
 cube = cube.expanduser()
@@ -36,8 +36,11 @@ ne_key = "gas_density"
 bz_key = "k_mag_field"
 
 with h5py.File(cube, "r") as f:
+    print(f)
     ne = f[ne_key][:]
     bz = f[bz_key][:]
+    print(f.keys())
+    # print(bz)
 
     dx = _axis_spacing(f["x_coor"][:, 0, 0], "x_coor") if "x_coor" in f else 1.0
     dz = _axis_spacing(f["z_coor"][0, 0, :], "z_coor") if "z_coor" in f else 1.0
@@ -58,4 +61,14 @@ print(f"bz: mean={bz.mean()}, min={bz.min()}, max={bz.max()}, rms={bz_rms}")
 
 # ms01ma08.mhd_w.00300.vtk.h5
 # ne: mean=1.0000001192092896, min=0.8746625781059265, max=1.2162389755249023, rms=1.000738263130188
+# bx: mean=4.140019882470369e-09, min=-0.2728897035121918, max=0.3249826729297638, rms=0.06206044554710388
+# by: mean=-5.838955985382199e-10, min=-0.26510992646217346, max=0.22655998170375824, rms=0.05653515085577965
 # bz: mean=0.11952292174100876, min=-0.11323962360620499, max=0.36735594272613525, rms=0.12989801168441772
+# bz: mean=0.11952292174100876, min=-0.11323962360620499, max=0.36735594272613525, rms=0.12989801168441772
+
+# mhd_fields.h5
+# ne: mean=0.9998686909675598, min=0.8593953251838684, max=1.1608744859695435, rms=1.0007200241088867
+# bx: mean=-3.099905370618217e-05, min=-0.30563822388648987, max=0.2749902307987213, rms=0.06447111070156097
+# by: mean=-9.88875181064941e-05, min=-0.30591440200805664, max=0.24482305347919464, rms=0.0706096738576889
+# bz: mean=0.20003089308738708, min=-0.07709309458732605, max=0.5016716718673706, rms=0.21103206276893616
+
