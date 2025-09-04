@@ -28,6 +28,8 @@ import matplotlib.pyplot as plt
 from dataclasses import dataclass
 from typing import Tuple, Callable
 from numpy.fft import fft2, ifft2, fftfreq
+import h5py
+rng = np.random.default_rng()
 
 # ──────────────────────────────────────────────────────────────────────
 # Config
@@ -69,6 +71,46 @@ C = Config()
 # ──────────────────────────────────────────────────────────────────────
 # Helpers
 # ──────────────────────────────────────────────────────────────────────
+
+
+def save_field_as_h5(map2d: np.ndarray, dx: float, out_path: str, *,
+                     alpha_low: float, alpha_high: float, k_break: float, s_value: float):
+    """
+    Save a 2D map as a (x,y,z=1) 'cube' with the same dataset names used elsewhere:
+      gas_density, k_mag_field, x_coor, y_coor, z_coor
+    Coordinates are written so downstream code can recover dx via x_coor[:,0,0].
+    """
+    ny, nx = map2d.shape
+    Nx, Ny = nx, ny
+
+    # Arrange datasets as (x, y, z) with z=1
+    bz = map2d.T[:, :, None].astype(np.float32)   # (Nx, Ny, 1)
+    ne = np.ones_like(bz, dtype=np.float32)       # simple positive field (optional)
+
+    # Coordinates (match shapes and axis order used by your other scripts)
+    x = (np.arange(Nx, dtype=np.float64) - Nx/2 + 0.5) * dx
+    y = (np.arange(Ny, dtype=np.float64) - Ny/2 + 0.5) * dx
+    z = np.array([0.0], dtype=np.float64)  # single slab
+
+    X = np.broadcast_to(x[:, None, None], (Nx, Ny, 1)).astype(np.float32)
+    Y = np.broadcast_to(y[None, :, None], (Nx, Ny, 1)).astype(np.float32)
+    Z = np.broadcast_to(z[None, None, :], (Nx, Ny, 1)).astype(np.float32)
+
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    with h5py.File(out_path, "w") as h5:
+        h5.create_dataset("gas_density", data=ne, compression="gzip")
+        h5.create_dataset("k_mag_field", data=bz, compression="gzip")
+        h5.create_dataset("x_coor",      data=X,  compression="gzip")
+        h5.create_dataset("y_coor",      data=Y,  compression="gzip")
+        h5.create_dataset("z_coor",      data=Z,  compression="gzip")
+        # Useful metadata
+        h5.attrs["alpha_low"]  = float(alpha_low)
+        h5.attrs["alpha_high"] = float(alpha_high)
+        h5.attrs["k_break"]    = float(k_break)
+        h5.attrs["s"]          = float(s_value)
+        h5.attrs["dx"]         = float(dx)
+        h5.attrs["note"]       = "2D map saved as (x,y,z=1) cube for compatibility"
+
 
 def ring_average_2d(P2D: np.ndarray, dx: float, nbins: int, kmin: float, kmax_frac: float):
     ny, nx = P2D.shape
@@ -146,22 +188,29 @@ def synthesize_2d(nx, ny, dx, P2D_func: Callable, seed=0):
 # ──────────────────────────────────────────────────────────────────────
 
 def main(C=C):
-    os.makedirs(C.outdir, exist_ok=True)
-    rng = np.random.default_rng(C.seed)
-
-    results = []  # store (s, k, E1D_mean, alpha_local, alpha_target, dalpha_dlnk)
-
+    h5_dir = "h5/transition_smoothness"
+    os.makedirs(h5_dir, exist_ok=True)
+    results = [] 
     for s in C.s_list:
         P2D_func = P2D_two_slope(C.alpha_low, C.alpha_high, C.k_break, s)
 
-        # average over realizations for cleaner curves
-        acc_E = None
-        acc_P = None
+        acc_E = acc_P = None
         acc_counts = 0
+        saved_one = False  # save only the first realization per s
 
         for r in range(C.n_real):
             seed_r = rng.integers(0, 2**31 - 1)
             f2 = synthesize_2d(C.nx, C.ny, C.dx, P2D_func, seed=seed_r)
+
+            # ── NEW: save this realization as .h5 (compatible with your loader)
+            if not saved_one:
+                out_h5 = os.path.join(h5_dir, f"two_slope_2D_s{s:g}_r{r:02d}.h5")
+                save_field_as_h5(
+                    f2, C.dx, out_h5,
+                    alpha_low=C.alpha_low, alpha_high=C.alpha_high,
+                    k_break=C.k_break, s_value=s
+                )
+                saved_one = True
 
             Fk = fft2(f2)
             P2D = (Fk * np.conj(Fk)).real
