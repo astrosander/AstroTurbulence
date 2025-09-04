@@ -45,7 +45,7 @@ from scipy.special import j0  # Bessel J0
 @dataclass
 class Config:
     # <<< set your path here >>>
-    h5_path: str = "../../../faradays_angles_stats/lp_structure_tests/mhd_fields.h5"
+    h5_path: str = "../../../faradays_angles_stats/lp_structure_tests/transition_smoothness.h5"#mhd_fields.h5"
 
     outdir: str = "fig/two_slope_compare"
 
