@@ -42,7 +42,8 @@ def plot_spectrum(h5_path: str, out_png: str = "Ek.png"):
     with h5py.File(h5_path, "r") as h5:
         f2 = h5["k_mag_field"][:]  # shape (Nx, Ny, 1)
         f2 = f2[:, :, 0].T         # back to (ny, nx)
-        dx = float(h5.attrs["dx"])
+        # dx = float(h5.attrs["dx"])
+        dx=1.0
 
     # --- compute spectrum ---
     Fk = fft2(f2)
@@ -65,5 +66,5 @@ def plot_spectrum(h5_path: str, out_png: str = "Ek.png"):
 if __name__ == "__main__":
     # Example: adjust path to one of your saved .h5 files
     # plot_spectrum("h5/transition_smoothness/two_slope_2D_s3_r00.h5")
-    # plot_spectrum("h5/transition_smoothness/two_slope_2D_s3_r00.h5")
-    plot_spectrum("../../../../transition_smoothness.h5")
+    plot_spectrum("h5/transition_smoothness/two_slope_2D_s4_r00.h5")
+    # plot_spectrum("../../faradays_angles_stats/lp_structure_tests/synthetic_two_slope.h5")

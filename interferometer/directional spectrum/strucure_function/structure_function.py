@@ -45,7 +45,7 @@ from scipy.special import j0  # Bessel J0
 @dataclass
 class Config:
     # <<< set your path here >>>
-    h5_path: str = "../../../faradays_angles_stats/lp_structure_tests/transition_smoothness.h5"#mhd_fields.h5"
+    h5_path: str = "two_slope_2D_s4_r00.h5"#mhd_fields.h5"
 
     outdir: str = "fig/two_slope_compare"
 
@@ -224,6 +224,74 @@ def save_loglog(R, curves,  title, ylabel, path):
 # Main
 # ──────────────────────────────────────────────────────────────────────
 
+from scipy.special import j0
+
+def Dphi_analytic_two_slope_numeric(
+    R,                       # 1D array of separations (pixels)
+    dx, Lx,                  # pixel size and box size (pixels -> physical = *dx)
+    k_break_cyc,             # break in cycles/pixel
+    alpha_low=+1.5, alpha_high=-(5.0/3.0),
+    s=8.0,                   # same 'sharpness' used to synthesize
+    sigma_phi_map=None,      # measured variance of Phi(x,y); if None, return unnorm'd
+    use_pixel_window=True,
+):
+    """
+    Returns D_phi_ana(R) = lambda^4 * D_Phi(R) with lambda^4 factor omitted on purpose.
+    Multiply by lam**4 outside when you plot.
+
+    The model matches the synthesized 2D map:
+      P_2D(kappa) ∝ (kappa/kappa_b)^{alpha(kappa)-1}, with alpha blended by 's'.
+      k–space is in angular units kappa = 2*pi*k_cyc.
+      IR/UV limited to the box and pixel Nyquist.
+    """
+    # ---- grids and cutoffs in ANGULAR units
+    Nx = int(round(Lx / dx))
+    L_phys = Lx * dx
+    kappa_min = 2.0 * np.pi / L_phys
+    kappa_max = np.pi / dx
+    kappa_b = 2.0 * np.pi * k_break_cyc
+
+    # log grid for stable quadrature
+    nk = 4096
+    kappas = np.logspace(np.log10(kappa_min), np.log10(kappa_max), nk)
+    x = kappas / kappa_b
+
+    # smooth blend, same as in synthesis
+    t = 1.0 / (1.0 + x**s)
+    alpha = alpha_low * t + alpha_high * (1.0 - t)
+
+    # model 2D power (up to a constant C)
+    P2 = (x ** (alpha - 1.0))
+
+    # pixel window
+    if use_pixel_window:
+        W = (np.sinc(kappas * dx / (2.0*np.pi)))**2   # sinc(x)=sin(pi x)/(pi x); adjust to np.sinc def
+        P2 *= W
+
+    # radial measure
+    dlnk = np.diff(np.log(kappas)).mean()
+    dkap = kappas * dlnk   # since ∫ f(k) k dk = ∫ f(k) d(0.5 k^2) ; on log-grid use this weight
+
+    # normalization to the map variance
+    # sigma_phi^2 = (1/2pi) ∫ P_2D(kappa) kappa dkappa
+    sigma_mod = (1.0/(2.0*np.pi)) * np.sum(P2 * kappas * dlnk)
+    if sigma_phi_map is None or sigma_mod == 0.0:
+        C = 1.0
+    else:
+        C = float(sigma_phi_map) / float(sigma_mod)
+    P2 *= C
+
+    # correlation C_phi(R) = (1/2pi) ∫ P_2D(kappa) J0(kappa R) kappa dkappa
+    C0 = (1.0/(2.0*np.pi)) * np.sum(P2 * kappas * dlnk)   # should equal sigma_phi_map
+    C_R = []
+    for r in np.atleast_1d(R):
+        J = j0(kappas * r)   # NOTE: r is in same physical units as dx
+        C_R.append((1.0/(2.0*np.pi)) * np.sum(P2 * J * kappas * dlnk))
+    C_R = np.array(C_R)
+
+    D_phi_no_lambda = 2.0 * (C0 - C_R)     # this is D_Phi(R)
+    return D_phi_no_lambda                  # multiply by lam**4 when plotting
+
 def main(C=C):
     os.makedirs(C.outdir, exist_ok=True)
 
@@ -232,40 +300,57 @@ def main(C=C):
 
     # build maps
     _, Phi = project_maps(ne, bz, dz, C.C_RM)
-
+    ny, nx = Phi.shape
+    Rmax_pix = 0.5 * min(ny, nx) * C.R_max_frac
+    R1d = np.logspace(np.log10(C.R_min), np.log10(Rmax_pix), C.nbins_R)
+    
     for i, lam in enumerate(C.lambdas_m):
-        # Directional (numerical)
-        R1, S_R, Dphi_dir = directional_S_and_Dphi_from_f(lam**2 * Phi, dx, C.nbins_R, C.R_min, C.R_max_frac)
+        sigma_phi_map = np.var(Phi)
 
-        # RM-based (simulation)
-        R2, Dphi_rm, sigma2 = Dphi_from_RM_map(Phi, lam, dx, C.nbins_R, C.R_min, C.R_Max_frac if hasattr(C,'R_Max_frac') else C.R_max_frac)
+        # R grid in pixels
+        ny, nx = Phi.shape
+        Rmax_pix = 0.5 * min(ny, nx) * C.R_max_frac
+        R1d = np.logspace(np.log10(C.R_min), np.log10(Rmax_pix), C.nbins_R)
 
-        # Analytic (Hankel, radians, normalized to measured σ_Φ^2)
-        Dphi_ana, Dphi_RM_ana = Dphi_analytic_R_hankel(
-            R1, lam, C.k_break_cyc, sigma2,
-            alpha3D_low=C.alpha3D_low, alpha3D_high=C.alpha3D_high,
-            k_span_lo=1e-4, k_span_hi=1e4, n_k=4096
+        # --- analytic (theoretical) ---
+        R_ana = R1d * dx
+        Dphi_no_lambda = Dphi_analytic_two_slope_numeric(
+            R=R_ana,
+            dx=dx,
+            Lx=nx * dx,
+            k_break_cyc=C.k_break_cyc,
+            alpha_low=C.alpha3D_low,
+            alpha_high=C.alpha3D_high,
+            s=8.0,
+            sigma_phi_map=sigma_phi_map,
+            use_pixel_window=True,
+        )
+        Dphi_ana = (lam**4) * Dphi_no_lambda
+
+        # --- apply Rmin cutoff (physical units) ---
+        mask = R_ana >= 1#C.R_min * dx   # C.R_min is in pixels, convert to physical
+        R1d_cut = R1d[mask]
+        Dphi_ana_cut = Dphi_ana[mask]
+
+        # --- numerical (directional) ---
+        R_num, _, Dphi_num = directional_S_and_Dphi_from_f(
+            lam**2 * Phi, dx, C.nbins_R, C.R_min, C.R_max_frac
         )
 
-        # Sanity print
-        print(f"[λ={lam:.2f} m]  σ_Φ^2(measured)={sigma2:.6e}   D_Φ(large R, ana)≈{float(Dphi_RM_ana[-1]):.6e}")
+        # --- plot both ---
+        plt.figure(figsize=(7, 5))
+        plt.loglog(R_num, Dphi_num, '-', label='Numerical (directional)')
+        plt.loglog(R1d_cut, Dphi_ana_cut, '--', label='Analytic (theory, R≥Rmin)')
+        plt.xlabel(r"$R$")
+        plt.ylabel(r"$D_\varphi(R)$")
+        plt.grid(True, which="both", alpha=0.3)
+        plt.legend(frameon=False)
+        plt.tight_layout()
 
-        # Common R grid for plotting: use R1 (directional)
-        # Interp simulation-RM onto R1
-        Dphi_rm_interp = np.interp(R1, R2, Dphi_rm)
-
-        # Plot
-        save_loglog(
-            R1,
-            curves=[
-                (Dphi_dir, r"numerical", "-"),
-                # (Dphi_rm_interp, r"From RM map (simulation)", "-"),
-                (Dphi_ana, r"Analytic two-slope", "--"),
-            ],
-            title=rf"",
-            ylabel=r"$D_\varphi(R)$",
-            path=os.path.join(C.outdir, f"Dphi_compare_{i}")
-        )
+        outfile = os.path.join(C.outdir, f"Dphi_compare_{i}")
+        plt.savefig(outfile + ".png", dpi=C.dpi)
+        plt.savefig(outfile + ".pdf")
+        plt.close()
 
     print(f"Saved → {os.path.abspath(C.outdir)}")
 
