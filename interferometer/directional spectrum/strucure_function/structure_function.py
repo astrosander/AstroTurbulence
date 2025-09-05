@@ -12,8 +12,8 @@ from scipy.special import j0
 
 @dataclass
 class Config:
-    # h5_path: str = "two_slope_2D_s4_r00.h5"
-    h5_path: str = "mhd_fields.h5"
+    h5_path: str = "two_slope_2D_s4_r00.h5"
+    # h5_path: str = "mhd_fields.h5"
 
 
 
@@ -21,7 +21,7 @@ class Config:
 
     alpha3D_low: float  = +1.5
     alpha3D_high: float = -5.0/3.0
-    k_break_cyc: float  = 0.02
+    k_break_cyc: float  = 0.1
 
     C_RM: float = 0.81
 
@@ -166,9 +166,9 @@ def Dphi_analytic_two_slope_numeric(
     dx, Lx,
     k_break_cyc,
     alpha_low=+1.5, alpha_high=-(5.0/3.0),
-    s=8.0,
+    s=4.0,
     sigma_phi_map=None,
-    use_pixel_window=True,
+    use_pixel_window=False,
 ):
     # print(s)
     Nx = int(round(Lx / dx))
@@ -210,60 +210,75 @@ def Dphi_analytic_two_slope_numeric(
     D_phi_no_lambda = 2.0 * (C0 - C_R)
     return D_phi_no_lambda
 
+
+def Dphi_analytic_from_grid(nx, ny, dx, k_break_cyc, alpha_low, alpha_high, s, sigma_phi2, lam,
+                            nbins_R, R_min, R_max_frac):
+    k_b = 2.0*np.pi*float(k_break_cyc)
+    kx = 2.0*np.pi*fftfreq(nx, d=dx)
+    ky = 2.0*np.pi*fftfreq(ny, d=dx)
+    KY, KX = np.meshgrid(ky, kx, indexing="ij")
+    K = np.hypot(KX, KY)
+    x = np.maximum(K, 1e-20) / k_b
+    t = 1.0/(1.0 + x**s)
+    alpha = alpha_low*t + alpha_high*(1.0 - t)
+
+    P2_shape = (x**(alpha - 1.0))
+    P2_shape[0,0] = 0.0
+
+    # normalize so C(0)=sigma_phi2
+    C0_model = (np.fft.ifft2(P2_shape).real)[0,0] / (nx*ny)
+    A = sigma_phi2 / C0_model if C0_model != 0 else 1.0
+    P2_model = A * P2_shape
+
+    C_map = np.fft.fftshift(np.fft.ifft2(P2_model).real) / (nx*ny)
+    R1d, C_R = radial_average_map(C_map, dx, nbins_R, R_min, R_max_frac)
+    Dphi = 0.5 * (1.0 - np.exp(-2.0*(lam**4) * (2.0*(sigma_phi2 - C_R))))
+    return R1d, Dphi
+
 def main(C=C):
     os.makedirs(C.outdir, exist_ok=True)
 
     ne, bz, dx, dz = load_cube(C.h5_path)
-    print(f"[load] ne,bz shapes: {ne.shape}, dx={dx}, dz={dz}")
-
     _, Phi = project_maps(ne, bz, dz, C.C_RM)
     ny, nx = Phi.shape
-    Rmax_pix = 0.5 * min(ny, nx) * C.R_max_frac
-    R1d = np.logspace(np.log10(C.R_min), np.log10(Rmax_pix), C.nbins_R)
-    
+
+    # Read synthesis parameters from the file (falls back to config if absent)
+    with h5py.File(C.h5_path, "r") as f:
+        attrs = dict(f.attrs)
+    k_break_cyc = float(attrs.get("k_break", C.k_break_cyc))
+    s_sharp     = float(attrs.get("s",        8.0))
+
+    sigma_phi2 = Phi.var(ddof=0)
+
     for i, lam in enumerate(C.lambdas_m):
-        sigma_phi_map = np.var(Phi)
-
-        ny, nx = Phi.shape
-        Rmax_pix = 0.5 * min(ny, nx) * C.R_max_frac
-        R1d = np.logspace(np.log10(C.R_min), np.log10(Rmax_pix), C.nbins_R)
-
-        R_ana = R1d * dx
-        Dphi_no_lambda = Dphi_analytic_two_slope_numeric(
-            R=R_ana,
-            dx=dx,
-            Lx=nx * dx,
-            k_break_cyc=C.k_break_cyc,
-            alpha_low=C.alpha3D_low,
-            alpha_high=C.alpha3D_high,
-            s=2.5,
-            sigma_phi_map=sigma_phi_map,
-            use_pixel_window=True,
-        )
-        Dphi_ana = (lam**4) * Dphi_no_lambda
-
-        mask = R_ana >= 1.0
-        R1d_cut = R1d[mask]
-        Dphi_ana_cut = Dphi_ana[mask]
-
+        # --- numerical (directional) ---
         R_num, _, Dphi_num = directional_S_and_Dphi_from_f(
-            lam**2 * Phi, dx, C.nbins_R, C.R_min, C.R_max_frac
+            lam**2 * Phi, dx, C.nbins_R, max(C.R_min, 1.0), C.R_max_frac
         )
 
-        plt.figure(figsize=(7, 5))
-        plt.loglog(R_num, Dphi_num, '-', label='Numerical')
-        plt.loglog(R1d_cut, Dphi_ana_cut, '--', label='Analytic')
+        # --- analytic on the *same FFT grid* ---
+        R_ana, Dphi_ana = Dphi_analytic_from_grid(
+            nx=nx, ny=ny, dx=dx,
+            k_break_cyc=k_break_cyc,
+            alpha_low=C.alpha3D_low, alpha_high=C.alpha3D_high,
+            s=s_sharp,
+            sigma_phi2=sigma_phi2,
+            lam=lam,
+            nbins_R=C.nbins_R, R_min=max(C.R_min, 1.0), R_max_frac=C.R_max_frac
+        )
+
+        # --- plot ---
+        plt.figure(figsize=(7,5))
+        plt.loglog(R_num, Dphi_num, '-',  label='Numerical (synthetic)')
+        plt.loglog(R_ana, Dphi_ana, '--', label='Analytic')
         plt.xlabel(r"$R$")
         plt.ylabel(r"$D_\varphi(R)$")
-        plt.grid(True, which="both", alpha=0.3)
+        plt.grid(True, which='both', alpha=0.3)
         plt.legend(frameon=False)
         plt.tight_layout()
-
-        outfile = os.path.join(C.outdir, f"Dphi_compare_{i}")
-        plt.savefig(outfile + ".png", dpi=C.dpi)
-        plt.savefig(outfile + ".pdf")
-
-        plt.show()
+        out = os.path.join(C.outdir, f"Dphi_compare_{i}")
+        plt.savefig(out + ".png", dpi=C.dpi)
+        plt.savefig(out + ".pdf")
         plt.close()
 
     print(f"Saved → {os.path.abspath(C.outdir)}")
