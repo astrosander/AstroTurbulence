@@ -67,4 +67,4 @@ if __name__ == "__main__":
     # Example: adjust path to one of your saved .h5 files
     # plot_spectrum("h5/transition_smoothness/two_slope_2D_s3_r00.h5")
     plot_spectrum("h5/transition_smoothness/two_slope_2D_s4_r00.h5")
-    # plot_spectrum("../../faradays_angles_stats/lp_structure_tests/synthetic_two_slope.h5")
+    # plot_spectrum("../../faradays_angles_stats/lp_structure_tests/mhd_fields.h5")

@@ -46,6 +46,9 @@ from scipy.special import j0  # Bessel J0
 class Config:
     # <<< set your path here >>>
     h5_path: str = "two_slope_2D_s4_r00.h5"#mhd_fields.h5"
+    #"../../../faradays_angles_stats/lp_structure_tests/mhd_fields.h5"
+
+
 
     outdir: str = "fig/two_slope_compare"
 
@@ -104,6 +107,8 @@ def load_cube(path: str):
 def project_maps(ne: np.ndarray, bz: np.ndarray, dz: float, C_RM: float):
     Bz_proj = bz.sum(axis=2)
     Phi = C_RM * (ne * bz).sum(axis=2) * dz
+    # print(ne.var(ddof=0))
+    # print(bz.var(ddof=0))
     return Bz_proj, Phi
 
 def radial_average_map(Map2D: np.ndarray, dx: float, nbins: int, r_min: float, r_max_frac: float):
@@ -250,7 +255,7 @@ def Dphi_analytic_two_slope_numeric(
     kappa_min = 2.0 * np.pi / L_phys
     kappa_max = np.pi / dx
     kappa_b = 2.0 * np.pi * k_break_cyc
-
+    print(kappa_b)
     # log grid for stable quadrature
     nk = 4096
     kappas = np.logspace(np.log10(kappa_min), np.log10(kappa_max), nk)
@@ -278,7 +283,9 @@ def Dphi_analytic_two_slope_numeric(
     if sigma_phi_map is None or sigma_mod == 0.0:
         C = 1.0
     else:
+        # C=0.004024512893876028
         C = float(sigma_phi_map) / float(sigma_mod)
+        # print(C)
     P2 *= C
 
     # correlation C_phi(R) = (1/2pi) ∫ P_2D(kappa) J0(kappa R) kappa dkappa
@@ -306,6 +313,7 @@ def main(C=C):
     
     for i, lam in enumerate(C.lambdas_m):
         sigma_phi_map = np.var(Phi)
+        # print(sigma_phi_map)
 
         # R grid in pixels
         ny, nx = Phi.shape
@@ -339,8 +347,8 @@ def main(C=C):
 
         # --- plot both ---
         plt.figure(figsize=(7, 5))
-        plt.loglog(R_num, Dphi_num, '-', label='Numerical (directional)')
-        plt.loglog(R1d_cut, Dphi_ana_cut, '--', label='Analytic (theory, R≥Rmin)')
+        plt.loglog(R_num, Dphi_num, '-', label='Numerical')
+        plt.loglog(R1d_cut, Dphi_ana_cut, '--', label='Analytic')
         plt.xlabel(r"$R$")
         plt.ylabel(r"$D_\varphi(R)$")
         plt.grid(True, which="both", alpha=0.3)
