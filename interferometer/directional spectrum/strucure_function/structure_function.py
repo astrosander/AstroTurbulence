@@ -12,7 +12,8 @@ from scipy.special import j0
 
 @dataclass
 class Config:
-    h5_path: str = "two_slope_2D_s4_r00.h5"
+    # h5_path: str = "two_slope_2D_s4_r00.h5"
+    h5_path: str = "mhd_fields.h5"
 
 
 
@@ -20,15 +21,15 @@ class Config:
 
     alpha3D_low: float  = +1.5
     alpha3D_high: float = -5.0/3.0
-    k_break_cyc: float  = 0.06
+    k_break_cyc: float  = 0.02
 
     C_RM: float = 0.81
 
     lambdas_m: Tuple[float, ...] = (0.21,)
 
-    nbins_R: int   = 240
+    nbins_R: int   = 2560
     R_min: float   = 1e-2
-    R_max_frac: float = 0.45
+    R_max_frac: float = 1.0
 
     dpi: int = 160
 
@@ -156,6 +157,7 @@ def save_loglog(R, curves,  title, ylabel, path):
     plt.tight_layout()
     plt.savefig(path+".png", dpi=C.dpi)
     plt.savefig(path+".pdf")
+    plt.show()
     plt.close()
 
 
@@ -168,6 +170,7 @@ def Dphi_analytic_two_slope_numeric(
     sigma_phi_map=None,
     use_pixel_window=True,
 ):
+    # print(s)
     Nx = int(round(Lx / dx))
     L_phys = Lx * dx
     kappa_min = 2.0 * np.pi / L_phys
@@ -233,13 +236,13 @@ def main(C=C):
             k_break_cyc=C.k_break_cyc,
             alpha_low=C.alpha3D_low,
             alpha_high=C.alpha3D_high,
-            s=8.0,
+            s=2.5,
             sigma_phi_map=sigma_phi_map,
             use_pixel_window=True,
         )
         Dphi_ana = (lam**4) * Dphi_no_lambda
 
-        mask = R_ana >= 1
+        mask = R_ana >= 1.0
         R1d_cut = R1d[mask]
         Dphi_ana_cut = Dphi_ana[mask]
 
@@ -249,7 +252,7 @@ def main(C=C):
 
         plt.figure(figsize=(7, 5))
         plt.loglog(R_num, Dphi_num, '-', label='Numerical')
-        plt.loglog(R1d_cut, Dphi_ana_cut*1.05, '--', label='Analytic')
+        plt.loglog(R1d_cut, Dphi_ana_cut, '--', label='Analytic')
         plt.xlabel(r"$R$")
         plt.ylabel(r"$D_\varphi(R)$")
         plt.grid(True, which="both", alpha=0.3)
@@ -259,6 +262,8 @@ def main(C=C):
         outfile = os.path.join(C.outdir, f"Dphi_compare_{i}")
         plt.savefig(outfile + ".png", dpi=C.dpi)
         plt.savefig(outfile + ".pdf")
+
+        plt.show()
         plt.close()
 
     print(f"Saved → {os.path.abspath(C.outdir)}")
