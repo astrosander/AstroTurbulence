@@ -62,18 +62,18 @@ def main():
     x,spc=load_field("two_slope_2D_s4_r00.h5",DSET); kS,ES,varS=spectrum(x,spc,NBINS)
 
     fig=plt.figure(figsize=(7,5))
-    plt.loglog(kA,EA,label=f"Athena (var={varA:.3e})",color="blue")
-    plt.loglog(kS,ES,label=f"Synthetic (var={varS:.3e})",color="red")
+    plt.loglog(kA,EA,label=f"Athena (var={varA:.3e})",color="lightblue")
+    plt.loglog(kS,ES,label=f"Synthetic (var={varS:.3e})",color="salmon")
 
     k1S,k2S=np.nanmin(kS[kS>0]),np.nanmax(kS)
     ks=np.sqrt(k1S*k2S)
-    slope_line(plt,g:=kS,ES, +1.5, k1S,ks, color="red", ls=":", label="syn +3/2")
-    slope_line(plt,g,ES, -5/3, ks, k2S, color="red", ls=":", label="syn -5/3")
+    slope_line(plt,g:=kS,ES, +1.5, k1S,ks*1.5, color="orangered", ls=":", label="syn +3/2")
+    slope_line(plt,g,ES, -5/3, ks*1.5, k2S*0.75, color="crimson", ls=":", label="syn -5/3")
 
     k1A,k2A=np.nanmin(kA[kA>0]),np.nanmax(kA)
     ka=np.sqrt(k1A*k2A)
-    slope_line(plt,kA,EA, -0.5, k1A,ka, color="blue", ls=":", label="ath -1/2")
-    slope_line(plt,kA,EA, -1.5, ka, k2A, color="blue", ls=":", label="ath -3/2")
+    slope_line(plt,kA,EA, -0.5, k1A,ka, color="dodgerblue", ls=":", label="ath -1/2")
+    slope_line(plt,kA,EA, -1.5, ka, k2A, color="royalblue", ls=":", label="ath -3/2")
 
     plt.xlabel(r"$k$"); plt.ylabel(r"$E(k)$"); plt.grid(True,which="both",alpha=.3)
     plt.legend(frameon=False,ncol=2); plt.xlim(20/256)
