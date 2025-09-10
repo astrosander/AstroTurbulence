@@ -60,7 +60,7 @@ def slope_line(ax, k, E, slope, k1, k2, **kw):
     A  = np.exp(c)
     ax.loglog(kk, A*(kk/k0)**slope, **kw)
 
-def best_slope_line(ax, k, E, k1, k2, **kw):
+def best_slope_line(ax, k, E, k1, k2, mode="syn", **kw):
     m = (k>0)&(E>0)&np.isfinite(k)&np.isfinite(E)&(k>=k1)&(k<=k2)
     if not np.any(m): return None
     kk, ee = k[m], E[m]
@@ -70,7 +70,7 @@ def best_slope_line(ax, k, E, k1, k2, **kw):
     s  = np.sum((y - y.mean())*dx) / np.sum(dx*dx)
     c  = np.mean(y - s*dx)
     A  = np.exp(c)
-    ax.loglog(kk, A*(kk/k0)**s, label=f"{s:.2f}", **kw)
+    ax.loglog(kk, A*(kk/k0)**s, label=f"{mode} ({s:.2f})", **kw)
     return float(s)
 
 def main():
@@ -88,19 +88,25 @@ def main():
     k2S*=0.75
     k1S =20/256
 
+    print(k1S, ks)
+    
     slope_line(plt,kS,ES,+1.5, k1S, ks, color="orangered", ls=":", label="syn +3/2")
     slope_line(plt,kS,ES,-5/3, ks, k2S, color="crimson",   ls=":", label="syn -5/3")
-    sS1=best_slope_line(plt,kS,ES, k1S, ks,   color="firebrick",   ls="--")
-    sS2=best_slope_line(plt,kS,ES, ks, k2S, color="darkred",    ls="--")
+    sS1=best_slope_line(plt,kS,ES, k1S, ks, "syn",   color="firebrick",   ls="--")
+    sS2=best_slope_line(plt,kS,ES, ks, k2S, "syn", color="darkred",    ls="--")    
+    plt.axvline(ks, color="gray", ls=":", label=f"k={ks:.2f}", lw=1.2, alpha=0.8)
 
     k1A,k2A=np.nanmin(kA[kA>0]),np.nanmax(kA); ka=np.sqrt(k1A*k2A)
     ka*=1.5
     k2A*=0.6
     k1A =20/256
-    slope_line(plt,kA,EA,-0.5, k1A, ka, color="dodgerblue", ls=":")
-    slope_line(plt,kA,EA,-1.5, ka,  k2A, color="royalblue",  ls=":")
-    sA1=best_slope_line(plt,kA,EA, k1A, ka,   color="navy",        ls="--")
-    sA2=best_slope_line(plt,kA,EA, ka,  k2A,  color="midnightblue", ls="--")
+    print(k1A, ka)
+
+    # slope_line(plt,kA,EA,-0.5, k1A, ka, color="dodgerblue", ls=":")
+    # slope_line(plt,kA,EA,-1.5, ka,  k2A, color="royalblue",  ls=":")
+    sA1=best_slope_line(plt,kA,EA, k1A, ka, "ath",   color="dodgerblue",        ls="--")
+    sA2=best_slope_line(plt,kA,EA, ka,  k2A, "ath",  color="royalblue", ls="--")
+    plt.axvline(ka, color="purple", ls=":", label=f"k={ka:.2f}", lw=1.2, alpha=0.8)
 
     if sS1 is not None or sS2 is not None or sA1 is not None or sA2 is not None:
         print("Best-fit slopes:")
