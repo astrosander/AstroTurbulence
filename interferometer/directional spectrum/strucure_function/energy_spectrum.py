@@ -117,7 +117,8 @@ def main():
 
     plt.xlabel(r"$k$"); plt.ylabel(r"$E(k)$"); plt.grid(True,which="both",alpha=.3)
     plt.legend(frameon=False,ncol=2); plt.xlim(20/256)
-    plt.title(os.path.basename(H5)); plt.tight_layout()
+    plt.title("Energy Spectrum"); 
+    plt.tight_layout()
     plt.savefig(OUT+".png",dpi=DPI); plt.savefig(OUT+".pdf"); plt.show()
     print("Saved →",os.path.abspath(OUT)+".png/.pdf")
 
