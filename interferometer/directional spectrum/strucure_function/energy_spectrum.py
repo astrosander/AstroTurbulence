@@ -50,34 +50,69 @@ def spectrum(x,spc,n=128):
     s=(x.var()/np.trapz(Ek[m],qc[m])) if np.any(m) and np.trapz(Ek[m],qc[m])>0 else 1.0
     return qc,Ek*s,x.var()
 
-def slope_line(ax,k,E,slope,k1,k2,**kw):
-    m=(k>=k1)&(k<=k2)&np.isfinite(E)
+def slope_line(ax, k, E, slope, k1, k2, **kw):
+    m = (k>0)&(E>0)&np.isfinite(k)&np.isfinite(E)&(k>=k1)&(k<=k2)
     if not np.any(m): return
-    kk=k[m]; ee=E[m]; i=len(kk)//2; kr,Er=kk[i],ee[i]
-    ax.loglog(kk,Er*(kk/kr)**slope,**kw)
+    kk, ee = k[m], E[m]
+    x = np.log(kk); y = np.log(ee)
+    x0 = x.mean(); k0 = np.exp(x0)
+    c  = np.mean(y - slope*(x - x0))
+    A  = np.exp(c)
+    ax.loglog(kk, A*(kk/k0)**slope, **kw)
+
+def best_slope_line(ax, k, E, k1, k2, **kw):
+    m = (k>0)&(E>0)&np.isfinite(k)&np.isfinite(E)&(k>=k1)&(k<=k2)
+    if not np.any(m): return None
+    kk, ee = k[m], E[m]
+    x = np.log(kk); y = np.log(ee)
+    x0 = x.mean(); k0 = np.exp(x0)
+    dx = x - x0
+    s  = np.sum((y - y.mean())*dx) / np.sum(dx*dx)
+    c  = np.mean(y - s*dx)
+    A  = np.exp(c)
+    ax.loglog(kk, A*(kk/k0)**s, label=f"{s:.2f}", **kw)
+    return float(s)
 
 def main():
     os.makedirs(os.path.dirname(OUT) or ".", exist_ok=True)
     x,spc=load_field("mhd_fields.h5",DSET); kA,EA,varA=spectrum(x,spc,NBINS)
     x,spc=load_field("two_slope_2D_s4_r00.h5",DSET); kS,ES,varS=spectrum(x,spc,NBINS)
 
-    fig=plt.figure(figsize=(7,5))
+    plt.figure(figsize=(7,5))
     plt.loglog(kA,EA,label=f"Athena (var={varA:.3e})",color="lightblue")
     plt.loglog(kS,ES,label=f"Synthetic (var={varS:.3e})",color="salmon")
 
-    k1S,k2S=np.nanmin(kS[kS>0]),np.nanmax(kS)
-    ks=np.sqrt(k1S*k2S)
-    slope_line(plt,g:=kS,ES, +1.5, k1S,ks*1.5, color="orangered", ls=":", label="syn +3/2")
-    slope_line(plt,g,ES, -5/3, ks*1.5, k2S*0.75, color="crimson", ls=":", label="syn -5/3")
+    k1S,k2S=np.nanmin(kS[kS>0]),np.nanmax(kS); ks=np.sqrt(k1S*k2S)
 
-    k1A,k2A=np.nanmin(kA[kA>0]),np.nanmax(kA)
-    ka=np.sqrt(k1A*k2A)
-    slope_line(plt,kA,EA, -0.5, k1A,ka, color="dodgerblue", ls=":", label="ath -1/2")
-    slope_line(plt,kA,EA, -1.5, ka, k2A, color="royalblue", ls=":", label="ath -3/2")
+    ks*=1.5
+    k2S*=0.75
+    k1S =20/256
+
+    slope_line(plt,kS,ES,+1.5, k1S, ks, color="orangered", ls=":", label="syn +3/2")
+    slope_line(plt,kS,ES,-5/3, ks, k2S, color="crimson",   ls=":", label="syn -5/3")
+    sS1=best_slope_line(plt,kS,ES, k1S, ks,   color="firebrick",   ls="--")
+    sS2=best_slope_line(plt,kS,ES, ks, k2S, color="darkred",    ls="--")
+
+    k1A,k2A=np.nanmin(kA[kA>0]),np.nanmax(kA); ka=np.sqrt(k1A*k2A)
+    ka*=1.5
+    k2A*=0.6
+    k1A =20/256
+    slope_line(plt,kA,EA,-0.5, k1A, ka, color="dodgerblue", ls=":")
+    slope_line(plt,kA,EA,-1.5, ka,  k2A, color="royalblue",  ls=":")
+    sA1=best_slope_line(plt,kA,EA, k1A, ka,   color="navy",        ls="--")
+    sA2=best_slope_line(plt,kA,EA, ka,  k2A,  color="midnightblue", ls="--")
+
+    if sS1 is not None or sS2 is not None or sA1 is not None or sA2 is not None:
+        print("Best-fit slopes:")
+        if sS1 is not None: print(f"  Synthetic low  interval: {sS1:.3f}")
+        if sS2 is not None: print(f"  Synthetic high interval: {sS2:.3f}")
+        if sA1 is not None: print(f"  Athena    low  interval: {sA1:.3f}")
+        if sA2 is not None: print(f"  Athena    high interval: {sA2:.3f}")
 
     plt.xlabel(r"$k$"); plt.ylabel(r"$E(k)$"); plt.grid(True,which="both",alpha=.3)
     plt.legend(frameon=False,ncol=2); plt.xlim(20/256)
     plt.title(os.path.basename(H5)); plt.tight_layout()
     plt.savefig(OUT+".png",dpi=DPI); plt.savefig(OUT+".pdf"); plt.show()
     print("Saved →",os.path.abspath(OUT)+".png/.pdf")
+
 if __name__=="__main__": main()
