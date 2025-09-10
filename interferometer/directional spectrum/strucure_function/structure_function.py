@@ -12,16 +12,18 @@ from scipy.special import j0
 
 @dataclass
 class Config:
-    h5_path: str = "two_slope_2D_s4_r00.h5"
-    # h5_path: str = "mhd_fields.h5"
-
-
+    # h5_path: str = "two_slope_2D_s4_r00.h5"
+    h5_path: str = "mhd_fields.h5"
 
     outdir: str = "fig/two_slope_compare"
 
-    alpha3D_low: float  = +1.5
-    alpha3D_high: float = -5.0/3.0
-    k_break_cyc: float  = 0.1
+    alpha3D_low: float  = -1.54#3.0/2
+    alpha3D_high: float = -4.39#-5.0/3.0
+    k_break_cyc: float  = 0.08692406371 #0.06*2pi
+
+    # alpha3D_low: float  = 1.77
+    # alpha3D_high: float = -1.78
+    # k_break_cyc: float  = 0.06875352187
 
     C_RM: float = 0.81
 
@@ -61,6 +63,7 @@ def load_cube(path: str):
         else:
             dz = 1.0
     dx=1.0
+    dz=1.0
     return ne, bz, dx, dz
 
 def project_maps(ne: np.ndarray, bz: np.ndarray, dz: float, C_RM: float):
@@ -114,7 +117,7 @@ def Dphi_from_RM_map(Phi: np.ndarray, lam: float, dx: float, nbins_R: int, R_min
 def Dphi_analytic_R_hankel(
     R1d, lam, k_break_cyc, sigma_phi2,
     alpha3D_low=+1.5, alpha3D_high=-(5.0/3.0),
-    k_span_lo=1e-4, k_span_hi=1e+4, n_k=4096
+    k_span_lo=1e-4, k_span_hi=1e+4, n_k=409600
 ):
     gl = alpha3D_low  - 2.0
     gh = alpha3D_high - 2.0
@@ -177,7 +180,7 @@ def Dphi_analytic_two_slope_numeric(
     kappa_max = np.pi / dx
     kappa_b = 2.0 * np.pi * k_break_cyc
     print(kappa_b)
-    nk = 4096
+    nk = 409600
     kappas = np.logspace(np.log10(kappa_min), np.log10(kappa_max), nk)
     x = kappas / kappa_b
 
@@ -246,7 +249,11 @@ def main(C=C):
     with h5py.File(C.h5_path, "r") as f:
         attrs = dict(f.attrs)
     k_break_cyc = float(attrs.get("k_break", C.k_break_cyc))
-    s_sharp     = float(attrs.get("s",        8.0))
+    s_sharp     = float(attrs.get("s",        4.0))
+    
+    # k_break_cyc = 
+    print(k_break_cyc)
+    print(s_sharp)
 
     sigma_phi2 = Phi.var(ddof=0)
 
@@ -279,6 +286,7 @@ def main(C=C):
         out = os.path.join(C.outdir, f"Dphi_compare_{i}")
         plt.savefig(out + ".png", dpi=C.dpi)
         plt.savefig(out + ".pdf")
+        plt.show()
         plt.close()
 
     print(f"Saved → {os.path.abspath(C.outdir)}")
