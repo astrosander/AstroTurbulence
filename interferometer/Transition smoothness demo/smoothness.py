@@ -17,7 +17,7 @@ class Config:
     dx: float = 1.0
     seed: int = 2025
 
-    alpha_low: float = +1.5
+    alpha_low: float = +0.0
     alpha_high: float = -5.0/3.0
     k_break: float = 0.06
 

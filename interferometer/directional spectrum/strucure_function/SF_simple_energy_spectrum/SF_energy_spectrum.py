@@ -24,7 +24,7 @@ class Config:
     h5_path: str = "../two_slope_2D_s4_r00.h5"
     outdir:  str = "fig/dphi_from_energy_spectrum"
     C_RM: float = 0.81
-    lambdas_m: Tuple[float, ...] = (0.21, 0.50, 1.00)
+    lambdas_m: Tuple[float, ...] = (0.21,)
 
     nbins_R: int   = 300
     R_min_pix: float = 1.0
@@ -219,7 +219,7 @@ def main(C=C):
         # Pick a reference point to draw the line (e.g. smallest R value)
         R_ref = R[0]  # avoid zero if log scale
         y_ref = (5/3) * R_ref  # slope * x
-        tangent_line = (Dphi[20])/((5/3) * R[20])*(5/3) * R  # y = (5/3)*x
+        tangent_line = (Dphi[6])/((5/3) * R[6])*(5/3) * R  # y = (5/3)*x
 
         plt.loglog(R, tangent_line, "--", color="k", 
                    label="$5/3$")
