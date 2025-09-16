@@ -143,7 +143,7 @@ def Dphi_analytic_R_hankel(
 
     Dphi_RM = 2.0 * (sigma_phi2 - C_R)
     Dphi_RM = np.maximum(Dphi_RM, 0.0)
-    Dphi_ang = 0.5 * (1.0 - np.exp(-2.0 * (lam**4) * Dphi_RM))
+    Dphi_ang = Dphi_RM#0.5 * (1.0 - np.exp(-2.0 * (lam**4) * Dphi_RM))
     return Dphi_ang, Dphi_RM
 
 
@@ -235,7 +235,7 @@ def Dphi_analytic_from_grid(nx, ny, dx, k_break_cyc, alpha_low, alpha_high, s, s
 
     C_map = np.fft.fftshift(np.fft.ifft2(P2_model).real) / (nx*ny)
     R1d, C_R = radial_average_map(C_map, dx, nbins_R, R_min, R_max_frac)
-    Dphi = 0.5 * (1.0 - np.exp(-2.0*(lam**4) * (2.0*(sigma_phi2 - C_R))))
+    Dphi = (2.0*(sigma_phi2 - C_R))#0.5 * (1.0 - np.exp(-2.0*(lam**4) * (2.0*(sigma_phi2 - C_R))))
     return R1d, Dphi
 
 def main(C=C):
@@ -276,10 +276,10 @@ def main(C=C):
 
         # --- plot ---
         plt.figure(figsize=(7,5))
-        plt.loglog(R_num, Dphi_num, '-',  label='Numerical (synthetic)')
-        plt.loglog(R_ana, Dphi_ana, '--', label='Analytic')
-        plt.xlabel(r"$R$")
-        plt.ylabel(r"$D_\varphi(R)$")
+        # plt.loglog(R_num, Dphi_num, '-',  label='Numerical (synthetic)')
+        plt.loglog(R_ana, Dphi_ana, '-', label="from directional spectrum")
+        # plt.xlabel(r"$R$")
+        plt.ylabel(r"$D_\Phi(R)$")
         plt.grid(True, which='both', alpha=0.3)
         plt.legend(frameon=False)
         plt.tight_layout()
