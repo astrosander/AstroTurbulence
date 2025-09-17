@@ -21,7 +21,7 @@ from numpy.fft import fftn, ifft2, fft2, fftfreq
 # ─────────────────────────────────────────────────────────────
 @dataclass
 class Config:
-    h5_path: str = "../two_slope_2D_s4_r00.h5"
+    h5_path: str = r"D:\Рабочая папка\GitHub\AstroTurbulence\interferometer\Transition smoothness demo\h5\transition_smoothness\two_slope_2D_s3_r00.h5"#"../two_slope_2D_s3_r00.h5"
     outdir:  str = "fig/dphi_from_energy_spectrum"
     C_RM: float = 0.81
     lambdas_m: Tuple[float, ...] = (0.21,)
@@ -188,6 +188,27 @@ def main(C=C):
     # Plot E1D(k) for sanity
     plt.figure(figsize=(6.8, 4.8))
     safe_loglog(k_shell, E1D, label=r"$E_{1\mathrm{D}}(k)$ from $q=n_e B_z$")
+    
+    k0 = k_shell[len(k_shell)//3]   # pick roughly 1/3 along the spectrum
+    E0 = E1D[len(E1D)//3]
+
+    ref_line = E0 * (k_shell / k0)**(1)
+    plt.loglog(k_shell, ref_line, 'k--', label=r"$k^{-5/3}$")
+
+    kmin, kmax = 1e-1, 1e1   # set your interval
+    mask = (k_shell > kmin) & (k_shell < kmax) & (E1D > 0) & np.isfinite(E1D)
+    m, b = np.polyfit(np.log(k_shell[mask]), np.log(E1D[mask]), 1)
+    plt.loglog(k_shell[mask], np.exp(b) * k_shell[mask]**m,
+               label=fr"fit [{kmin:g},{kmax:g}]: $k^{{{m:.2f}}}$")
+
+
+    kmin, kmax = 0e-1, 1e-1   # set your interval
+    mask = (k_shell > kmin) & (k_shell < kmax) & (E1D > 0) & np.isfinite(E1D)
+    m, b = np.polyfit(np.log(k_shell[mask]), np.log(E1D[mask]), 1)
+    plt.loglog(k_shell[mask], np.exp(b) * k_shell[mask]**m,
+               label=fr"fit [{kmin:g},{kmax:g}]: $k^{{{m:.2f}}}$")
+
+
     plt.xlabel(r"$k$")
     plt.ylabel(r"$E_{1\mathrm{D}}(k)$")
     plt.grid(True, which="both", alpha=0.3)

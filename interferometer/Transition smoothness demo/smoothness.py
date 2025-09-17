@@ -18,10 +18,10 @@ class Config:
     seed: int = 2025
 
     alpha_low: float = +0.0
-    alpha_high: float = -5.0/3.0
+    alpha_high: float = -5/3.0
     k_break: float = 0.06
 
-    s_list: Tuple[float, ...] = (2.0, 3.0, 4.0)
+    s_list: Tuple[float, ...] = (0.0, 3.0, 4.0)
 
     n_real: int = 3
 

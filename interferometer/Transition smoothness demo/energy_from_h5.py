@@ -51,8 +51,25 @@ def plot_spectrum(h5_path: str, out_png: str = "Ek.png"):
     k1d, Pk = ring_average_2d(P2D, dx)
     E1D = 2 * np.pi * k1d * Pk
 
-    # --- plot ---
     plt.figure(figsize=(6, 4))
+
+    kmin, kmax = 5e-2, 1e1   # set your interval
+    mask = (k1d > kmin) & (k1d < kmax) & (E1D > 0) & np.isfinite(E1D)
+    m, b = np.polyfit(np.log(k1d[mask]), np.log(E1D[mask]), 1)
+    plt.loglog(k1d[mask], np.exp(b) * k1d[mask]**m,
+               label=fr"fit [{kmin:g},{kmax:g}]: $k^{{{m:.2f}}}$")
+    print(fr"fit [{kmin:g},{kmax:g}]: {m:.2f}")
+    # --- plot ---
+
+
+    kmin, kmax = 0e-2, 5e-2   # set your interval
+    mask = (k1d > kmin) & (k1d < kmax) & (E1D > 0) & np.isfinite(E1D)
+    m, b = np.polyfit(np.log(k1d[mask]), np.log(E1D[mask]), 1)
+    plt.loglog(k1d[mask], np.exp(b) * k1d[mask]**m,
+               label=fr"fit [{kmin:g},{kmax:g}]: $k^{{{m:.2f}}}$")
+    print(fr"fit [{kmin:g},{kmax:g}]: {m:.2f}")
+    # --- plot ---
+
     plt.loglog(k1d, E1D, lw=1.5)
     plt.xlabel(r"$k$")
     plt.ylabel(r"$E(k)$")
@@ -65,6 +82,6 @@ def plot_spectrum(h5_path: str, out_png: str = "Ek.png"):
 
 if __name__ == "__main__":
     # Example: adjust path to one of your saved .h5 files
-    # plot_spectrum("h5/transition_smoothness/two_slope_2D_s3_r00.h5")
-    plot_spectrum("h5/transition_smoothness/two_slope_2D_s4_r00.h5")
+    # -tete("h5/transition_smoothness/two_slope_2D_s3_r00.h5")
+    plot_spectrum("h5/transition_smoothness/two_slope_2D_s3_r00.h5")
     # plot_spectrum("../../faradays_angles_stats/lp_structure_tests/mhd_fields.h5")
