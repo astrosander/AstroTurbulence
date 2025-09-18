@@ -84,6 +84,9 @@ def load_field(path: str, dataset: str):
     """Load field data from HDF5 file."""
     with h5py.File(path, "r") as f:
         x = f[dataset][:].astype(float)
+        
+        print(x)
+
         # Extract grid spacing (currently hardcoded to 1.0)
         dx = dy = _dx(f["x_coor"][:,0,0]) if "x_coor" in f else 1.0
         dz = _dx(f["z_coor"][0,0,:]) if "z_coor" in f else 1.0
@@ -301,6 +304,8 @@ def dphi_from_energy_spectrum(ne: np.ndarray, bz: np.ndarray, dz: float, C_RM: f
     C0_model = C_map_unnorm[0,0] / (nx * ny)
     
     # Normalize to match actual Φ variance
+
+    print("sigma_phi2=",sigma_phi2)
     A = (sigma_phi2 / C0_model) if (np.isfinite(C0_model) and C0_model != 0.0) else 1.0
     C_map = np.fft.fftshift(A * C_map_unnorm / (nx * ny))
     
