@@ -387,7 +387,7 @@ def plot_reference_slopes(ax, k, E, k_ref=None, E_ref=None):
         
         # Plot -5/3 reference line
         E_53 = best_E_ref_left * (k_left / best_k_ref_left)**(5/3)
-        ax.loglog(k_left, E_53, 'k:', alpha=0.7, label=r"$k^{5/3}$")
+        ax.loglog(k_left, E_53, 'k:', alpha=0.7, label=r"$k^{2/3}$")
     
     # Right segment (high k): find best k_ref for -2/3 slope (or another slope)
     k_right = k_valid[k_valid >= k_mid]
@@ -547,6 +547,13 @@ def analyze_structure_functions(C=C):
         try:
             print(f"\nAnalyzing {dataset_name} structure functions...")
             ne, bz, dx, dz = load_density_and_field(filepath)
+            print("--"*10)
+            for i in range(len(ne)):
+                for i1 in range(len(ne[i])):
+                    for i2 in range(len(ne[i][i1])):
+                       ne[i][i1][i2]=1
+                       # print(ne[i][i1][i2])
+                        
             print(f"  Loaded: ne.shape={ne.shape}, bz.shape={bz.shape}")
             
             # Compute structure functions for different wavelengths
