@@ -60,7 +60,7 @@ def fit_piecewise_loglog(x, y):
             "left_slope": s1, "right_slope": s2, "AIC2": aic2, "split_x": xm}
 
 def main():
-    h5_path = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\synthetic_kolmogorov_normal.h5"
+    h5_path = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\ms01ma08.mhd_w.00300.vtk.h5"
     lam_min = 0.05
     lam_max = 1.0
     nlam = 64

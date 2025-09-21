@@ -90,7 +90,7 @@ def fit_loglog_slope(k, pk, kmin_frac=0.05, kmax_frac=0.45):
     return FitResult(slope, intercept, r2, float(kmin), float(kmax))
 
 def main():
-    h5_path = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\synthetic_kolmogorov_normal.h5"
+    h5_path = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\ms01ma08.mhd_w.00300.vtk.h5"
     lam = 0.5
     kfaraday = 1.0
     emissivity = "density"
