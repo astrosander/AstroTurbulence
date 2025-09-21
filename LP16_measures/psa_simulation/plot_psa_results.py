@@ -15,7 +15,7 @@ def load_psa_results(csv_file, json_file):
     
     return k, Pk, fit_results
 
-def plot_psa_results(k, Pk, fit_results, output_file="psa_plot.png"):
+def plot_psa_results(k, Pk, fit_results, output_file="psa_plot.pdf"):
     plt.figure(figsize=(10, 8))
     
     plt.loglog(k[k > 0], Pk[k > 0], 
@@ -39,9 +39,9 @@ def plot_psa_results(k, Pk, fit_results, output_file="psa_plot.png"):
         plt.loglog(k_ref, Pk_ref, ':', linewidth=2, 
                   label='-11/3', color='green')
     
-    plt.xlabel('k (arb. units)', fontsize=12)
-    plt.ylabel('P(k) of polarization map', fontsize=14)
-    plt.title('PSA: Spatial Power Spectrum at fixed λ', fontsize=14)
+    plt.xlabel('k', fontsize=12)
+    plt.ylabel('P(k)', fontsize=14)
+    plt.title('PSA: Spatial Power Spectrum (Syn)', fontsize=14)
     plt.legend(fontsize=11)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
@@ -52,7 +52,7 @@ def plot_psa_results(k, Pk, fit_results, output_file="psa_plot.png"):
     return plt.gcf()
 
 def main():
-    csv_file = "PSA_out_Pk.csv"
+    csv_file = "COMP_dirPk.csv"
     json_file = "PSA_out_fit.json"
     
     if not os.path.exists(csv_file):

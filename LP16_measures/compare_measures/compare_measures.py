@@ -212,7 +212,7 @@ def save_csv(path, cols, header):
         w = csv.writer(f); w.writerow(header); w.writerows(cols)
 
 def main():
-    h5_path = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\ms01ma08.mhd_w.00300.vtk.h5"
+    h5_path = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\synthetic_kolmogorov_normal.h5"
     lam = 0.5
     lam_min = 0.05
     lam_max = 1.0
@@ -235,11 +235,11 @@ def main():
     if np.isfinite(fit_dir["slope"]):
         xx = np.linspace(max(fit_dir["k_min"], k_dir[m].min()), fit_dir["k_max"], 200)
         yy = 10**(fit_dir["intercept"]) * xx**(fit_dir["slope"])
-        plt.loglog(xx, yy, label=f"slope={fit_dir['slope']:.2f}, R^2={fit_dir['r2']:.3f}")
+        plt.loglog(xx, yy, label=f"slope={fit_dir['slope']:.2f}")
         plt.legend()
     plt.xlabel("k"); plt.ylabel("P_dir(k)")
-    plt.title("NEW directional spectrum (single λ)")
-    plt.tight_layout(); plt.savefig(f"{out_prefix}_dirPk.png", dpi=150)
+    plt.title("new directional spectrum (single λ)")
+    plt.tight_layout(); plt.savefig(f"{out_prefix}_dirPk.pdf", dpi=150)
 
     k_psa, Pk_psa, fit_psa = psa_spectrum(P)
     save_csv(f"{out_prefix}_psaPk.csv", list(zip(k_psa, Pk_psa)), ["k", "P(k)"])

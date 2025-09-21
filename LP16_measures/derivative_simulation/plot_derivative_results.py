@@ -15,7 +15,7 @@ def load_derivative_results(csv_file, json_file):
     
     return lambda2, var_dP, fit_results
 
-def plot_derivative_results(lambda2, var_dP, fit_results, output_file="derivative_plot.png"):
+def plot_derivative_results(lambda2, var_dP, fit_results, output_file="derivative_plot.pdf"):
     plt.figure(figsize=(10, 8))
     plt.loglog(lambda2[lambda2 > 0], var_dP[lambda2 > 0], 
                marker='o', linestyle='none', markersize=6, 
@@ -36,9 +36,9 @@ def plot_derivative_results(lambda2, var_dP, fit_results, output_file="derivativ
         plt.loglog(lambda2_ref, var_ref, ':', linewidth=2, 
                   label='-5/3', color='green')
     
-    plt.xlabel(r'$\lambda^2$ (m$^2$)', fontsize=12)
+    plt.xlabel(r'$\lambda^2$', fontsize=12)
     plt.ylabel(r'$\mathrm{Var}\!\left[\frac{\partial P}{\partial (\lambda^2)}\right]$', fontsize=14)
-    plt.title('Derivative-based Polarization Statistic', fontsize=14)
+    plt.title('Derivative-based Polarization Statistic (MHD)', fontsize=14)
     plt.legend(fontsize=11)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
@@ -49,7 +49,7 @@ def plot_derivative_results(lambda2, var_dP, fit_results, output_file="derivativ
     return plt.gcf()
 
 def main():
-    csv_file = "DER_out_var_dP.csv"
+    csv_file = "DER_out_var_dP_mhd.csv"
     json_file = "DER_out_fit.json"
     
     if not os.path.exists(csv_file):
