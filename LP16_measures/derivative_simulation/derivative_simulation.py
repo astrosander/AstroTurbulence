@@ -65,7 +65,7 @@ def main():
     h5_path = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\synthetic_kolmogorov_normal.h5"
     lam_min = 0.05
     lam_max = 1.0
-    nlam = 32
+    nlam = 64
     kfaraday = 1.0
     emissivity = "density"
     zaxis = 0

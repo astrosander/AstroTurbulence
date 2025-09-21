@@ -27,14 +27,14 @@ def plot_derivative_results(lambda2, var_dP, fit_results, output_file="derivativ
         lambda2_ref = np.logspace(np.log10(lambda2_min_ref), 
                                   np.log10(lambda2_max_ref), 100)
 
-        scale_factor = lambda2[lambda2 > 0].min() * 20000000
+        scale_factor = lambda2[lambda2 > 0].min() * 120000000
 
-        var_ref = scale_factor * lambda2_ref**(-8/3)
+        var_ref = scale_factor * lambda2_ref**(-5/3)
 
         print(var_dP[-1])
         
         plt.loglog(lambda2_ref, var_ref, ':', linewidth=2, 
-                  label='-8/3', color='green')
+                  label='-5/3', color='green')
     
     plt.xlabel(r'$\lambda^2$ (m$^2$)', fontsize=12)
     plt.ylabel(r'$\mathrm{Var}\!\left[\frac{\partial P}{\partial (\lambda^2)}\right]$', fontsize=14)
