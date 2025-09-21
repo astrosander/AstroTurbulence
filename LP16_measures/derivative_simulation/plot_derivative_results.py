@@ -27,7 +27,7 @@ def plot_derivative_results(lambda2, var_dP, fit_results, output_file="derivativ
         lambda2_ref = np.logspace(np.log10(lambda2_min_ref), 
                                   np.log10(lambda2_max_ref), 100)
 
-        scale_factor = lambda2[lambda2 > 0].min() * 120000000
+        scale_factor = lambda2[lambda2 > 0].min() * 90000000
 
         var_ref = scale_factor * lambda2_ref**(-5/3)
 

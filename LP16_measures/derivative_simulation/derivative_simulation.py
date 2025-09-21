@@ -62,7 +62,7 @@ def fit_loglog(x, y):
     return {"slope": slope, "intercept": intercept, "r2": r2}
 
 def main():
-    h5_path = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\synthetic_kolmogorov_normal.h5"
+    h5_path = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\ms01ma08.mhd_w.00300.vtk.h5"
     lam_min = 0.05
     lam_max = 1.0
     nlam = 64

@@ -1,0 +1,7 @@
+measure,slope,R2_or_AIC,notes
+NEW_directional,-3.30866,R2=0.998349,
+PSA,-3.77108,R2=0.998061,
+PFA_all,0.0837276,AIC1=-101.848,split_x=0.275682
+PFA_piecewise,left=0.85415; right=-1.11217,AIC2=-383.592,
+DER_var,-0.41383,R2=0.391125,
+saturation,,N_rms=0.0281935,sigma_LOS=0.708579; Nz=256
