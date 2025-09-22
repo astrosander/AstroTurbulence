@@ -79,7 +79,7 @@ def ring_spectrum(field2d):
     Pk = Pk / counts
     return k_centers, Pk
 
-def fit_loglog_slope(x, y, xmin_frac=0.05, xmax_frac=0.45):
+def fit_loglog_slope(x, y, xmin_frac=0.1, xmax_frac=0.3):
     x = np.asarray(x); y = np.asarray(y)
     msk = (x>0) & (y>0)
     x = x[msk]; y = y[msk]
@@ -187,7 +187,7 @@ def save_csv(path, cols, header):
         w = csv.writer(f); w.writerow(header); w.writerows(cols)
 
 def main():
-    h5_path = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\mhd_fields.h5"
+    h5_path = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\ms01ma08.mhd_w.00300.vtk.h5"
     lam_single = 0.5
     lam_min = 0.05
     lam_max = 1.0
@@ -209,32 +209,46 @@ def main():
     save_csv(f"{out}_dirPk.csv", list(zip(k_dir, Pk_dir)), ["k", "P_dir(k)"])
     with open(f"{out}_dir_fit.json", "w") as f:
         json.dump(fit_dir, f, indent=2)
-    plt.figure()
+    # Modern directional spectrum plot
+    plt.figure(figsize=(10, 8))
     m = (k_dir>0) & (Pk_dir>0)
-    plt.loglog(k_dir[m], Pk_dir[m], marker=".", linestyle="none")
+    plt.loglog(k_dir[m], Pk_dir[m], marker='o', linestyle='none', markersize=6, 
+               alpha=0.7, label='Data', color='blue')
     if np.isfinite(fit_dir["slope"]):
         xx = np.linspace(max(fit_dir["xmin"], k_dir[m].min()), fit_dir["xmax"], 200)
         yy = 10**(fit_dir["intercept"]) * xx**(fit_dir["slope"])
-        plt.loglog(xx, yy, label=f"slope={fit_dir['slope']:.2f}, R^2={fit_dir['r2']:.3f}")
-        plt.legend()
-    plt.xlabel("k"); plt.ylabel("P_dir(k)")
-    plt.title("Directional spectrum (mixed, single λ)")
-    plt.tight_layout(); plt.savefig(f"{out}_dirPk.png", dpi=150)
+        plt.loglog(xx, yy, ':', linewidth=2, 
+                  label=f'Slope = {fit_dir["slope"]:.2f}, R² = {fit_dir["r2"]:.3f}', color='green')
+    plt.xlabel("k", fontsize=12)
+    plt.ylabel("P_dir(k)", fontsize=12)
+    plt.title("Directional Spectrum (Mixed, Single λ)", fontsize=14)
+    plt.legend(fontsize=11)
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(f"{out}_dirPk.png", dpi=150, bbox_inches='tight')
+    plt.savefig(f"{out}_dirPk.pdf", dpi=150, bbox_inches='tight')
     k_psa, Pk_psa, fit_psa = psa_spectrum(P)
     save_csv(f"{out}_psaPk.csv", list(zip(k_psa, Pk_psa)), ["k", "P(k)"])
     with open(f"{out}_psa_fit.json", "w") as f:
         json.dump(fit_psa, f, indent=2)
-    plt.figure()
+    # Modern PSA spectrum plot
+    plt.figure(figsize=(10, 8))
     m = (k_psa>0) & (Pk_psa>0)
-    plt.loglog(k_psa[m], Pk_psa[m], marker=".", linestyle="none")
+    plt.loglog(k_psa[m], Pk_psa[m], marker='o', linestyle='none', markersize=6, 
+               alpha=0.7, label='Data', color='blue')
     if np.isfinite(fit_psa["slope"]):
         xx = np.linspace(max(fit_psa["xmin"], k_psa[m].min()), fit_psa["xmax"], 200)
         yy = 10**(fit_psa["intercept"]) * xx**(fit_psa["slope"])
-        plt.loglog(xx, yy, label=f"slope={fit_psa['slope']:.2f}, R^2={fit_psa['r2']:.3f}")
-        plt.legend()
-    plt.xlabel("k"); plt.ylabel("PSA: |P̂(k)|²")
-    plt.title("PSA spectrum (mixed, single λ)")
-    plt.tight_layout(); plt.savefig(f"{out}_psaPk.png", dpi=150)
+        plt.loglog(xx, yy, ':', linewidth=2, 
+                  label=f'Slope = {fit_psa["slope"]:.2f}, R² = {fit_psa["r2"]:.3f}', color='green')
+    plt.xlabel("k", fontsize=12)
+    plt.ylabel("PSA: |P̂(k)|²", fontsize=12)
+    plt.title("PSA Spectrum (Mixed, Single λ)", fontsize=14)
+    plt.legend(fontsize=11)
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(f"{out}_psaPk.png", dpi=150, bbox_inches='tight')
+    plt.savefig(f"{out}_psaPk.pdf", dpi=150, bbox_inches='tight')
     lam_grid = np.linspace(lam_min, lam_max, nlam)
     lam2 = lam_grid**2
     Pλ = polarization_cube_mixed(ne, bz, dz, lam_grid, psi, K=K, emissivity=emissivity, zaxis=zaxis)
@@ -243,34 +257,48 @@ def main():
     fits_pfa = fit_piecewise_loglog(lam2, varP)
     with open(f"{out}_pfa_fit.json", "w") as f:
         json.dump(fits_pfa, f, indent=2)
-    plt.figure()
+    # Modern PFA/PVA plot
+    plt.figure(figsize=(10, 8))
     m = (lam2>0) & (varP>0)
-    plt.loglog(lam2[m], varP[m], marker=".", linestyle="none")
+    plt.loglog(lam2[m], varP[m], marker='o', linestyle='none', markersize=6, 
+               alpha=0.7, label='Data', color='blue')
     if np.isfinite(fits_pfa["slope_all"]):
         xx = np.linspace(lam2[m].min(), lam2.max(), 200)
         yy = 10**(fits_pfa["intercept_all"]) * xx**(fits_pfa["slope_all"])
-        plt.loglog(xx, yy, label=f"all slope={fits_pfa['slope_all']:.2f}")
-        plt.legend()
-    plt.xlabel(r"$\lambda^2$"); plt.ylabel(r"Var$[P(\lambda)]$")
-    plt.title("PFA/PVA (mixed)")
-    plt.tight_layout(); plt.savefig(f"{out}_pfa_var.png", dpi=150)
+        plt.loglog(xx, yy, ':', linewidth=2, 
+                  label=f'Slope = {fits_pfa["slope_all"]:.2f}', color='green')
+    plt.xlabel(r"$\lambda^2$", fontsize=12)
+    plt.ylabel(r"Var$[P(\lambda)]$", fontsize=12)
+    plt.title("PFA/PVA (Mixed)", fontsize=14)
+    plt.legend(fontsize=11)
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(f"{out}_pfa_var.png", dpi=150, bbox_inches='tight')
+    plt.savefig(f"{out}_pfa_var.pdf", dpi=150, bbox_inches='tight')
     dP = finite_diff_derivative(Pλ, lam2)
     var_dP = variance_over_sightlines(dP)
     save_csv(f"{out}_der_var.csv", list(zip(lam2, var_dP)), ["lambda2", "Var_dP"])
     fit_der = fit_loglog_slope(lam2[lam2>0], var_dP[lam2>0])
     with open(f"{out}_der_fit.json", "w") as f:
         json.dump(fit_der, f, indent=2)
-    plt.figure()
+    # Modern derivative statistic plot
+    plt.figure(figsize=(10, 8))
     m = (lam2>0) & (var_dP>0)
-    plt.loglog(lam2[m], var_dP[m], marker=".", linestyle="none")
+    plt.loglog(lam2[m], var_dP[m], marker='o', linestyle='none', markersize=6, 
+               alpha=0.7, label='Data', color='blue')
     if np.isfinite(fit_der["slope"]):
         xx = np.linspace(lam2[m].min(), lam2.max(), 200)
         yy = 10**(fit_der["intercept"]) * xx**(fit_der["slope"])
-        plt.loglog(xx, yy, label=f"slope={fit_der['slope']:.2f}, R^2={fit_der['r2']:.3f}")
-        plt.legend()
-    plt.xlabel(r"$\lambda^2$"); plt.ylabel(r"Var$[\partial P/\partial(\lambda^2)]$")
-    plt.title("Derivative statistic (mixed)")
-    plt.tight_layout(); plt.savefig(f"{out}_der_var.png", dpi=150)
+        plt.loglog(xx, yy, ':', linewidth=2, 
+                  label=f'Slope = {fit_der["slope"]:.2f}, R² = {fit_der["r2"]:.3f}', color='green')
+    plt.xlabel(r"$\lambda^2$", fontsize=12)
+    plt.ylabel(r"Var$[\partial P/\partial(\lambda^2)]$", fontsize=12)
+    plt.title("Derivative Statistic (Mixed)", fontsize=14)
+    plt.legend(fontsize=11)
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(f"{out}_der_var.png", dpi=150, bbox_inches='tight')
+    plt.savefig(f"{out}_der_var.pdf", dpi=150, bbox_inches='tight')
     phi_cells = K * ne * bz * dz
     phi_total = np.sum(phi_cells, axis=zaxis)
     sigma_phi = np.std(phi_total)
