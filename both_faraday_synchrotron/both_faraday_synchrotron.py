@@ -187,7 +187,7 @@ def save_csv(path, cols, header):
         w = csv.writer(f); w.writerow(header); w.writerows(cols)
 
 def main():
-    h5_path = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\ms01ma08.mhd_w.00300.vtk.h5"
+    h5_path = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\synthetic_kolmogorov_normal.h5"
     lam_single = 0.5
     lam_min = 0.05
     lam_max = 1.0
