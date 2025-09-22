@@ -1,0 +1,7 @@
+measure,slope,R2_or_AIC,notes
+Directional,-3.65593,R2=0.994342,
+PSA,-4.72187,R2=0.989255,
+PFA_all,-0.864646,AIC1=-192.108,split_x=0.275682
+PFA_piece,left=-0.468722; right=-1.53359,AIC2=-430.784,
+Derivative,-1.75162,R2=0.969875,
+N_rms,,0.270425,
