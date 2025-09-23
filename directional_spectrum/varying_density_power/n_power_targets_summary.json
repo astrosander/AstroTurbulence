@@ -1,47 +1,41 @@
 {
-  "original_alpha": 3.6567357330314234,
+  "original_alpha": 6.027478788798529,
   "targets": {
-    "-1": {
-      "target_alpha": -1,
-      "measured_slope": 1.0000556133686318,
-      "measured_alpha": -1.0000556133686318,
-      "r2": 0.999100464953243
+    "2.7": {
+      "target_alpha": 2.7,
+      "measured_slope": -2.699965641748276,
+      "measured_alpha": 2.699965641748276,
+      "r2": 0.9932838672491311
     },
-    "0": {
-      "target_alpha": 0,
-      "measured_slope": 0.00034081773383004695,
-      "measured_alpha": -0.00034081773383004695,
-      "r2": 0.0001283720242045705
+    "3.0": {
+      "target_alpha": 3.0,
+      "measured_slope": -2.9998954083976788,
+      "measured_alpha": 2.9998954083976788,
+      "r2": 0.994545283671831
     },
-    "1": {
-      "target_alpha": 1,
-      "measured_slope": -0.999536424614583,
-      "measured_alpha": 0.999536424614583,
-      "r2": 0.9990892075952549
+    "3.3": {
+      "target_alpha": 3.3,
+      "measured_slope": -3.2998397009875142,
+      "measured_alpha": 3.2998397009875142,
+      "r2": 0.9954816459191218
     },
-    "2": {
-      "target_alpha": 2,
-      "measured_slope": -1.999576223165031,
-      "measured_alpha": 1.999576223165031,
-      "r2": 0.9997703541490758
+    "3.67": {
+      "target_alpha": 3.67,
+      "measured_slope": -3.6697910055844947,
+      "measured_alpha": 3.6697910055844947,
+      "r2": 0.9963379076357185
     },
-    "3": {
-      "target_alpha": 3,
-      "measured_slope": -2.9997786237526367,
-      "measured_alpha": 2.9997786237526367,
-      "r2": 0.9998969430438318
+    "3.9": {
+      "target_alpha": 3.9,
+      "measured_slope": -3.8997718769593916,
+      "measured_alpha": 3.8997718769593916,
+      "r2": 0.9967527660868619
     },
-    "4": {
-      "target_alpha": 4,
-      "measured_slope": -4.000143608421132,
-      "measured_alpha": 4.000143608421132,
-      "r2": 0.9999413897587222
-    },
-    "5": {
-      "target_alpha": 5,
-      "measured_slope": -5.0006710954210645,
-      "measured_alpha": 5.0006710954210645,
-      "r2": 0.999962027284645
+    "4.0": {
+      "target_alpha": 4.0,
+      "measured_slope": -3.9997662247811148,
+      "measured_alpha": 3.9997662247811148,
+      "r2": 0.9969114051849798
     }
   }
 }

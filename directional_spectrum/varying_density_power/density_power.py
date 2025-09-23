@@ -109,7 +109,7 @@ def directional_spectrum_from_n(ne, bz, dz, lam, K=1.0, zaxis=0):
     return k, Pk
 
 def main():
-    h5_path = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\synthetic_kolmogorov_normal.h5"
+    h5_path = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\ms01ma08.mhd_w.00300.vtk.h5"
     ne, bz, dx, dz = load_density_and_field(h5_path)
     ne = ensure3d(ne); bz = ensure3d(bz)
     mu = float(np.mean(ne)); rms = float(np.std(ne))
@@ -126,10 +126,10 @@ def main():
         xx = np.geomspace(k0[m0].min(), k0[m0].max(), 256)
         yy = 10**fit0["intercept"] * xx**fit0["slope"]
         plt.loglog(xx, yy, linestyle="--")
-    plt.xlabel("k"); plt.ylabel("P_n(k)")
+    plt.xlabel("k"); plt.ylabel("$P_n(k)$")
     plt.title("3D density spectrum (log–log)")
     plt.legend(); plt.tight_layout(); plt.savefig("n_power_original.png", dpi=200); plt.savefig("n_power_original.pdf", dpi=200)
-    targets = [-1, 0, 1, 2, 3, 4, 5]
+    targets = [2.7, 3.0, 3.3, 3.67, 3.9, 4.0]
     out_curves = {}
     plt.figure()
     for a in targets:
@@ -139,13 +139,13 @@ def main():
         fit = fit_loglog(k, Pk)
         out_curves[str(a)] = {"target_alpha":a, "measured_slope":float(fit["slope"]), "measured_alpha":float(-fit["slope"]), "r2":float(fit["r2"])}
         m = (k>0) & (Pk>0)
-        plt.loglog(k[m], Pk[m], label=f"target α={a}, fit α={-fit['slope']:.2f}")
+        plt.loglog(k[m], Pk[m], label=f"target $\\alpha={a}$, fit $\\alpha={-fit['slope']:.2f}$")
         if np.isfinite(fit["slope"]):
             xx = np.geomspace(k[m].min(), k[m].max(), 200)
             yy = 10**fit["intercept"] * xx**fit["slope"]
             plt.loglog(xx, yy, linestyle="--")
-    plt.xlabel("k"); plt.ylabel("P_n(k)")
-    plt.title("3D density spectra for target slopes (validation)")
+    plt.xlabel("k"); plt.ylabel("$P_n(k)$")
+    plt.title("3D density spectra for target slopes")
     plt.legend(); plt.tight_layout(); plt.savefig("n_power_targets.png", dpi=200); plt.savefig("n_power_targets.pdf", dpi=200)
     lam = 0.5
     k_dir0, Pdir0 = directional_spectrum_from_n(ne, bz, dz, lam)
@@ -157,7 +157,7 @@ def main():
         g = mu + rms*(g/np.std(g))
         k_dir, Pdir = directional_spectrum_from_n(g, bz, dz, lam)
         md = (k_dir>0) & (Pdir>0)
-        plt.loglog(k_dir[md], Pdir[md], label=f"α_n={a}")
+        plt.loglog(k_dir[md], Pdir[md], label=f"$\\alpha_n={a}$")
     plt.xlabel("k"); plt.ylabel(r"$P_{\rm dir}(k)$")
     plt.title("Directional spectra vs. imposed density spectral slope")
     plt.legend(); plt.tight_layout(); plt.savefig("Pdir_vs_n_slope.png", dpi=200); plt.savefig("Pdir_vs_n_slope.pdf", dpi=200)
