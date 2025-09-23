@@ -64,7 +64,7 @@ def fbm3d(nz, ny, nx, H, seed=1234):
     return f
 
 def main():
-    h5_path = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\synthetic_kolmogorov_normal.h5"
+    h5_path = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\ms01ma08.mhd_w.00300.vtk.h5"
     ne,bz,dx,dz = load_density_and_field(h5_path)
     ne = ensure3d(ne); bz = ensure3d(bz)
     nz,ny,nx = ne.shape
@@ -85,10 +85,10 @@ def main():
         )
 
     plt.xlabel("k"); plt.ylabel("$P_{\\rm dir}(k)$")
-    plt.title("Effect of mean B along LOS")
+    plt.title("Effect of mean B along LOS ($M_{\\rm A} = 0.8$)")
     plt.legend()
     plt.tight_layout()
-    plt.savefig("Pdir_meanfield.png", dpi=200)
+    plt.savefig("Pdir_meanfield.pdf", dpi=200)
     plt.show()
 
 if __name__=="__main__":
