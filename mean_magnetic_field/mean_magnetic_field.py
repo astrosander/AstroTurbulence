@@ -72,7 +72,7 @@ def main():
     lam = 0.5
     K = 1.0; zaxis = 0
     sbz = float(np.std(bz))
-    B0_list = [0.0, 0.5*sbz, 1.0*sbz, 2.0*sbz]
+    B0_list = [0.0, 10.0*sbz, 1000.0**0.5*sbz, 100.0*sbz, 100000.0**0.5*sbz, 1000.0*sbz]
     plt.figure()
     for B0 in B0_list:
         P = polarization_map_mixed(ne,bz,dz,lam,psi,K,"density",zaxis,B0_par=B0,psi0=0.0)
@@ -88,7 +88,8 @@ def main():
     plt.title("Effect of mean B along LOS")
     plt.legend()
     plt.tight_layout()
-    plt.savefig("Pdir_meanfield.pdf", dpi=200)
+    plt.savefig("Pdir_meanfield.png", dpi=200)
+    plt.show()
 
 if __name__=="__main__":
     main()
