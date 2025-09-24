@@ -29,7 +29,7 @@ from scipy.special import j0
 @dataclass
 class Config:
     # Data sources
-    h5_athena: str = "mhd_fields.h5"
+    h5_athena: str = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\mhd_fields.h5"#"mhd_fields.h5"
     h5_synthetic: str = "two_slope_2D_s3_r00.h5"
     
     # Field dataset name
