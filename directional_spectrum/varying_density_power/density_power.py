@@ -109,7 +109,7 @@ def directional_spectrum_from_n(ne, bz, dz, lam, K=1.0, zaxis=0):
     return k, Pk
 
 def main():
-    h5_path = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\ms01ma08.mhd_w.00300.vtk.h5"
+    h5_path = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\mhd_fields.h5"
     ne, bz, dx, dz = load_density_and_field(h5_path)
     ne = ensure3d(ne); bz = ensure3d(bz)
     mu = float(np.mean(ne)); rms = float(np.std(ne))
