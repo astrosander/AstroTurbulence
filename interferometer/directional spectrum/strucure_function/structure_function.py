@@ -102,6 +102,8 @@ def load_cube(path: str):
             dz = _axis_spacing_from_h5(f["z_coor"][0,0,:], "z_coor", 1.0)
         else:
             dz = 1.0
+        dx=1.0
+        dz=1.0
     return ne, bz, dx, dz
 
 def project_maps(ne: np.ndarray, bz: np.ndarray, dz: float, C_RM: float):
@@ -305,21 +307,23 @@ def main(C=C):
 
         plt.figure(figsize=(6.6,5.0))
         Dphi_R_scaled = Dphi_R / (lam**4)
-        plt.loglog(R1d, Dphi_R_scaled, lw=1.8, label=fr"$D_\varphi/\lambda^4$, $\lambda={lam:.2f}$ m")
+        # Dphi_R=Dphi_R / (lam**4)
+        # plt.loglog(R1d, Dphi_R_scaled, lw=1.8, label=fr"$D_\varphi/\lambda^4$, $\lambda={lam:.2f}$ m")
 
 
-        plt.loglog(R1d, Dphi_R, lw=1.8, label=fr"$D_\varphi(R)$")#, $\lambda={lam:.2f}$ m
+        plt.loglog(R1d, Dphi_R, lw=2.2, color="#1f77b4", label=fr"$D_\varphi(R)$")#.loglog(R1d, Dphi_R, lw=1.8, label=fr"$D_\varphi(R)$")#, $\lambda={lam:.2f}$ m
         # add ∝ R^{5/3} guide just as a visual reference (halo-like regime)
         if len(R1d) > 5:
-            Rref = R1d[len(R1d)//8]
-            yref = np.interp(Rref, R1d, Dphi_R)
-            Rg = np.logspace(np.log10(Rref/6), np.log10(Rref*6), 200)
-            plt.loglog(Rg, yref*(Rg/Rref)**(5/3), "--", lw=1.0, alpha=0.8, label=r"$\propto R^{5/3}$")
-        if len(R1d) > 5:
-            Rref = R1d[len(R1d)//8]
-            yref = np.interp(Rref, R1d, Dphi_R)
-            Rg = np.logspace(np.log10(Rref/6), np.log10(Rref*6), 200)
-            plt.loglog(Rg, yref*(Rg/Rref)**(2), "--", lw=1.0, alpha=0.8, label=r"$\propto R^{2}$")
+            Rref, yref = R1d[2], Dphi_R[2]
+            A = yref / (Rref**(5/3))
+            Rg = np.logspace(np.log10(R1d[0]), np.log10(Rref*10), 200)
+            plt.loglog(Rg, A*Rg**(5/3), "--", lw=1.6, color="#ff7f0e",
+              alpha=0.9, label=r"$\propto R^{5/3}$")
+        # if len(R1d) > 5:
+        #     Rref = R1d[len(R1d)//8]
+        #     yref = np.interp(Rref, R1d, Dphi_R_scaled)
+        #     Rg = np.logspace(np.log10(Rref/6), np.log10(Rref*6), 200)
+        #     plt.loglog(Rg, yref*(Rg/Rref)**(2), "--", lw=1.0, alpha=0.8, label=r"$\propto R^{2}$")
         plt.xlabel(r"$R$ (dx)"); plt.ylabel(r"$D_\varphi(R)$")
         plt.title("Polarization-angle structure function")
         plt.grid(True, which='both', alpha=0.3); plt.legend(frameon=False)
