@@ -46,8 +46,8 @@ from numpy.fft import fft2, ifft2, fftfreq
 
 @dataclass
 class Config:
-    h5_path: str = "../../../faradays_angles_stats/lp_structure_tests/mhd_fields.h5"  # ← output of your generator
-    # h5_path: str = "../../../faradays_angles_stats/lp_structure_tests/ms01ma08.mhd_w.00300.vtk.h5"  # ← output of your generator
+    # h5_path: str = "../../../faradays_angles_stats/lp_structure_tests/mhd_fields.h5"  # ← output of your generator
+    h5_path: str = "../../../faradays_angles_stats/lp_structure_tests/ms01ma08.mhd_w.00300.vtk.h5"  # ← output of your generator
     outdir: str = "fig/two_slope_observer"
 
     # plotting & binning
