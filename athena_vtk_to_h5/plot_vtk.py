@@ -1,5 +1,5 @@
-VTK_W_PATH   = "../ms02ma20_256.mhd_w.00202.vtk"    # density etc.
-VTK_BCC_PATH = "../ms02ma20_256.mhd_bcc.00202.vtk"  # magnetic field
+VTK_W_PATH   = "../ms02ma20_256.mhd_w.00398.vtk"    # density etc.
+VTK_BCC_PATH = "../ms02ma20_256.mhd_bcc.00398.vtk"  # magnetic field
 OUT_FIG      = "density_B_projections_2x2.png"
 
 import pyvista as pv
