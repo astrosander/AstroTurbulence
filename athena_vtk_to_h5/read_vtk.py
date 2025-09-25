@@ -16,8 +16,8 @@ import h5py
 import pyvista as pv
 
 # ── EDIT THESE PATHS ───────────────────────────────────────────────────
-VTK_W_PATH   = Path("../ms02ma20_256.mhd_w.00398.vtk")    # contains 'dens'
-VTK_BCC_PATH = Path("../ms02ma20_256.mhd_bcc.00398.vtk")  # contains 'bcc1/2/3'
+VTK_W_PATH   = Path("../ms02ma20_256.mhd_w.00500.vtk")    # contains 'dens'
+VTK_BCC_PATH = Path("../ms02ma20_256.mhd_bcc.00500.vtk")  # contains 'bcc1/2/3'
 OUT_H5       = Path("../faradays_angles_stats/lp_structure_tests/mhd_fields.h5")
 WRITE_3D_COORDS = True   # set False to write 1-D x/y/z instead of 3-D X/Y/Z
 # ───────────────────────────────────────────────────────────────────────
