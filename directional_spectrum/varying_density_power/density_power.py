@@ -68,7 +68,7 @@ def main():
         slope, _ = fit_log_slope(k, Pk)
         plt.loglog(k[(k>0)], Pk[(k>0)], label=fr"screen: slope $\alpha_n={a:.2f}$; fit $\beta={slope:.2f}$", color=c, alpha=0.9)
     plt.xlabel("k"); plt.ylabel(r"$P_{\rm dir}(k)$")
-    plt.title("Pure Faraday Screen: Polarization Spectrum vs Density Slope")
+    plt.title("Polarization Spectrum: Faraday Screen")
     plt.legend(fontsize=8)
     plt.tight_layout()
     plt.savefig("Pdir_screen_density_slope.pdf", dpi=200)
