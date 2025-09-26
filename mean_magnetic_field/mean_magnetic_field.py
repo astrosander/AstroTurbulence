@@ -29,6 +29,18 @@ def polarization_map_mixed(ne, bz, dz, lam, psi, K=1.0, emissivity="density", za
     P = np.sum(p_i * np.exp(2j*(psi+psi0)) * phase, axis=zaxis)
     return P
 
+def P_emission_only(ne_or_I, psi_bg=0.0, zaxis=0, use_sum=True):
+    if use_sum and ne_or_I.ndim == 3:
+        I_emit = np.sum(ne_or_I.astype(np.float64), axis=zaxis)
+    else:
+        I_emit = ne_or_I.astype(np.float64)
+
+    return I_emit * np.exp(2j * psi_bg)
+
+def polarization_map_screen(ne_scr, bz_scr, dz, lam, P_emit_2d, K=1.0, zaxis=0, B0_par=0.0):
+    RM = np.sum(K * ne_scr * (bz_scr + B0_par) * dz, axis=zaxis)
+    return P_emit_2d * np.exp(2j * (lam**2) * RM)
+
 def directional_spectrum(P):
     Q = np.real(P); U = np.imag(P)
     amp = np.sqrt(Q**2 + U**2) + 1e-30
@@ -63,7 +75,7 @@ def fbm3d(nz, ny, nx, H, seed=1234):
     f -= f.mean(); f /= (f.std()+1e-12)
     return f
 
-def main():
+def main(scenario="screen"):
     h5_path = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\ms01ma08.mhd_w.00300.vtk.h5"
     ne,bz,dx,dz = load_density_and_field(h5_path)
     ne = ensure3d(ne); bz = ensure3d(bz)
@@ -72,24 +84,46 @@ def main():
     lam = 0.5
     K = 1.0; zaxis = 0
     sbz = float(np.std(bz))
-    B0_list = [0.0, 10.0*sbz, 1000.0**0.5*sbz, 100.0*sbz, 100000.0**0.5*sbz, 1000.0*sbz]
+    mus = [0.0, 0.1, 0.3, 1, 3, 10, 20]   # dimensionless B0/σbz
+    B0_list = [mu * sbz for mu in mus]    
+
     plt.figure()
-    for B0 in B0_list:
-        P = polarization_map_mixed(ne,bz,dz,lam,psi,K,"density",zaxis,B0_par=B0,psi0=0.0)
+    if scenario == "emission":
+        I_emit = np.sum(ne, axis=zaxis)
+        psi_map = np.random.uniform(0, np.pi, (ny, nx)) * 0.1
+        P = I_emit * np.exp(2j * psi_map)
         k, Pk = directional_spectrum(P)
         m = (k>0) & (Pk>0)
-        plt.loglog(
-            k[m],
-            Pk[m],
-            label=fr"$\frac{{B_{{0 \parallel}}}}{{\sigma_{{bz}}}}$={B0/sbz:.2f}"
-        )
+        plt.loglog(k[m], Pk[m], label="Emission with random polarization angles")
+    else:
+        for B0 in B0_list:
+            if scenario == "mixed":
+                P = polarization_map_mixed(ne,bz,dz,lam,psi,K,"density",zaxis,B0_par=B0,psi0=0.0)
+            elif scenario == "screen":
+                psi_bg = 0.0
+                P_emit = P_emission_only(ne, psi_bg, zaxis=zaxis, use_sum=True)
+                P = polarization_map_screen(ne, bz, dz, lam, P_emit, K, zaxis, B0_par=B0)
+            else:
+                raise ValueError(f"Unknown scenario: {scenario}")
+                
+            k, Pk = directional_spectrum(P)
+            m = (k>0) & (Pk>0)
+            plt.loglog(
+                k[m],
+                Pk[m],
+                label=fr"$\frac{{B_{{0 \parallel}}}}{{\sigma_{{bz}}}}$={B0/sbz:.2f}"
+            )
 
     plt.xlabel("k"); plt.ylabel("$P_{\\rm dir}(k)$")
-    plt.title("Effect of mean B along LOS ($M_{\\rm A} = 0.8$)")
+    title_suffix = {"mixed": "Mixed (old)", "screen": "Faraday Screen", "emission": "Emission Only"}
+    plt.title(f"Effect of mean B along LOS - {title_suffix[scenario]} ($M_{{\\rm A}} = 0.8$)")
     plt.legend()
     plt.tight_layout()
-    plt.savefig("Pdir_meanfield.pdf", dpi=200)
+    filename = f"Pdir_meanfield_{scenario}.pdf"
+    plt.savefig(filename, dpi=200)
+    print(f"Saved: {filename}")
     plt.show()
 
 if __name__=="__main__":
-    main()
+    scenario = "mixed" #"screen", "emission"
+    main(scenario)
