@@ -41,6 +41,14 @@ def polarization_map_screen(ne_scr, bz_scr, dz, lam, P_emit_2d, K=1.0, zaxis=0, 
     RM = np.sum(K * ne_scr * (bz_scr + B0_par) * dz, axis=zaxis)
     return P_emit_2d * np.exp(2j * (lam**2) * RM)
 
+def P_synchrotron_slab_plus_screen(ne_emit, psi_bg, ne_scr, bz_scr, dz, lam, K=1.0, zaxis=0, B0_par_screen=0.0):
+    P_emit = P_emission_only(ne_emit, psi_bg, zaxis=zaxis, use_sum=True)
+    return polarization_map_screen(ne_scr, bz_scr, dz, lam, P_emit, K, zaxis, B0_par=B0_par_screen)
+
+def P_mixed_plus_screen(ne_back, bz_back, psi, ne_scr, bz_scr, dz, lam, K=1.0, zaxis=0, B0_par_back=0.0, B0_par_screen=0.0):
+    P_back = polarization_map_mixed(ne_back, bz_back, dz, lam, psi, K, "density", zaxis, B0_par=B0_par_back, psi0=0.0)
+    return polarization_map_screen(ne_scr, bz_scr, dz, lam, P_back, K, zaxis, B0_par=B0_par_screen)
+
 def directional_spectrum(P):
     Q = np.real(P); U = np.imag(P)
     amp = np.sqrt(Q**2 + U**2) + 1e-30
@@ -75,6 +83,20 @@ def fbm3d(nz, ny, nx, H, seed=1234):
     f -= f.mean(); f /= (f.std()+1e-12)
     return f
 
+def plot_case(title, curves, outfile):
+    plt.figure()
+    for label, P in curves:
+        k, Pk = directional_spectrum(P)
+        m = (k>0) & (Pk>0)
+        plt.loglog(k[m], Pk[m], label=label)
+    plt.xlabel("k"); plt.ylabel(r"$P_{\rm dir}(k)$")
+    plt.title(title)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(outfile, dpi=200)
+    print(f"Saved: {outfile}")
+    plt.close()
+
 def main(scenario="screen"):
     h5_path = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\ms01ma08.mhd_w.00300.vtk.h5"
     ne,bz,dx,dz = load_density_and_field(h5_path)
@@ -84,8 +106,40 @@ def main(scenario="screen"):
     lam = 0.5
     K = 1.0; zaxis = 0
     sbz = float(np.std(bz))
-    mus = [0.0, 0.1, 0.3, 1, 3, 10, 20]   # dimensionless B0/σbz
-    B0_list = [mu * sbz for mu in mus]    
+    mus = [0.0, 0.1, 0.3, 1, 3, 10, 20]
+    B0_list = [mu * sbz for mu in mus]
+
+    if scenario == "two_screens":
+        z_split = nz//2
+        ne_back, bz_back = ne[:z_split], bz[:z_split]
+        ne_scr,  bz_scr  = ne[z_split:],  bz[z_split:]
+        
+        psi_bg = 0.0
+        curves_emit = []
+        curves_mixed = []
+        for B0 in B0_list:
+            P_emit_scr = P_synchrotron_slab_plus_screen(
+                ne_emit=ne_back, psi_bg=psi_bg,
+                ne_scr=ne_scr, bz_scr=bz_scr,
+                dz=dz, lam=lam, K=K, zaxis=zaxis,
+                B0_par_screen=B0
+            )
+            curves_emit.append((fr"$B_0/\sigma_{{bz}}$={B0/sbz:.2f}", P_emit_scr))
+            
+            P_mix_scr = P_mixed_plus_screen(
+                ne_back=ne_back, bz_back=bz_back, psi=psi[:z_split],
+                ne_scr=ne_scr,  bz_scr=bz_scr,
+                dz=dz, lam=lam, K=K, zaxis=zaxis,
+                B0_par_back=0.0,
+                B0_par_screen=B0
+            )
+            curves_mixed.append((fr"$B_0/\sigma_{{bz}}$={B0/sbz:.2f}", P_mix_scr))
+        
+        plot_case("Two screens: Synchrotron(thin) + Faraday Screen", curves_emit, "Pdir_two_screens_emit.pdf")
+        plot_case("Two screens: Synchrotron(thin) + Faraday Screen", curves_emit, "Pdir_two_screens_emit.png")
+        plot_case("Two screens: Mixed(back) + Faraday Screen", curves_mixed, "Pdir_two_screens_mixed.pdf")
+        plot_case("Two screens: Mixed(back) + Faraday Screen", curves_mixed, "Pdir_two_screens_mixed.png")
+        return
 
     plt.figure()
     if scenario == "emission":
@@ -119,12 +173,12 @@ def main(scenario="screen"):
     plt.title(f"Effect of mean B along LOS - {title_suffix[scenario]} ($M_{{\\rm A}} = 0.8$)")
     plt.legend()
     plt.tight_layout()
-    filename = f"Pdir_meanfield_{scenario}."
+    filename = f"Pdir_meanfield_{scenario}"
     plt.savefig(f"{filename}.png", dpi=200)
     plt.savefig(f"{filename}.pdf", dpi=200)
     print(f"Saved: {filename}")
-    plt.show()
+    # plt.show()
 
 if __name__=="__main__":
-    scenario = "screen" #"screen", "emission"
+    scenario = "two_screens"
     main(scenario)
