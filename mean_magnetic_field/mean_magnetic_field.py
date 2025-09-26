@@ -119,11 +119,12 @@ def main(scenario="screen"):
     plt.title(f"Effect of mean B along LOS - {title_suffix[scenario]} ($M_{{\\rm A}} = 0.8$)")
     plt.legend()
     plt.tight_layout()
-    filename = f"Pdir_meanfield_{scenario}.pdf"
-    plt.savefig(filename, dpi=200)
+    filename = f"Pdir_meanfield_{scenario}."
+    plt.savefig(f"{filename}.png", dpi=200)
+    plt.savefig(f"{filename}.pdf", dpi=200)
     print(f"Saved: {filename}")
     plt.show()
 
 if __name__=="__main__":
-    scenario = "mixed" #"screen", "emission"
+    scenario = "screen" #"screen", "emission"
     main(scenario)
