@@ -135,10 +135,10 @@ def main(scenario="screen"):
             )
             curves_mixed.append((fr"$B_0/\sigma_{{bz}}$={B0/sbz:.2f}", P_mix_scr))
         
-        plot_case("Two screens: Synchrotron(thin) + Faraday Screen", curves_emit, "Pdir_two_screens_emit.pdf")
-        plot_case("Two screens: Synchrotron(thin) + Faraday Screen", curves_emit, "Pdir_two_screens_emit.png")
-        plot_case("Two screens: Mixed(back) + Faraday Screen", curves_mixed, "Pdir_two_screens_mixed.pdf")
-        plot_case("Two screens: Mixed(back) + Faraday Screen", curves_mixed, "Pdir_two_screens_mixed.png")
+        plot_case("Synchrotron Emission Behind a Foreground Faraday Screen", curves_emit, "Pdir_two_screens_emit.pdf")
+        plot_case("Synchrotron Emission Behind a Foreground Faraday Screen", curves_emit, "Pdir_two_screens_emit.png")
+        plot_case("Emitting Volume Plus Foreground Faraday Screen", curves_mixed, "Pdir_two_screens_mixed.pdf")
+        plot_case("Emitting Volume Plus Foreground Faraday Screen", curves_mixed, "Pdir_two_screens_mixed.png")
         return
 
     plt.figure()
