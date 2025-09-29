@@ -16,8 +16,8 @@ import h5py
 import pyvista as pv
 
 # ── EDIT THESE PATHS ───────────────────────────────────────────────────
-VTK_W_PATH   = Path("../ms02ma20_256.mhd_w.00500.vtk")    # contains 'dens'
-VTK_BCC_PATH = Path("../ms02ma20_256.mhd_bcc.00500.vtk")  # contains 'bcc1/2/3'
+VTK_W_PATH   = Path("../ms1ma2_256.mhd_w.00013.vtk")    # contains 'dens'
+VTK_BCC_PATH = Path("../ms1ma2_256.mhd_bcc.00013.vtk")  # contains 'bcc1/2/3'
 OUT_H5       = Path("../faradays_angles_stats/lp_structure_tests/mhd_fields.h5")
 WRITE_3D_COORDS = True   # set False to write 1-D x/y/z instead of 3-D X/Y/Z
 # ───────────────────────────────────────────────────────────────────────
@@ -87,6 +87,9 @@ def run(vtk_w_path: Path, vtk_bcc_path: Path, out_path: Path, write_3d_coords: b
     bx   = _get_structured_array(bcc_mesh, "bcc1").astype(np.float32)
     by   = _get_structured_array(bcc_mesh, "bcc2").astype(np.float32)
     bz   = _get_structured_array(bcc_mesh, "bcc3").astype(np.float32)
+    vx = _get_structured_array(w_mesh, "velx").astype(np.float32)
+    vy = _get_structured_array(w_mesh, "vely").astype(np.float32)
+    vz = _get_structured_array(w_mesh, "velz").astype(np.float32)
 
     # Coordinates
     coords = _coords_from_imagedata(w_mesh, make_3d=write_3d_coords)
@@ -99,6 +102,13 @@ def run(vtk_w_path: Path, vtk_bcc_path: Path, out_path: Path, write_3d_coords: b
         h5.create_dataset("k_mag_field_x", data=bx,   compression="gzip")
         h5.create_dataset("k_mag_field_y", data=by,   compression="gzip")
         h5.create_dataset("k_mag_field_z", data=bz,   compression="gzip")
+        h5.create_dataset("velx", data=vx, compression="gzip")
+        h5.create_dataset("vely", data=vy, compression="gzip")
+        h5.create_dataset("velz", data=vz, compression="gzip")
+# optional aliases for B to keep old readers happy
+        h5.create_dataset("bcc1", data=bx, compression="gzip")
+        h5.create_dataset("bcc2", data=by, compression="gzip")
+        h5.create_dataset("bcc3", data=bz, compression="gzip")
 
         if write_3d_coords:
             X, Y, Z = coords
