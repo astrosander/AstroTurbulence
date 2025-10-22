@@ -4,7 +4,16 @@ import h5py
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import Dict, Tuple, Optional, List
+import matplotlib as mpl
 
+# --- unified TeX-style appearance (MathText, no system LaTeX needed) ---
+mpl.rcParams.update({
+    "text.usetex": False,          # use MathText (portable)
+    "font.family": "STIXGeneral",  # match math fonts
+    "font.size": 12,
+    "mathtext.fontset": "stix",
+    "axes.unicode_minus": False,   # proper minus sign
+})
 # ======================
 # USER SETTINGS
 # ======================
@@ -34,12 +43,14 @@ DELTA_Z_PC     = 1.0           # voxel size along z in pc
 A_EXP = 2.0
 
 # --- Wavelength grid (meters) ---
-LAMBDA_LIST_M = [0.03, 0.06, 0.09, 0.12, 0.15, 0.18,
-                 0.21, 0.24, 0.27, 0.30, 0.33, 0.36,
-                 0.39, 0.42, 0.45, 0.48, 0.51, 0.54,
-                 0.57, 0.60, 0.63, 0.66, 0.69, 0.72,
-                 0.75, 0.78, 0.81, 0.84, 0.87, 0.90,
-                 0.93, 0.96, 0.99]
+LAMBDA_LIST_M = np.arange(0.01, 1.0, 0.01)
+
+# [0.03, 0.06, 0.09, 0.12, 0.15, 0.18,
+#                  0.21, 0.24, 0.27, 0.30, 0.33, 0.36,
+#                  0.39, 0.42, 0.45, 0.48, 0.51, 0.54,
+#                  0.57, 0.60, 0.63, 0.66, 0.69, 0.72,
+#                  0.75, 0.78, 0.81, 0.84, 0.87, 0.90,
+#                  0.93, 0.96, 0.99]
 
 # --- Plots ---
 MAKE_PLOTS = True
@@ -112,7 +123,7 @@ def integrate_polarization(Pi: np.ndarray, phi_cum: np.ndarray, lam_m: float, lo
         integrand = Pi * phase
     return np.sum(integrand, axis=0)
 
-def isotropic_power_slope(field2d: np.ndarray, kmin_frac: float=0.05, kmax_frac: float=0.4) -> Tuple[float, np.ndarray]:
+def isotropic_power_slope(field2d: np.ndarray, kmin_frac: float=0.1, kmax_frac: float=0.3) -> Tuple[float, np.ndarray]:
     ny, nx = field2d.shape
     F = np.fft.rfft2(field2d)
     P2 = np.abs(F)**2
@@ -140,16 +151,75 @@ def isotropic_power_slope(field2d: np.ndarray, kmin_frac: float=0.05, kmax_frac:
     slope, _ = np.polyfit(x, y, 1)
     return slope, k_centers
 
+# === NEW: helpers for the directional (angle-based) measure ===
+
+def map_angles(P: np.ndarray) -> np.ndarray:
+    """Polarization angle χ = 0.5 * arg(P)."""
+    return 0.5 * np.angle(P)
+
+def ring_average_power2d(field2d: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """Return (k_centers, P1D(k)) from isotropic ring-average of |FFT(field2d)|^2."""
+    ny, nx = field2d.shape
+    F = np.fft.rfft2(field2d)
+    P2 = np.abs(F)**2
+    ky = np.fft.fftfreq(ny) * ny
+    kx = np.fft.rfftfreq(nx) * nx
+    KX, KY = np.meshgrid(kx, ky, indexing="xy")
+    KR = np.sqrt(KX**2 + KY**2)
+    nbins = int(np.sqrt(nx*ny) // 2)
+    kmax = 0.5 * min(nx, ny)
+    k_edges = np.linspace(0.0, kmax, nbins+1)
+    idx = np.digitize(KR.ravel(), k_edges) - 1
+    idx = np.clip(idx, 0, nbins-1)
+    counts = np.bincount(idx, minlength=nbins)
+    sums = np.bincount(idx, weights=P2.ravel(), minlength=nbins)
+    P1D = np.zeros(nbins, dtype=float)
+    valid = counts > 0
+    P1D[valid] = sums[valid] / counts[valid]
+    k_centers = 0.5*(k_edges[:-1] + k_edges[1:])
+    return k_centers, P1D
+
+def directional_spectrum_from_angles(chi: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """Directional spectrum P_dir(k) = |FFT(cos 2χ)|^2 + |FFT(sin 2χ)|^2, ring-averaged to 1D."""
+    A = np.cos(2.0 * chi)
+    B = np.sin(2.0 * chi)
+    kA, PA = ring_average_power2d(A)
+    kB, PB = ring_average_power2d(B)
+    # kA and kB share the same bins by construction
+    return kA, PA + PB
+
+def directional_slope(P_map: np.ndarray, kmin_frac: float=0.1, kmax_frac: float=0.3) -> float:
+    """Slope of the directional spectrum P_dir(k) over a mid-k range."""
+    chi = map_angles(P_map)
+    k, Pdir = directional_spectrum_from_angles(chi)
+    if np.all(Pdir <= 0):
+        return np.nan
+    kmax = np.max(k)
+    mask = (k > kmin_frac*kmax) & (k < kmax_frac*kmax) & (Pdir > 0)
+    if np.sum(mask) < 5:
+        return np.nan
+    x = np.log(k[mask] + 1e-12)
+    y = np.log(Pdir[mask] + 1e-30)
+    slope, _ = np.polyfit(x, y, 1)
+    return slope
+
 def compute_measures(P_maps: Dict[float, np.ndarray], lam_list: List[float]) -> Dict[str, Dict]:
     psa_slopes = {}
+    pdir_slopes = {}   # NEW
     kbins = None
     for lam in lam_list:
-        slope, kb = isotropic_power_slope(np.abs(P_maps[lam]))
-        psa_slopes[lam] = slope
+        # PSA on |P|
+        slope_psa, kb = isotropic_power_slope(np.abs(P_maps[lam]))
+        psa_slopes[lam] = slope_psa
         if kbins is None:
             kbins = kb
+        # NEW: directional spectrum slope from polarization angles
+        pdir_slopes[lam] = directional_slope(P_maps[lam])
+
     lam_arr = np.array(lam_list, dtype=float)
-    var_absP = np.array([np.var(np.abs(P_maps[lam])) for lam in lam_list], dtype=float)
+    # Removed PVA variance calculation as it drops to zero
+
+    # Derivative vs λ^2
     l2 = lam_arr**2
     order = np.argsort(l2)
     l2s = l2[order]
@@ -160,10 +230,11 @@ def compute_measures(P_maps: Dict[float, np.ndarray], lam_list: List[float]) -> 
         dP = (P_maps[lam_sorted[i+1]] - P_maps[lam_sorted[i]]) / (l2s[i+1]-l2s[i])
         dPdl2_vars.append(np.var(np.abs(dP)))
         l2_mid.append(0.5*(l2s[i] + l2s[i+1]))
+
     return {
-        "psa": {"slope_by_lambda": psa_slopes, "k_bins": kbins},
-        "pva": {"lambda": lam_arr, "var_absP": var_absP},
-        "dPdl2": {"lambda_mid": np.sqrt(np.array(l2_mid)), "var_abs_dPdl2": np.array(dPdl2_vars)}
+        "psa":  {"slope_by_lambda": psa_slopes,  "k_bins": kbins},
+        "dPdl2":{"lambda_mid": np.sqrt(np.array(l2_mid)), "var_abs_dPdl2": np.array(dPdl2_vars)},
+        "pdir": {"slope_by_lambda": pdir_slopes}  # NEW
     }
 
 def classify_regime(phi_total_map: np.ndarray, lam_m: float) -> str:
@@ -247,13 +318,13 @@ def main():
     for lam in LAMBDA_LIST_M:
         print(f"  λ = {lam:.3f} m : slope ≈ {measures['psa']['slope_by_lambda'][lam]:.3f}")
 
-    print("\nPVA (variance of |P|) vs λ:")
-    for lam, v in zip(measures["pva"]["lambda"], measures["pva"]["var_absP"]):
-        print(f"  λ = {lam:.3f} m : Var(|P|) = {v:.6e}")
-
     print("\nDerivative measure (variance of |dP/d(λ^2)|) vs λ_mid:")
     for lam_m, v in zip(measures["dPdl2"]["lambda_mid"], measures["dPdl2"]["var_abs_dPdl2"]):
         print(f"  λ_mid ≈ {lam_m:.3f} m : Var(|dP/d(λ^2)|) = {v:.6e}")
+
+    print("\nDirectional spectrum slope (new measure) vs λ:")
+    for lam in LAMBDA_LIST_M:
+        print(f"  λ = {lam:.3f} m : slope ≈ {measures['pdir']['slope_by_lambda'][lam]:.3f}")
 
     # Plots
     if MAKE_PLOTS:
@@ -279,21 +350,21 @@ def main():
         slopes = [measures["psa"]["slope_by_lambda"][l] for l in LAMBDA_LIST_M]
         slopes_norm = np.array(slopes)
         slopes_norm = (slopes_norm - np.min(slopes_norm)) / (np.max(slopes_norm) - np.min(slopes_norm) + 1e-10)
-        ax.plot(LAMBDA_LIST_M, slopes_norm, 'bo-', linewidth=3, markersize=8, label='PSA slope (normalized)')
-        
-        # PVA variance (normalized to 0-1 range)
-        lam_arr = measures["pva"]["lambda"]
-        var_absP = measures["pva"]["var_absP"]
-        var_absP_norm = (var_absP - np.min(var_absP)) / (np.max(var_absP) - np.min(var_absP) + 1e-10)
-        ax.plot(lam_arr, var_absP_norm, 'ro-', linewidth=3, markersize=8, label='PVA variance (normalized)')
+        ax.plot(LAMBDA_LIST_M, slopes_norm, 'b.-', linewidth=1.5, markersize=4, label='PSA slope')
         
         # Derivative measure (normalized to 0-1 range)
         lam_mid = measures["dPdl2"]["lambda_mid"]
         var_dPdl2 = measures["dPdl2"]["var_abs_dPdl2"]
         var_dPdl2_norm = (var_dPdl2 - np.min(var_dPdl2)) / (np.max(var_dPdl2) - np.min(var_dPdl2) + 1e-10)
-        ax.plot(lam_mid, var_dPdl2_norm, 'go-', linewidth=3, markersize=8, label='Derivative variance (normalized)')
+        ax.plot(lam_mid, var_dPdl2_norm, 'g.-', linewidth=1.5, markersize=4, label='Derivative variance')
         
-        ax.set_title("LP16 Measures Comparison: PSA, PVA, and Derivative vs $\\lambda$", fontsize=14, fontweight='bold')
+        # NEW: Directional-spectrum slope (normalized)
+        pdir_slopes = [measures["pdir"]["slope_by_lambda"][l] for l in LAMBDA_LIST_M]
+        pdir_norm = np.array(pdir_slopes, dtype=float)
+        pdir_norm = (pdir_norm - np.nanmin(pdir_norm)) / (np.nanmax(pdir_norm) - np.nanmin(pdir_norm) + 1e-10)
+        ax.plot(LAMBDA_LIST_M, pdir_norm, 'm.-', linewidth=1.5, markersize=4, label='Directional spectrum slope')
+        
+        # ax.set_title("LP16 Measures Comparison: PSA (Inertial Range), Derivative, and Directional vs $\\lambda$", fontsize=14, fontweight='bold')
         ax.set_xlabel("$\\lambda$ (m)", fontsize=12)
         ax.set_ylabel("Normalized measure value", fontsize=12)
         ax.legend(fontsize=11, loc='best')
@@ -322,20 +393,80 @@ def main():
                         if i > start_idx:
                             ax.axvspan(wavelengths[start_idx], wavelengths[i-1], 
                                       color=regime_colors[regime], alpha=0.3, zorder=0)
+                            # Fill between curves and x-axis
+                            ax.fill_between([wavelengths[start_idx], wavelengths[i-1]], 
+                                          y_min, y_max, 
+                                          color=regime_colors[regime], alpha=0.2, zorder=0)
                         start_idx = i
                 # Fill the last range
                 if start_idx < len(wavelengths):
                     ax.axvspan(wavelengths[start_idx], wavelengths[-1], 
                               color=regime_colors[regime], alpha=0.3, zorder=0)
+                    # Fill between curves and x-axis
+                    ax.fill_between([wavelengths[start_idx], wavelengths[-1]], 
+                                  y_min, y_max, 
+                                  color=regime_colors[regime], alpha=0.2, zorder=0)
         
         # Add regime legend
         from matplotlib.patches import Patch
-        regime_patches = [Patch(facecolor=color, alpha=0.3, label=f'{regime.capitalize()} regime') 
-                         for regime, color in regime_colors.items()]
-        ax.legend(handles=ax.get_legend_handles_labels()[0] + regime_patches, loc='upper right', fontsize=10)
+        regime_patches = [
+            Patch(facecolor='lightblue',  alpha=0.25, label=r'$2\lambda^{2}\sigma_{\Phi} < 1$'),
+            Patch(facecolor='yellow',     alpha=0.25, label=r'$1 < 2\lambda^{2}\sigma_{\Phi} < 3$'),
+            Patch(facecolor='lightcoral', alpha=0.25, label=r'$2\lambda^{2}\sigma_{\Phi} > 3$')
+        ]
+        # Primary curve legend + equation-based patches
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(handles + regime_patches, labels + [p.get_label() for p in regime_patches],
+                  loc='upper right', fontsize=10)
         
         plt.tight_layout()
         if SAVE_PNG: plt.savefig(os.path.join(OUTPUT_DIR, "all_measures_combined.png"), dpi=160, bbox_inches="tight")
+        
+        # PSA power spectrum for representative wavelengths
+        plt.figure(figsize=(10, 8))
+        
+        # Select representative wavelengths (low, mid, high)
+        lam_indices = [0, len(LAMBDA_LIST_M)//2, -1]
+        colors = ['blue', 'red', 'green']
+        
+        for i, lam_idx in enumerate(lam_indices):
+            lam = LAMBDA_LIST_M[lam_idx]
+            P_map = P_maps[lam]
+            
+            # Calculate power spectrum
+            ny, nx = P_map.shape
+            F = np.fft.rfft2(np.abs(P_map))
+            P2 = np.abs(F)**2
+            ky = np.fft.fftfreq(ny) * ny
+            kx = np.fft.rfftfreq(nx) * nx
+            KX, KY = np.meshgrid(kx, ky, indexing="xy")
+            KR = np.sqrt(KX**2 + KY**2)
+            
+            # Ring average
+            kmax = 0.5 * min(nx, ny)
+            nbins = int(np.sqrt(nx*ny) // 2)
+            k_edges = np.linspace(0.0, kmax, nbins+1)
+            idx = np.digitize(KR.ravel(), k_edges) - 1
+            idx = np.clip(idx, 0, nbins-1)
+            counts = np.bincount(idx, minlength=nbins)
+            sums = np.bincount(idx, weights=P2.ravel(), minlength=nbins)
+            ps1d = np.zeros(nbins, dtype=float)
+            valid = counts > 0
+            ps1d[valid] = sums[valid] / counts[valid]
+            k_centers = 0.5*(k_edges[:-1] + k_edges[1:])
+            
+            # Plot only valid points
+            mask = ps1d > 0
+            plt.loglog(k_centers[mask], ps1d[mask], '.-', color=colors[i], 
+                      linewidth=1.5, markersize=4, label=f'$\\lambda = {lam:.3f}$ m')
+        
+        plt.xlabel("$k$ (pixel$^{-1}$)", fontsize=12)
+        plt.ylabel("$P_{|P|}(k)$ (arbitrary units)", fontsize=12)
+        plt.title("PSA Power Spectrum: $P_{|P|}(k)$ for Representative Wavelengths", fontsize=14, fontweight='bold')
+        plt.legend(fontsize=11)
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+        if SAVE_PNG: plt.savefig(os.path.join(OUTPUT_DIR, "psa_spectrum.png"), dpi=160, bbox_inches="tight")
         
         # Faraday depth histogram
         plt.figure(figsize=(8, 6))
