@@ -52,7 +52,8 @@ class PSAConfig:
     apodize: bool = True  # apply 2D Hann window before FFT
     detrend: bool = True  # subtract mean P before FFT
     ring_bins: int = 64  # number of bins for the radial average
-    slope_fit_frac: Tuple[float, float] = (0.1, 0.5)  # fit range as fraction of k span (exclude extreme bins)
+    slope_fit_kmin: float = None  # minimum k for slope fitting (None = auto)
+    slope_fit_kmax: float = None  # maximum k for slope fitting (None = auto, uses first half)
 
 
 def load_fields(h5_path: str, keys: FieldKeys) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -233,21 +234,24 @@ def psa_spectrum(P_map: np.ndarray, cfg: PSAConfig) -> Tuple[np.ndarray, np.ndar
     return kcenters, Ek, extras
 
 
-def fit_log_slope(k: np.ndarray, Ek: np.ndarray, frac_range: Tuple[float, float]) -> Tuple[float, float]:
-    """Fit slope m in log10(E) = a + m log10(k) over a fractional range of valid (finite) bins."""
+def fit_log_slope(k: np.ndarray, Ek: np.ndarray, kmin: float, kmax: float) -> Tuple[float, float]:
+    """Fit slope m in log10(E) = a + m log10(k) over a specific k range."""
     valid = np.isfinite(Ek) & (Ek > 0) & (k > 0)
     kv = k[valid]
     Ev = Ek[valid]
     if kv.size < 8:
         return np.nan, np.nan
-    i0 = int(frac_range[0] * kv.size)
-    i1 = max(i0 + 8, int(frac_range[1] * kv.size))
-    kv = kv[i0:i1]
-    Ev = Ev[i0:i1]
-    if kv.size < 8:
+    
+    # Select k range based on kmin and kmax
+    mask = (kv >= kmin) & (kv <= kmax)
+    kv_range = kv[mask]
+    Ev_range = Ev[mask]
+    
+    if kv_range.size < 8:
         return np.nan, np.nan
-    X = np.log10(kv)
-    Y = np.log10(Ev)
+    
+    X = np.log10(kv_range)
+    Y = np.log10(Ev_range)
     m, a = np.polyfit(X, Y, 1)
     return m, a
 
@@ -302,14 +306,25 @@ def plot_psa_spectra(k: np.ndarray, Ek_list: list, labels: list, cfg: PSAConfig,
 
     # Optional slope fits for the first spectrum
     if Ek_list:
-        m, a = fit_log_slope(k[1:], Ek_list[0][1:], cfg.slope_fit_frac)
+        # Auto-calculate k range if not specified
+        k_valid = k[1:]  # skip k=0 bin
+        if cfg.slope_fit_kmin is None:
+            kmin_auto = k_valid.min()
+        else:
+            kmin_auto = cfg.slope_fit_kmin
+            
+        if cfg.slope_fit_kmax is None:
+            kmax_auto = k_valid.max() / 4  # first third of k range
+        else:
+            kmax_auto = cfg.slope_fit_kmax
+            
+        m, a = fit_log_slope(k[1:], Ek_list[0][1:], kmin_auto, kmax_auto)
         if np.isfinite(m):
-            # Draw a guide line with the fitted slope through a mid-point
-            mid = np.nanmedian(k[np.isfinite(Ek_list[0]) & (k > 0)])
-            ymid = 10**(a + m * np.log10(mid))
-            kline = np.array([mid/4, mid*4])
-            yline = ymid * (kline / mid)**m
-            ax.loglog(kline, yline, linestyle='--', linewidth=1, label=f"slope: {m:.2f}", color="red")
+            # Draw the fitted line over the same range used for fitting
+            k_fit_range = np.linspace(kmin_auto, kmax_auto, 100)
+            y_fit_range = 10**(a + m * np.log10(k_fit_range))
+            ax.loglog(k_fit_range, y_fit_range, linestyle='--', linewidth=2, 
+                     label=f"slope: {m:.2f} (k={kmin_auto:.1f}-{kmax_auto:.1f})", color="red")
 
     ax.set_xlabel(r"$k$")
     ax.set_ylabel(r"$E(k)$")
@@ -362,6 +377,11 @@ def demo(h5_path: str):
     
     # Create 2x3 subplot layout (2 rows, 3 columns)
     fig, axes = plt.subplots(2, 3, figsize=(12, 7))
+    fig.suptitle('Polarization Spatial Analysis (PSA) spectrum\n$\\xi_P(R,\\lambda) = \\langle P(X,\\lambda)\\, P^{*}(X+R,\\lambda) \\rangle$', 
+                 fontsize=14, y=0.95)
+    
+    # Move panel to the right by 1%
+    plt.subplots_adjust(left=0.11)
     
     for i, lam in enumerate(lambda_values):
         cfg = PSAConfig(lam=lam, gamma=2.0, los_axis=0)
@@ -384,6 +404,12 @@ def demo(h5_path: str):
         ax_bottom = axes[1, i]
         plot_psa_spectra(k_mix, [Ek_mix], [f"Mixed ($2\\lambda^2 \\sigma_{{\\Phi}}={2*lam**2*sigma_phi:.1f}$)"], cfg,
                         title=fr"Mixed $2\\lambda^2 \\sigma_{{\\Phi}}={2*lam**2*sigma_phi:.1f}$", ax=ax_bottom)
+    
+    # Add vertical text labels for rows
+    fig.text(0.0075, 0.75, 'Separated', rotation=90, fontsize=12,  
+             ha='center', va='center', color='red')
+    fig.text(0.0075, 0.25, 'Mixed', rotation=90, fontsize=12,  
+             ha='center', va='center', color='red')
     
     plt.tight_layout()
     plt.savefig("lp2016_outputs/psa_spectra.png", dpi=150)
