@@ -232,31 +232,49 @@ def plot_pfa(lam2: np.ndarray, var_list: list, labels: list, cfg: PFAConfig,
 
 
 def plot_pfa_derivative(lam2: np.ndarray, var_list: list, labels: list, cfg: PFAConfig,
-                        title: str = r"Derivative measure $\langle|dP/d\lambda^2|^2\rangle$ vs $\lambda^2$"):
+                        title: str = r"Derivative measure $\langle|dP/d\lambda^2|^2\rangle$ vs $2\lambda^2\sigma_{\Phi}$",
+                        sigma_phi: float = 1.9101312160491943):
     plt.figure(figsize=(6.5, 5.0))
     
+    # Convert λ² to 2λ²σ_Φ
+    x_axis = 2 * lam2 * sigma_phi
+    
     for var, lab in zip(var_list, labels):
-        plt.loglog(lam2, var, label=lab)
+        plt.loglog(x_axis, var, label=lab)
     
     # Slope guide for the mixed case (second curve)
     if len(var_list) > 1:
-        m, a = fit_log_slope(lam2, var_list[1], xmin=0.2, xmax=10.0)  # Use mixed case (index 1)
+        m, a = fit_log_slope(x_axis, var_list[1], xmin=1.0, xmax=35.0)  # Use mixed case (index 1)
         if np.isfinite(m):
             # Draw fitted line over the fitting range
-            xline = np.linspace(0.2, 10.0, 100)
+            xline = np.linspace(1.0, 35.0, 100)
             yline = 10**(a + m * np.log10(xline))
             plt.loglog(xline, yline, '--', linewidth=2, label=f"slope: {m:.2f}", color="red")
     
     # Mark λ = lam_mark
     lam_mark2 = cfg.lam_mark**2
+    x_mark = 2 * lam_mark2 * sigma_phi
     for var, lab in zip(var_list, labels):
-        # interpolate value at λ²
-        vmark = np.interp(lam_mark2, lam2, var)
-        # plt.scatter([lam_mark2], [vmark], marker='o')
+        # interpolate value at 2λ²σ_Φ
+        vmark = np.interp(x_mark, x_axis, var)
+        # plt.scatter([x_mark], [vmark], marker='o')
     
-    plt.xlabel(r"$\lambda^2$")
+    plt.xlabel(r"$2\lambda^2\sigma_{\Phi}$")
     plt.ylabel(r"$\langle |dP/d\lambda^2|^2 \rangle$")
     plt.title(title)
+    
+    # Set meaningful x-axis ticks for 2λ²σ_Φ
+    x_min, x_max = x_axis.min(), x_axis.max()
+    # Create ticks at round numbers: 0.1, 0.5, 1, 2, 5, 10, etc.
+    tick_values = []
+    for exp in range(-2, 3):  # 0.01 to 100
+        for mult in [1, 2, 5]:
+            val = mult * 10**exp
+            if x_min <= val <= x_max:
+                tick_values.append(val)
+    
+    if tick_values:
+        plt.xticks(tick_values, [f"{val:.1f}" if val < 1 else f"{val:.0f}" for val in tick_values])
     
     plt.grid(True, which='both', alpha=0.2)
     plt.legend()
@@ -280,7 +298,7 @@ def run(h5_path: str):
     lam2_dsep, dvar_sep = pfa_curve_derivative_separated(Pi, phi, cfg)
     lam2_dmix, dvar_mix = pfa_curve_derivative_mixed(Pi, phi, cfg)
     plot_pfa_derivative(lam2_dsep, [dvar_sep, dvar_mix], ["separated", "mixed"], cfg,
-                        title="Derivative measure $\\langle|dP/d\\lambda^2|^2\\rangle$")
+                        title="Derivative measure $\\langle|dP/d\\lambda^2|^2\\rangle$ vs $2\\lambda^2\\sigma_{\\Phi}$")
     plt.savefig("lp2016_outputs/derivative_spectra.png", dpi=150)
     plt.show()
 
