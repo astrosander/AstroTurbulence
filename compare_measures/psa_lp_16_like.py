@@ -323,8 +323,8 @@ def plot_psa_spectra(k: np.ndarray, Ek_list: list, labels: list, cfg: PSAConfig,
             # Draw the fitted line over the same range used for fitting
             k_fit_range = np.linspace(kmin_auto, kmax_auto, 100)
             y_fit_range = 10**(a + m * np.log10(k_fit_range))
-            ax.loglog(k_fit_range, y_fit_range, linestyle='--', linewidth=2, 
-                     label=f"slope: {m:.2f} (k={kmin_auto:.1f}-{kmax_auto:.1f})", color="red")
+            ax.loglog(k_fit_range, y_fit_range, linestyle='--', linewidth=1.5, 
+                     label=f"slope: {m:.2f}", color="red")
 
     ax.set_xlabel(r"$k$")
     ax.set_ylabel(r"$E(k)$")
