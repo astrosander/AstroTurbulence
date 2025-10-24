@@ -2,6 +2,7 @@
 import os
 import h5py
 import numpy as np
+import numpy.fft as nfft
 import matplotlib.pyplot as plt
 from typing import Dict, Tuple, Optional, List
 import matplotlib as mpl
@@ -43,7 +44,7 @@ DELTA_Z_PC     = 1.0           # voxel size along z in pc
 A_EXP = 2.0
 
 # --- Wavelength grid (meters) ---
-LAMBDA_LIST_M = np.arange(0.01, 1.0, 0.01)
+LAMBDA_LIST_M = np.arange(0.01, 1.5, 0.01)
 
 # [0.03, 0.06, 0.09, 0.12, 0.15, 0.18,
 #                  0.21, 0.24, 0.27, 0.30, 0.33, 0.36,
@@ -60,6 +61,12 @@ OUTPUT_DIR = "lp2016_outputs"
 # ======================
 
 K_RM = 0.81  # rad m^-2 per (cm^-3 μG pc)
+
+def _hann2d(ny: int, nx: int) -> np.ndarray:
+    """2D Hann window for apodization."""
+    wy = np.hanning(ny)
+    wx = np.hanning(nx)
+    return np.outer(wy, wx)
 
 def ensure_dir(path: str):
     if not os.path.exists(path):
@@ -123,31 +130,60 @@ def integrate_polarization(Pi: np.ndarray, phi_cum: np.ndarray, lam_m: float, lo
         integrand = Pi * phase
     return np.sum(integrand, axis=0)
 
-def isotropic_power_slope(field2d: np.ndarray, kmin_frac: float=0.1, kmax_frac: float=0.3) -> Tuple[float, np.ndarray]:
-    ny, nx = field2d.shape
-    F = np.fft.rfft2(field2d)
-    P2 = np.abs(F)**2
-    ky = np.fft.fftfreq(ny) * ny
-    kx = np.fft.rfftfreq(nx) * nx
-    KX, KY = np.meshgrid(kx, ky, indexing="xy")
-    KR = np.sqrt(KX**2 + KY**2)
-    kmax = 0.5 * min(nx, ny)
-    nbins = int(np.sqrt(nx*ny) // 2)
-    k_edges = np.linspace(0.0, kmax, nbins+1)
-    idx = np.digitize(KR.ravel(), k_edges) - 1
-    # Clip bin indices to valid range [0, nbins-1]
-    idx = np.clip(idx, 0, nbins-1)
-    counts = np.bincount(idx, minlength=nbins)
-    sums = np.bincount(idx, weights=P2.ravel(), minlength=nbins)
-    ps1d = np.zeros(nbins, dtype=float)
-    valid = counts > 0
-    ps1d[valid] = sums[valid] / counts[valid]
-    k_centers = 0.5*(k_edges[:-1] + k_edges[1:])
-    mask = (k_centers > kmin_frac*kmax) & (k_centers < kmax_frac*kmax) & (ps1d > 0)
+def isotropic_power_slope(P_map: np.ndarray, kmin_frac: float=0.1, kmax_frac: float=0.3) -> Tuple[float, np.ndarray]:
+    """Compute PSA spectrum using the exact same algorithm as psa_lp_16_like.py
+    
+    This function operates on the COMPLEX polarization map P, not its magnitude.
+    The power spectrum is computed as |FFT(P)|^2, where P is complex.
+    """
+    # Remove mean (detrend) - exactly like psa_lp_16_like.py, works with complex fields
+    P = P_map - np.mean(P_map)
+    
+    # Apply Hann window to reduce ringing/leakage - exactly like psa_lp_16_like.py
+    win = _hann2d(P.shape[0], P.shape[1])
+    P = P * win
+    
+    # 2D FFT and power - exactly like psa_lp_16_like.py
+    # This computes |FFT(complex P)|^2, NOT FFT(|P|)^2
+    F = nfft.fftshift(nfft.fft2(P))
+    P2D = (F * np.conj(F)).real  # |F|^2
+    
+    ny, nx = P.shape
+    ky = np.fft.fftshift(np.fft.fftfreq(ny)) * ny  # dimensionless spatial frequency index
+    kx = np.fft.fftshift(np.fft.fftfreq(nx)) * nx
+    KX, KY = np.meshgrid(kx, ky)
+    KR = np.hypot(KX, KY)
+    
+    # Radial bins - exactly like psa_lp_16_like.py with fixed ring_bins=64
+    kmax = KR.max()
+    ring_bins = 64  # Fixed value like in psa_lp_16_like.py
+    bins = np.linspace(0.0, kmax, ring_bins + 1)
+    which_bin = np.digitize(KR.ravel(), bins) - 1
+    
+    Ek = np.zeros(ring_bins, dtype=float)
+    counts = np.zeros(ring_bins, dtype=int)
+    
+    flatP = P2D.ravel()
+    for b in range(ring_bins):
+        mask = which_bin == b
+        if np.any(mask):
+            Ek[b] = flatP[mask].mean()
+            counts[b] = mask.sum()
+        else:
+            Ek[b] = np.nan
+    
+    # Bin centers - exactly like psa_lp_16_like.py
+    k_centers = 0.5 * (bins[:-1] + bins[1:])
+    
+    # Fit slope over the specified range
+    kmin = kmin_frac * kmax
+    kmax_fit = kmax_frac * kmax
+    mask = (k_centers > kmin) & (k_centers < kmax_fit) & (Ek > 0) & np.isfinite(Ek)
     if np.sum(mask) < 5:
         return np.nan, k_centers
+    
     x = np.log(k_centers[mask] + 1e-12)
-    y = np.log(ps1d[mask] + 1e-30)
+    y = np.log(Ek[mask] + 1e-30)
     slope, _ = np.polyfit(x, y, 1)
     return slope, k_centers
 
@@ -157,26 +193,50 @@ def map_angles(P: np.ndarray) -> np.ndarray:
     """Polarization angle χ = 0.5 * arg(P)."""
     return 0.5 * np.angle(P)
 
-def ring_average_power2d(field2d: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    """Return (k_centers, P1D(k)) from isotropic ring-average of |FFT(field2d)|^2."""
-    ny, nx = field2d.shape
-    F = np.fft.rfft2(field2d)
-    P2 = np.abs(F)**2
-    ky = np.fft.fftfreq(ny) * ny
-    kx = np.fft.rfftfreq(nx) * nx
-    KX, KY = np.meshgrid(kx, ky, indexing="xy")
-    KR = np.sqrt(KX**2 + KY**2)
-    nbins = int(np.sqrt(nx*ny) // 2)
-    kmax = 0.5 * min(nx, ny)
-    k_edges = np.linspace(0.0, kmax, nbins+1)
-    idx = np.digitize(KR.ravel(), k_edges) - 1
-    idx = np.clip(idx, 0, nbins-1)
-    counts = np.bincount(idx, minlength=nbins)
-    sums = np.bincount(idx, weights=P2.ravel(), minlength=nbins)
-    P1D = np.zeros(nbins, dtype=float)
-    valid = counts > 0
-    P1D[valid] = sums[valid] / counts[valid]
-    k_centers = 0.5*(k_edges[:-1] + k_edges[1:])
+def ring_average_power2d(P_map: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """Return (k_centers, P1D(k)) from isotropic ring-average of |FFT(P_map)|^2.
+    
+    This function operates on the COMPLEX polarization map P, not its magnitude.
+    The power spectrum is computed as |FFT(P)|^2, where P is complex.
+    """
+    # Remove mean (detrend) - exactly like psa_lp_16_like.py, works with complex fields
+    P = P_map - np.mean(P_map)
+    
+    # Apply Hann window to reduce ringing/leakage - exactly like psa_lp_16_like.py
+    win = _hann2d(P.shape[0], P.shape[1])
+    P = P * win
+    
+    # 2D FFT and power - exactly like psa_lp_16_like.py
+    # This computes |FFT(complex P)|^2, NOT FFT(|P|)^2
+    F = nfft.fftshift(nfft.fft2(P))
+    P2D = (F * np.conj(F)).real  # |F|^2
+    
+    ny, nx = P.shape
+    ky = np.fft.fftshift(np.fft.fftfreq(ny)) * ny  # dimensionless spatial frequency index
+    kx = np.fft.fftshift(np.fft.fftfreq(nx)) * nx
+    KX, KY = np.meshgrid(kx, ky)
+    KR = np.hypot(KX, KY)
+    
+    # Radial bins - exactly like psa_lp_16_like.py with fixed ring_bins=64
+    kmax = KR.max()
+    ring_bins = 64  # Fixed value like in psa_lp_16_like.py
+    bins = np.linspace(0.0, kmax, ring_bins + 1)
+    which_bin = np.digitize(KR.ravel(), bins) - 1
+    
+    P1D = np.zeros(ring_bins, dtype=float)
+    counts = np.zeros(ring_bins, dtype=int)
+    
+    flatP = P2D.ravel()
+    for b in range(ring_bins):
+        mask = which_bin == b
+        if np.any(mask):
+            P1D[b] = flatP[mask].mean()
+            counts[b] = mask.sum()
+        else:
+            P1D[b] = np.nan
+    
+    # Bin centers - exactly like psa_lp_16_like.py
+    k_centers = 0.5 * (bins[:-1] + bins[1:])
     return k_centers, P1D
 
 def directional_spectrum_from_angles(chi: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
@@ -203,23 +263,85 @@ def directional_slope(P_map: np.ndarray, kmin_frac: float=0.1, kmax_frac: float=
     slope, _ = np.polyfit(x, y, 1)
     return slope
 
-def compute_measures(P_maps: Dict[float, np.ndarray], lam_list: List[float]) -> Dict[str, Dict]:
+# === NEW: PFA and derivative spectrum measures (from pfa_lp_16_like.py) ===
+
+def compute_pfa_variance(P_map: np.ndarray) -> float:
+    """Compute ⟨|P|²⟩ for a single P map (PFA measure at one λ)."""
+    return np.mean(np.abs(P_map)**2)
+
+def compute_derivative_variance(dP_map: np.ndarray) -> float:
+    """Compute ⟨|dP/dλ²|²⟩ for a single dP/dλ² map."""
+    return np.mean(np.abs(dP_map)**2)
+
+def dP_map_mixed_geometry(Pi: np.ndarray, phi_inc: np.ndarray, lam_m: float, voxel_depth: float = 1.0) -> np.ndarray:
+    """Compute dP/dλ² map for mixed geometry: 2i ∫ Pi(z) Φ(z) e^{2i λ² Φ(z)} dz.
+    
+    This follows the exact algorithm from pfa_lp_16_like.py dP_map_mixed().
+    """
+    # Cumulative Faraday depth Φ(z) = ∫ φ(z') dz'
+    Phi_cum = np.cumsum(phi_inc * voxel_depth, axis=0)
+    
+    # Phase factor exp(2i λ² Φ(z))
+    phase = np.exp(2j * (lam_m**2) * Phi_cum)
+    
+    # Derivative integrand: 2i Pi(z) Φ(z) exp(2i λ² Φ(z))
+    contrib = 2j * (Pi * Phi_cum) * phase
+    
+    # Integrate along LOS
+    return np.sum(contrib, axis=0) * voxel_depth
+
+def P_map_mixed_geometry(Pi: np.ndarray, phi_inc: np.ndarray, lam_m: float, voxel_depth: float = 1.0) -> np.ndarray:
+    """Compute P map for mixed geometry: ∫ Pi(z) e^{2i λ² Φ(z)} dz.
+    
+    This follows the exact algorithm from pfa_lp_16_like.py P_map_mixed().
+    """
+    # Cumulative Faraday depth Φ(z) = ∫ φ(z') dz'
+    Phi_cum = np.cumsum(phi_inc * voxel_depth, axis=0)
+    
+    # Phase factor exp(2i λ² Φ(z))
+    phase = np.exp(2j * (lam_m**2) * Phi_cum)
+    
+    # Integrand: Pi(z) exp(2i λ² Φ(z))
+    contrib = Pi * phase
+    
+    # Integrate along LOS
+    return np.sum(contrib, axis=0) * voxel_depth
+
+def dP_map_from_phi(Pi: np.ndarray, phi_cum: np.ndarray, lam_m: float, los_mask: Optional[np.ndarray]) -> np.ndarray:
+    """Compute dP/dλ² map for separated geometry: 2i ∫ Pi(z) Φ(z) e^{2i λ² Φ(z)} dz."""
+    phase = np.exp(2j * (lam_m**2) * phi_cum)
+    if los_mask is not None:
+        integrand = np.where(los_mask, 2j * Pi * phi_cum * phase, 0.0)
+    else:
+        integrand = 2j * Pi * phi_cum * phase
+    return np.sum(integrand, axis=0)
+
+def compute_measures(P_maps: Dict[float, np.ndarray], lam_list: List[float], 
+                     dP_maps: Optional[Dict[float, np.ndarray]] = None) -> Dict[str, Dict]:
     psa_slopes = {}
     pdir_slopes = {}   # NEW
+    pfa_variances = {}  # NEW: PFA variance ⟨|P|²⟩
+    derivative_variances = {}  # NEW: Derivative spectrum variance ⟨|dP/dλ²|²⟩
     kbins = None
     for lam in lam_list:
-        # PSA on |P|
-        slope_psa, kb = isotropic_power_slope(np.abs(P_maps[lam]))
+        # PSA on COMPLEX P (not |P|) - this is the correct way per LP16
+        # PSA computes power spectrum as |FFT(P)|^2 where P is complex
+        slope_psa, kb = isotropic_power_slope(P_maps[lam])
         psa_slopes[lam] = slope_psa
         if kbins is None:
             kbins = kb
         # NEW: directional spectrum slope from polarization angles
         pdir_slopes[lam] = directional_slope(P_maps[lam])
+        # NEW: PFA variance
+        pfa_variances[lam] = compute_pfa_variance(P_maps[lam])
+        # NEW: Derivative variance (if dP_maps provided)
+        if dP_maps is not None and lam in dP_maps:
+            derivative_variances[lam] = compute_derivative_variance(dP_maps[lam])
 
     lam_arr = np.array(lam_list, dtype=float)
     # Removed PVA variance calculation as it drops to zero
 
-    # Derivative vs λ^2
+    # Derivative vs λ^2 (original finite-difference method)
     l2 = lam_arr**2
     order = np.argsort(l2)
     l2s = l2[order]
@@ -234,7 +356,9 @@ def compute_measures(P_maps: Dict[float, np.ndarray], lam_list: List[float]) -> 
     return {
         "psa":  {"slope_by_lambda": psa_slopes,  "k_bins": kbins},
         "dPdl2":{"lambda_mid": np.sqrt(np.array(l2_mid)), "var_abs_dPdl2": np.array(dPdl2_vars)},
-        "pdir": {"slope_by_lambda": pdir_slopes}  # NEW
+        "pdir": {"slope_by_lambda": pdir_slopes},  # NEW
+        "pfa":  {"variance_by_lambda": pfa_variances},  # NEW: PFA spectrum
+        "derivative_spectrum": {"variance_by_lambda": derivative_variances}  # NEW: Derivative spectrum
     }
 
 def classify_regime(phi_total_map: np.ndarray, lam_m: float) -> str:
@@ -303,15 +427,54 @@ def main():
     phi_cum = cumulative_phi(phi_inc, observer_at_z0=True)
     phi_total_map = phi_cum[-1]  # to far boundary
 
-    # Build P maps across λ
+    # Build P maps and dP/dλ² maps across λ
     P_maps = {}
+    dP_maps = {}
     for lam in LAMBDA_LIST_M:
-        P_maps[lam] = integrate_polarization(Pi, phi_cum, lam, los_mask=los_mask)
+        if USE_EXTERNAL_SCREEN and SEPARATED_FROM_SAME_CUBE:
+            # Separated geometry: use existing method
+            P_maps[lam] = integrate_polarization(Pi, phi_cum, lam, los_mask=los_mask)
+            dP_maps[lam] = dP_map_from_phi(Pi, phi_cum, lam, los_mask=los_mask)
+        else:
+            # Mixed geometry: use exact algorithms from pfa_lp_16_like.py
+            P_maps[lam] = P_map_mixed_geometry(Pi, phi_inc, lam, DELTA_Z_PC)
+            dP_maps[lam] = dP_map_mixed_geometry(Pi, phi_inc, lam, DELTA_Z_PC)
+        
         regime = classify_regime(phi_total_map, lam)
         print(f"λ = {lam:.3f} m -> regime: {regime} | {recommend_measure(regime)}")
 
     # Measures
-    measures = compute_measures(P_maps, LAMBDA_LIST_M)
+    measures = compute_measures(P_maps, LAMBDA_LIST_M, dP_maps=dP_maps)
+    
+    # Compute PFA and derivative spectrum curves (exact algorithms from reference files)
+    print("\nComputing PFA and derivative spectrum curves...")
+    
+    # PFA curve: ⟨|P|²⟩ vs λ²
+    pfa_lambda_squared = []
+    pfa_variances = []
+    for lam in LAMBDA_LIST_M:
+        pfa_lambda_squared.append(lam**2)
+        pfa_variances.append(measures['pfa']['variance_by_lambda'][lam])
+    
+    # Derivative spectrum curve: ⟨|dP/dλ²|²⟩ vs λ²  
+    derivative_lambda_squared = []
+    derivative_spectrum_variances = []
+    for lam in LAMBDA_LIST_M:
+        derivative_lambda_squared.append(lam**2)
+        if lam in measures['derivative_spectrum']['variance_by_lambda']:
+            derivative_spectrum_variances.append(measures['derivative_spectrum']['variance_by_lambda'][lam])
+        else:
+            derivative_spectrum_variances.append(np.nan)
+    
+    # Add to measures for plotting
+    measures['pfa_curve'] = {
+        'lambda_squared': np.array(pfa_lambda_squared),
+        'variances': np.array(pfa_variances)
+    }
+    measures['derivative_spectrum_curve'] = {
+        'lambda_squared': np.array(derivative_lambda_squared), 
+        'variances': np.array(derivative_spectrum_variances)
+    }
 
     # Print summaries
     print("\nPSA power-spectrum slopes of |P|:")
@@ -325,6 +488,73 @@ def main():
     print("\nDirectional spectrum slope (new measure) vs λ:")
     for lam in LAMBDA_LIST_M:
         print(f"  λ = {lam:.3f} m : slope ≈ {measures['pdir']['slope_by_lambda'][lam]:.3f}")
+    
+    print("\nPFA variance ⟨|P|²⟩ vs λ:")
+    for lam in LAMBDA_LIST_M:
+        print(f"  λ = {lam:.3f} m : ⟨|P|²⟩ = {measures['pfa']['variance_by_lambda'][lam]:.6e}")
+    
+    print("\nDerivative spectrum ⟨|dP/dλ²|²⟩ vs λ:")
+    for lam in LAMBDA_LIST_M:
+        if lam in measures['derivative_spectrum']['variance_by_lambda']:
+            print(f"  λ = {lam:.3f} m : ⟨|dP/dλ²|²⟩ = {measures['derivative_spectrum']['variance_by_lambda'][lam]:.6e}")
+
+    # Compute full power spectra for all wavelengths
+    print(f"\nComputing full power spectra for all wavelengths...")
+    
+    # PSA power spectra for all wavelengths (on COMPLEX P, not magnitude)
+    psa_spectra = {}
+    for lam in LAMBDA_LIST_M:
+        k_centers, ps1d = ring_average_power2d(P_maps[lam])  # Pass complex P_map
+        psa_spectra[lam] = {'k': k_centers, 'P': ps1d}
+    
+    # Directional power spectra for all wavelengths
+    directional_spectra = {}
+    for lam in LAMBDA_LIST_M:
+        chi = map_angles(P_maps[lam])
+        k_dir, P_dir = directional_spectrum_from_angles(chi)
+        directional_spectra[lam] = {'k': k_dir, 'P': P_dir}
+
+    # Save all data to NPZ file for later replotting
+    print(f"\nSaving all measures and full spectra to NPZ file...")
+    
+    # Prepare data for saving
+    save_data = {
+        'lambda_list': np.array(LAMBDA_LIST_M),
+        'psa_slopes': np.array([measures['psa']['slope_by_lambda'][lam] for lam in LAMBDA_LIST_M]),
+        'psa_k_bins': measures['psa']['k_bins'],
+        'derivative_lambda_mid': measures['dPdl2']['lambda_mid'],
+        'derivative_variance': measures['dPdl2']['var_abs_dPdl2'],
+        'directional_slopes': np.array([measures['pdir']['slope_by_lambda'][lam] for lam in LAMBDA_LIST_M]),
+        'pfa_variances': np.array([measures['pfa']['variance_by_lambda'][lam] for lam in LAMBDA_LIST_M]),
+        'derivative_spectrum_variances': np.array([measures['derivative_spectrum']['variance_by_lambda'].get(lam, np.nan) for lam in LAMBDA_LIST_M]),
+        'pfa_curve_lambda_squared': measures['pfa_curve']['lambda_squared'],
+        'pfa_curve_variances': measures['pfa_curve']['variances'],
+        'derivative_spectrum_curve_lambda_squared': measures['derivative_spectrum_curve']['lambda_squared'],
+        'derivative_spectrum_curve_variances': measures['derivative_spectrum_curve']['variances'],
+        'phi_total_map': phi_total_map,
+        'regime_classification': np.array([classify_regime(phi_total_map, lam) for lam in LAMBDA_LIST_M])
+    }
+    
+    # Add full power spectra for all wavelengths
+    for lam in LAMBDA_LIST_M:
+        # PSA spectra
+        save_data[f'psa_k_lambda_{lam:.3f}'] = psa_spectra[lam]['k']
+        save_data[f'psa_P_lambda_{lam:.3f}'] = psa_spectra[lam]['P']
+        
+        # Directional spectra
+        save_data[f'dir_k_lambda_{lam:.3f}'] = directional_spectra[lam]['k']
+        save_data[f'dir_P_lambda_{lam:.3f}'] = directional_spectra[lam]['P']
+    
+    # Add polarization maps for representative wavelengths
+    representative_lambdas = [LAMBDA_LIST_M[0], LAMBDA_LIST_M[len(LAMBDA_LIST_M)//2], LAMBDA_LIST_M[-1]]
+    for i, lam in enumerate(representative_lambdas):
+        save_data[f'P_map_lambda_{lam:.3f}'] = P_maps[lam]
+    
+    # Save to NPZ file
+    npz_filename = os.path.join(OUTPUT_DIR, "measures_data.npz")
+    np.savez(npz_filename, **save_data)
+    print(f"Data saved to: {npz_filename}")
+    print(f"Saved full power spectra for {len(LAMBDA_LIST_M)} wavelengths")
 
     # Plots
     if MAKE_PLOTS:
@@ -363,6 +593,18 @@ def main():
         pdir_norm = np.array(pdir_slopes, dtype=float)
         pdir_norm = (pdir_norm - np.nanmin(pdir_norm)) / (np.nanmax(pdir_norm) - np.nanmin(pdir_norm) + 1e-10)
         ax.plot(LAMBDA_LIST_M, pdir_norm, 'm.-', linewidth=1.5, markersize=4, label='Directional spectrum slope')
+        
+        # NEW: PFA variance (normalized)
+        pfa_vars = [measures["pfa"]["variance_by_lambda"][l] for l in LAMBDA_LIST_M]
+        pfa_norm = np.array(pfa_vars, dtype=float)
+        pfa_norm = (pfa_norm - np.nanmin(pfa_norm)) / (np.nanmax(pfa_norm) - np.nanmin(pfa_norm) + 1e-10)
+        ax.plot(LAMBDA_LIST_M, pfa_norm, 'r.-', linewidth=1.5, markersize=4, label='PFA variance')
+        
+        # NEW: Derivative spectrum variance (normalized)
+        deriv_spec_vars = [measures["derivative_spectrum"]["variance_by_lambda"].get(l, np.nan) for l in LAMBDA_LIST_M]
+        deriv_spec_norm = np.array(deriv_spec_vars, dtype=float)
+        deriv_spec_norm = (deriv_spec_norm - np.nanmin(deriv_spec_norm)) / (np.nanmax(deriv_spec_norm) - np.nanmin(deriv_spec_norm) + 1e-10)
+        ax.plot(LAMBDA_LIST_M, deriv_spec_norm, 'c.-', linewidth=1.5, markersize=4, label='Derivative spectrum variance')
         
         # ax.set_title("LP16 Measures Comparison: PSA (Inertial Range), Derivative, and Directional vs $\\lambda$", fontsize=14, fontweight='bold')
         ax.set_xlabel("$\\lambda$ (m)", fontsize=12)
@@ -433,27 +675,9 @@ def main():
             lam = LAMBDA_LIST_M[lam_idx]
             P_map = P_maps[lam]
             
-            # Calculate power spectrum
-            ny, nx = P_map.shape
-            F = np.fft.rfft2(np.abs(P_map))
-            P2 = np.abs(F)**2
-            ky = np.fft.fftfreq(ny) * ny
-            kx = np.fft.rfftfreq(nx) * nx
-            KX, KY = np.meshgrid(kx, ky, indexing="xy")
-            KR = np.sqrt(KX**2 + KY**2)
-            
-            # Ring average
-            kmax = 0.5 * min(nx, ny)
-            nbins = int(np.sqrt(nx*ny) // 2)
-            k_edges = np.linspace(0.0, kmax, nbins+1)
-            idx = np.digitize(KR.ravel(), k_edges) - 1
-            idx = np.clip(idx, 0, nbins-1)
-            counts = np.bincount(idx, minlength=nbins)
-            sums = np.bincount(idx, weights=P2.ravel(), minlength=nbins)
-            ps1d = np.zeros(nbins, dtype=float)
-            valid = counts > 0
-            ps1d[valid] = sums[valid] / counts[valid]
-            k_centers = 0.5*(k_edges[:-1] + k_edges[1:])
+            # Calculate power spectrum using the same algorithm as psa_lp_16_like.py
+            # Use complex P_map, not its magnitude
+            k_centers, ps1d = ring_average_power2d(P_map)
             
             # Plot only valid points
             mask = ps1d > 0
@@ -467,6 +691,35 @@ def main():
         plt.grid(True, alpha=0.3)
         plt.tight_layout()
         if SAVE_PNG: plt.savefig(os.path.join(OUTPUT_DIR, "psa_spectrum.png"), dpi=160, bbox_inches="tight")
+        
+        # PFA curve: ⟨|P|²⟩ vs λ² (exact style from pfa_lp_16_like.py)
+        plt.figure(figsize=(8, 6))
+        pfa_lam2 = measures['pfa_curve']['lambda_squared']
+        pfa_vars = measures['pfa_curve']['variances']
+        plt.loglog(pfa_lam2, pfa_vars, 'b.-', linewidth=1.5, markersize=4, label='PFA mixed geometry')
+        plt.xlabel("$\\lambda^2$ (m$^2$)", fontsize=12)
+        plt.ylabel("$\\langle |P|^2 \\rangle$ (arbitrary units)", fontsize=12)
+        plt.title("PFA: $\\langle|P|^2\\rangle$ vs $\\lambda^2$ (Mixed Geometry)", fontsize=14, fontweight='bold')
+        plt.grid(True, which='both', alpha=0.2)
+        plt.legend(fontsize=11)
+        plt.tight_layout()
+        if SAVE_PNG: plt.savefig(os.path.join(OUTPUT_DIR, "pfa_spectra.png"), dpi=160, bbox_inches="tight")
+        
+        # Derivative spectrum curve: ⟨|dP/dλ²|²⟩ vs λ² (exact style from pfa_and_derivative_lp_16_like.py)
+        plt.figure(figsize=(8, 6))
+        deriv_lam2 = measures['derivative_spectrum_curve']['lambda_squared']
+        deriv_vars = measures['derivative_spectrum_curve']['variances']
+        # Filter out NaN values
+        valid_mask = ~np.isnan(deriv_vars)
+        if np.any(valid_mask):
+            plt.loglog(deriv_lam2[valid_mask], deriv_vars[valid_mask], 'r.-', linewidth=1.5, markersize=4, label='Derivative spectrum mixed geometry')
+        plt.xlabel("$\\lambda^2$ (m$^2$)", fontsize=12)
+        plt.ylabel("$\\langle |dP/d\\lambda^2|^2 \\rangle$ (arbitrary units)", fontsize=12)
+        plt.title("Derivative Spectrum: $\\langle|dP/d\\lambda^2|^2\\rangle$ vs $\\lambda^2$ (Mixed Geometry)", fontsize=14, fontweight='bold')
+        plt.grid(True, which='both', alpha=0.2)
+        plt.legend(fontsize=11)
+        plt.tight_layout()
+        if SAVE_PNG: plt.savefig(os.path.join(OUTPUT_DIR, "derivative_spectra.png"), dpi=160, bbox_inches="tight")
         
         # Faraday depth histogram
         plt.figure(figsize=(8, 6))
