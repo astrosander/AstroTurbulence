@@ -74,8 +74,9 @@ def load_fields(h5_path: str, keys: FieldKeys):
 
 def polarized_emissivity(Bx: np.ndarray, By: np.ndarray, gamma: float = 2.0) -> np.ndarray:
     """
-    LP16-correct polarized emissivity: P_i = (Bx + i*By)^2 * |B_perp|^{(gamma-3)/2}
-    For gamma=2: P_i = (Bx + i*By)^2 / |B_perp|
+    LP16 emissivity:
+      P_i = (Bx + i By)^2 * |B_perp|^{(gamma-3)/2}
+    For gamma=2: P_i = (Bx + i By)^2 / |B_perp|
     """
     B2 = Bx**2 + By**2
     eps = np.finfo(B2.dtype).tiny
@@ -295,18 +296,15 @@ def choose_lambda_for_regime(phi_info: dict, LOS_depth: float,
     return lam_opt
 
 
-def decorrelate_phi_along_z(phi: np.ndarray, los_axis: int, seed: int = 0, mode: str = "roll") -> np.ndarray:
+def decorrelate_phi_along_z(phi: np.ndarray, los_axis: int, seed: int = 42) -> np.ndarray:
     """Break Pi–Φ correlations by rolling φ along the LOS per sightline (preserves r_i)."""
     rng = default_rng(seed)
-    phi_los = np.moveaxis(phi, los_axis, 0)
-    out = np.empty_like(phi_los)
-    for j in range(phi_los.shape[1]):
-        for i in range(phi_los.shape[2]):
-            col = phi_los[:, j, i]
-            if mode == "roll":
-                out[:, j, i] = np.roll(col, rng.integers(0, col.size))
-            else:  # "shuffle" (discouraged - wrecks r_i)
-                out[:, j, i] = rng.permutation(col)
+    arr = np.moveaxis(phi, los_axis, 0)
+    out = np.empty_like(arr)
+    for j in range(arr.shape[1]):
+        for i in range(arr.shape[2]):
+            shift = rng.integers(0, arr.shape[0])
+            out[:, j, i] = np.roll(arr[:, j, i], shift)
     return np.moveaxis(out, 0, los_axis)
 
 # -----------------------------
@@ -518,37 +516,33 @@ def fit_log_slope(x: np.ndarray, y: np.ndarray, xmin=None, xmax=None):
     return m, a
 
 
-def fit_log_slope_window(k: np.ndarray, E: np.ndarray) -> Tuple[float, float, Tuple[float, float]]:
-    """
-    Auto-select clean inertial-range decade and fit power law.
-    Avoids apodization roll-off regions.
-    
-    Returns:
-        (slope, intercept, (k_min, k_max)) where log(E) = intercept + slope * log(k)
-    """
+def fit_log_slope_window(k: np.ndarray, E: np.ndarray):
+    """Pick a clean ~decade in k with minimal curvature, then fit log-log slope with error."""
     k = np.asarray(k); E = np.asarray(E)
-    m = np.isfinite(k) & np.isfinite(E) & (k > 0) & (E > 0)
-    k, E = k[m], E[m]
+    msk = np.isfinite(k) & np.isfinite(E) & (k>0) & (E>0)
+    k, E = k[msk], E[msk]
     if k.size < 12: 
-        return np.nan, np.nan, (np.nan, np.nan)
-    
+        return np.nan, np.nan, np.nan, (np.nan, np.nan)
     lk, lE = np.log10(k), np.log10(E)
-    best = (np.inf, None, None, None)  # (curv, m, a, (lo,hi))
-    
-    for p in (30, 40, 50, 60, 70):
+    best = (np.inf, np.nan, np.nan, np.nan, (np.nan, np.nan))  # (curv, m, a, err, (lo,hi))
+    for p in (35, 45, 55, 65):
         kmid = 10**np.percentile(lk, p)
-        for span in (2.0, 2.5, 3.0):  # ~0.8–1.2 decades
-            lo, hi = kmid/10**(span/6), kmid*10**(span/6)
-            s = (k >= lo) & (k <= hi)
-            if s.sum() < 10: 
+        for span in (0.9, 1.0, 1.1):  # ~ one decade ±10%
+            lo, hi = kmid/10**(span/2), kmid*10**(span/2)
+            s = (k>=lo)&(k<=hi)
+            if s.sum()<10: 
                 continue
-            sl = np.diff(lE[s])/np.diff(lk[s])
+            sl = np.diff(lE[s])/np.diff(lk[s])  # local slopes
             curv = np.nanstd(sl)
             mfit, afit = np.polyfit(lk[s], lE[s], 1)
+            # Estimate error from residuals
+            yfit = mfit * lk[s] + afit
+            residuals = lE[s] - yfit
+            mse = np.mean(residuals**2)
+            err = np.sqrt(mse / np.sum((lk[s] - np.mean(lk[s]))**2))
             if curv < best[0]:
-                best = (curv, mfit, afit, (lo, hi))
-    
-    return best[1], best[2], best[3]
+                best = (curv, mfit, afit, err, (lo,hi))
+    return best[1], best[2], best[3], best[4]
 
 
 def plot_pfa(lam2: np.ndarray, var_list: list, labels: list, cfg: PFAConfig,
@@ -660,8 +654,8 @@ def plot_spatial_psa_comparison(k_P: np.ndarray, Ek_P: np.ndarray,
     """
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5))
     
-    # Use improved auto-fit window function
-    m_P, a_P, (k_min_fit, k_max_fit) = fit_log_slope_window(k_P, Ek_P)
+    # Use improved auto-fit window function with error estimates
+    m_P, a_P, err_P, (k_min_fit, k_max_fit) = fit_log_slope_window(k_P, Ek_P)
     
     # PSA of P
     ax1.loglog(k_P, Ek_P, 'o-', markersize=3, label=f'PSA of $P(\\lambda={lam:.1f})$')
@@ -669,7 +663,7 @@ def plot_spatial_psa_comparison(k_P: np.ndarray, Ek_P: np.ndarray,
         k_fit = np.array([k_min_fit, k_max_fit])
         E_fit = 10**(a_P + m_P * np.log10(k_fit))
         ax1.loglog(k_fit, E_fit, '--', linewidth=2, color='red', 
-                  label=f'slope = {m_P:.2f}')
+                  label=f'slope = {m_P:.2f} ± {err_P:.2f}')
         # Mark the fitting range
         ax1.axvspan(k_min_fit, k_max_fit, alpha=0.1, color='red', label='fit range')
     ax1.set_xlabel('$k$ (wavenumber)')
@@ -679,14 +673,14 @@ def plot_spatial_psa_comparison(k_P: np.ndarray, Ek_P: np.ndarray,
     ax1.legend()
     
     # PSA of dP/dλ²
-    m_dP, a_dP, (k_min_dP, k_max_dP) = fit_log_slope_window(k_dP, Ek_dP)
+    m_dP, a_dP, err_dP, (k_min_dP, k_max_dP) = fit_log_slope_window(k_dP, Ek_dP)
     ax2.loglog(k_dP, Ek_dP, 's-', markersize=3, color='darkorange',
               label=f'PSA of $dP/d\\lambda^2$ ($\\lambda={lam:.1f}$)')
     if np.isfinite(m_dP):
         k_fit = np.array([k_min_dP, k_max_dP])
         E_fit = 10**(a_dP + m_dP * np.log10(k_fit))
         ax2.loglog(k_fit, E_fit, '--', linewidth=2, color='red',
-                  label=f'slope = {m_dP:.2f}')
+                  label=f'slope = {m_dP:.2f} ± {err_dP:.2f}')
         # Mark the fitting range
         ax2.axvspan(k_min_dP, k_max_dP, alpha=0.1, color='red', label='fit range')
     ax2.set_xlabel('$k$ (wavenumber)')
@@ -699,12 +693,12 @@ def plot_spatial_psa_comparison(k_P: np.ndarray, Ek_P: np.ndarray,
     
     # Print slopes for comparison
     print(f"\n{case} case at λ={lam:.1f}:")
-    print(f"  PSA of P slope: {m_P:.2f} (fitted k∈[15,80])")
-    print(f"  PSA of dP/dλ² slope: {m_dP:.2f} (fitted k∈[15,80])")
+    print(f"  PSA of P slope: {m_P:.2f} ± {err_P:.2f}")
+    print(f"  PSA of dP/dλ² slope: {m_dP:.2f} ± {err_dP:.2f}")
     print(f"  → Difference: {abs(m_dP - m_P):.2f}")
     print("  (LP16 predicts derivative PSA better recovers turbulence slope m)")
     
-    return m_P, m_dP
+    return m_P, m_dP, err_P, err_dP
 
 
 def plot_derivative_slope_analysis(lam2_sep: np.ndarray, dvar_sep: np.ndarray,
@@ -795,9 +789,7 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
     keys = FieldKeys()
     cfg = PFAConfig()
 
-    print("\n" + "="*70)
     print("LP16 PFA + DERIVATIVE ANALYSIS")
-    print("="*70)
 
     Bx, By, Bz, ne = load_fields(h5_path, keys)
     Pi = polarized_emissivity(Bx, By, gamma=cfg.gamma)
@@ -821,22 +813,18 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
     
     if decorrelate:
         print("⚙  Decorrelating φ from Pi along LOS (roll; preserves r_i)")
-        phi = decorrelate_phi_along_z(phi, cfg.los_axis, seed=42, mode="roll")
+        phi = decorrelate_phi_along_z(phi, cfg.los_axis, seed=42)
     LOS_depth = Pi.shape[cfg.los_axis]
     
     # Choose optimal wavelengths for analysis
-    lam_long = choose_lambda_for_regime(phi_info, LOS_depth, target_regime="long")
+    lam_long = choose_lambda_for_regime(phi_info, LOS_depth, target_regime="long") * 0.9  # small nudge
     lam_short = choose_lambda_for_regime(phi_info, LOS_depth, target_regime="short")
     
-    print(f"\nOptimal wavelengths:")
-    print(f"  Short-λ regime: λ ≈ {lam_short:.2f}")
-    print(f"  Long-λ regime:  λ ≈ {lam_long:.2f}")
+    print(f"λ: short={lam_short:.2f}, long={lam_long:.2f}")
     
     L_eff_long = effective_faraday_depth(lam_long, phi_info)
     L_eff_short = effective_faraday_depth(lam_short, phi_info)
-    print(f"\nEffective Faraday depths:")
-    print(f"  At λ={lam_short:.2f}: L_eff ≈ {L_eff_short:.1f} px  (vs LOS depth = {LOS_depth} px)")
-    print(f"  At λ={lam_long:.2f}: L_eff ≈ {L_eff_long:.1f} px  (vs RM corr length ≈ {phi_info['r_i']:.1f} px)")
+    print(f"L_eff: short={L_eff_short:.1f}px, long={L_eff_long:.1f}px (r_i={phi_info['r_i']:.1f}px)")
 
     # Build a λ-grid that spans short→transition→long regimes
     lam_mid = 1.0 / np.sqrt(max(abs(phi_info['phi_mean']), phi_info['phi_std']) * phi_info['r_i'])
@@ -926,10 +914,14 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
                              k_min=6.0, min_counts_per_ring=10, beam_sigma_px=0.0)
     k_dP, Ek_dP = psa_of_map(dP_map_mix, ring_bins=48, pad=1, apodize=True,
                              k_min=6.0, min_counts_per_ring=10, beam_sigma_px=0.0)
-    print(f"  MIXED: usable PSA bins → P: {len(k_P)}, dP: {len(k_dP)}")
+    print(f"  MIXED: PSA bins → P: {len(k_P)}, dP: {len(k_dP)}")
     
-    m_P, m_dP = plot_spatial_psa_comparison(k_P, Ek_P, k_dP, Ek_dP, lam_test, case="Mixed")
+    m_P, m_dP, err_P, err_dP = plot_spatial_psa_comparison(k_P, Ek_P, k_dP, Ek_dP, lam_test, case="Mixed")
     plt.savefig(f"lp2016_outputs/psa_P_vs_dP_spatial{suffix}.png", dpi=300)
+    
+    # Print slope results with errors
+    if np.isfinite(m_P) and np.isfinite(m_dP):
+        print(f"  Mixed PSA slopes: P = {m_P:.2f} ± {err_P:.2f}, dP = {m_dP:.2f} ± {err_dP:.2f}, Δ = {abs(m_dP - m_P):.2f}")
     
     # Separated case
     print("\n  Computing SEPARATED case...")
@@ -939,12 +931,16 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
                                      k_min=6.0, min_counts_per_ring=10, beam_sigma_px=0.0)
     k_dP_sep, Ek_dP_sep = psa_of_map(dP_map_sep, ring_bins=48, pad=1, apodize=True,
                                      k_min=6.0, min_counts_per_ring=10, beam_sigma_px=0.0)
-    print(f"  SEPARATED: usable PSA bins → P: {len(k_P_sep)}, dP: {len(k_dP_sep)}")
+    print(f"  SEPARATED: PSA bins → P: {len(k_P_sep)}, dP: {len(k_dP_sep)}")
     
-    m_P_sep, m_dP_sep = plot_spatial_psa_comparison(k_P_sep, Ek_P_sep, 
+    m_P_sep, m_dP_sep, err_P_sep, err_dP_sep = plot_spatial_psa_comparison(k_P_sep, Ek_P_sep, 
                                                      k_dP_sep, Ek_dP_sep, 
                                                      lam_test, case="Separated")
     plt.savefig(f"lp2016_outputs/psa_P_vs_dP_spatial_separated{suffix}.png", dpi=300)
+    
+    # Print slope results with errors for separated case
+    if np.isfinite(m_P_sep) and np.isfinite(m_dP_sep):
+        print(f"  Separated PSA slopes: P = {m_P_sep:.2f} ± {err_P_sep:.2f}, dP = {m_dP_sep:.2f} ± {err_dP_sep:.2f}, Δ = {abs(m_dP_sep - m_P_sep):.2f}")
     
     # ========================================
     # Summary
@@ -967,13 +963,15 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
     
     print(f"\n2. Two-point statistics (spatial PSA at λ={lam_test:.2f}):")
     print(f"   Mixed case:")
-    print(f"     PSA(P) slope:       {m_P:.2f} (fitted k∈[15,80])")
-    print(f"     PSA(dP/dλ²) slope:  {m_dP:.2f} (fitted k∈[15,80])")
-    print(f"     Difference:         {abs(m_dP - m_P):.2f}")
+    if np.isfinite(m_P) and np.isfinite(m_dP):
+        print(f"     PSA(P) slope:       {m_P:.2f} ± {err_P:.2f}")
+        print(f"     PSA(dP/dλ²) slope:  {m_dP:.2f} ± {err_dP:.2f}")
+        print(f"     Difference:         {abs(m_dP - m_P):.2f}")
     print(f"   Separated case:")
-    print(f"     PSA(P) slope:       {m_P_sep:.2f} (fitted k∈[15,80])")
-    print(f"     PSA(dP/dλ²) slope:  {m_dP_sep:.2f} (fitted k∈[15,80])")
-    print(f"     Difference:         {abs(m_dP_sep - m_P_sep):.2f}")
+    if np.isfinite(m_P_sep) and np.isfinite(m_dP_sep):
+        print(f"     PSA(P) slope:       {m_P_sep:.2f}")
+        print(f"     PSA(dP/dλ²) slope:  {m_dP_sep:.2f}")
+        print(f"     Difference:         {abs(m_dP_sep - m_P_sep):.2f}")
     
     print("\n3. Interpretation:")
     if phi_info['regime'] == "random-dominated":
