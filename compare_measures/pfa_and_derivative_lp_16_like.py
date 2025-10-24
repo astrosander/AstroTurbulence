@@ -34,6 +34,7 @@ from dataclasses import dataclass
 from typing import Optional, Tuple, Iterable
 from multiprocessing import Pool, cpu_count
 import functools
+from numpy.random import default_rng
 
 # -----------------------------
 # User I/O settings
@@ -89,8 +90,10 @@ def _move_los(arr: np.ndarray, axis: int) -> np.ndarray:
     return np.moveaxis(arr, axis, 0)
 
 
-def psa_of_map(P_map: np.ndarray, ring_bins: int = 50, pad: int = 2, 
-               apodize: bool = True, k_min: float = 6.0) -> Tuple[np.ndarray, np.ndarray]:
+def psa_of_map(P_map: np.ndarray, ring_bins: int = 48, pad: int = 1,
+               apodize: bool = True, k_min: float = 6.0,
+               min_counts_per_ring: int = 10,
+               beam_sigma_px: float = 0.0) -> Tuple[np.ndarray, np.ndarray]:
     """
     Compute azimuthally-averaged power spectrum (PSA) of a 2D polarization map.
     This is the spatial statistic discussed in LP16 §6.
@@ -127,8 +130,15 @@ def psa_of_map(P_map: np.ndarray, ring_bins: int = 50, pad: int = 2,
         Yp[:Y.shape[0], :Y.shape[1]] = Y
         Y = Yp
     
-    # 2D FFT and power
-    F = np.fft.fftshift(np.fft.fft2(Y))
+    # 2D FFT (optionally apply Gaussian telescope beam in Fourier space)
+    F = np.fft.fft2(Y)
+    if beam_sigma_px > 0:
+        ky = np.fft.fftfreq(Y.shape[0]) * Y.shape[0]
+        kx = np.fft.fftfreq(Y.shape[1]) * Y.shape[1]
+        KX, KY = np.meshgrid(kx, ky)
+        G = np.exp(-0.5 * beam_sigma_px**2 * (KX**2 + KY**2))
+        F *= G
+    F = np.fft.fftshift(F)
     P2 = (F * np.conj(F)).real
     
     # Wavenumber grids
@@ -138,18 +148,41 @@ def psa_of_map(P_map: np.ndarray, ring_bins: int = 50, pad: int = 2,
     KR = np.hypot(KX, KY).ravel()
     
     # Geometric binning (better for power-law fitting)
-    k_max = min(P2.shape) / 4  # Avoid high-k noise near Nyquist
+    k_max = min(P2.shape) / 3.5  # a bit lower than Nyquist/4 on 256 grids
     bins = np.geomspace(max(1.0, k_min), k_max, ring_bins + 1)
     lab = np.digitize(KR, bins) - 1
     
     # Ring-average with geometric mean for k
-    Ek = np.array([P2.ravel()[lab == i].mean() if np.any(lab == i) else np.nan
+    # ring population counts (avoid under-sampled bins)
+    counts = np.array([(lab == i).sum() for i in range(ring_bins)])
+    Ek = np.array([P2.ravel()[lab == i].mean() if counts[i] >= min_counts_per_ring else np.nan
                    for i in range(ring_bins)])
     kcen = np.sqrt(bins[:-1] * bins[1:])  # geometric mean
     
     # Keep only well-sampled bins
     msk = np.isfinite(Ek) & (kcen >= k_min) & (kcen <= k_max)
-    
+
+    # Fallback: integer-radius rings if too few bins survived
+    if msk.sum() < 10:
+        ky = np.fft.fftshift(np.fft.fftfreq(P2.shape[0])) * P2.shape[0]
+        kx = np.fft.fftshift(np.fft.fftfreq(P2.shape[1])) * P2.shape[1]
+        KX, KY = np.meshgrid(kx, ky)
+        KR = np.hypot(KX, KY)
+        kr = np.floor(KR + 0.5).astype(int)
+        kmax_int = int(min(P2.shape) / 2)  # up to Nyquist
+        weights = P2.ravel()
+        idx = kr.ravel()
+        Ek_int = np.bincount(idx, weights=weights, minlength=kmax_int + 1)
+        Nk_int = np.bincount(idx, minlength=kmax_int + 1)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            Ek_int = Ek_int / np.maximum(Nk_int, 1)
+        kvec = np.arange(kmax_int + 1)
+        msk2 = (kvec >= int(k_min)) & (kvec <= int(k_max)) & (Nk_int > 25)
+        # drop very low-k and very high-k
+        kvec = kvec[msk2]
+        Ek_int = Ek_int[msk2]
+        return kvec, Ek_int
+
     return kcen[msk], Ek[msk]
 
 
@@ -249,19 +282,31 @@ def choose_lambda_for_regime(phi_info: dict, LOS_depth: float,
     r_i = phi_info['r_i']
     
     if target_regime == "long":
-        # Want L_eff ~ r_i (multiple wraps over correlation length)
-        # L_eff = 1/(λ² φ_scale) ~ r_i  →  λ ~ 1/√(φ_scale * r_i)
-        lam_opt = 1.0 / np.sqrt(phi_scale * r_i)
-        # Make it a bit longer to be clearly in long-λ regime
-        lam_opt *= 2.0
+        # Choose L_eff ≈ 0.9–1.1 r_i (slightly milder than 0.75 r_i)
+        lam_opt = 1.0 / np.sqrt(phi_scale * (0.9 * r_i))
     else:  # "short"
         # Want L_eff ~ LOS_depth (weak rotation)
         # λ ~ 1/√(φ_scale * LOS_depth)
         lam_opt = 1.0 / np.sqrt(phi_scale * LOS_depth)
-        # Make it shorter to be clearly in short-λ regime
-        lam_opt *= 0.5
+        # Nudge slightly smaller, but stay within regime; 0.8 is plenty
+        lam_opt *= 0.8
     
     return lam_opt
+
+
+def decorrelate_phi_along_z(phi: np.ndarray, los_axis: int, seed: int = 0, mode: str = "shuffle") -> np.ndarray:
+    """Break Pi–Φ correlations by shuffling/rolling φ along the LOS per sightline."""
+    rng = default_rng(seed)
+    phi_los = np.moveaxis(phi, los_axis, 0).copy()
+    Z, Ny, Nx = phi_los.shape
+    for j in range(Ny):
+        for i in range(Nx):
+            if mode == "shuffle":
+                rng.shuffle(phi_los[:, j, i])
+            else:  # 'roll'
+                shift = int(rng.integers(0, Z))
+                phi_los[:, j, i] = np.roll(phi_los[:, j, i], shift, axis=0)
+    return np.moveaxis(phi_los, 0, los_axis)
 
 # -----------------------------
 # P and dP/dλ² maps for two geometries
@@ -581,9 +626,33 @@ def plot_spatial_psa_comparison(k_P: np.ndarray, Ek_P: np.ndarray,
     """
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5))
     
-    # Define k-range for slope fitting: 1.5×10¹ to 8×10¹
-    k_min_fit = 15.0
-    k_max_fit = 80.0
+    # Pick a fit window: scan candidate decades and choose the one with
+    # minimal curvature (slope stability). This avoids the high-k roll-off.
+    def pick_fit_window(k, E):
+        k = np.asarray(k); E = np.asarray(E)
+        msk = np.isfinite(k) & np.isfinite(E) & (k > 0) & (E > 0)
+        k, E = k[msk], E[msk]
+        if k.size < 12:  # not enough bins; fall back
+            return 12.0, 64.0
+        logk = np.log10(k); logE = np.log10(E)
+        # candidate windows centered on percentiles, spanning ~0.8–1.2 decades
+        cands = []
+        for p in (30, 40, 50, 60, 70):
+            kmid = 10**np.percentile(logk, p)
+            for span in (2.0, 2.5, 3.0):  # lo=kmid/10^(span/6), hi=kmid*10^(span/6)
+                lo = kmid / (10**(span/6))
+                hi = kmid * (10**(span/6))
+                m = (k >= lo) & (k <= hi)
+                if m.sum() >= 10:
+                    # curvature proxy: std of local finite-diff slopes
+                    s = np.diff(logE[m]) / np.diff(logk[m])
+                    curv = np.nanstd(s)
+                    cands.append((curv, lo, hi))
+        if not cands:
+            return 12.0, 64.0
+        _, lo, hi = sorted(cands, key=lambda t: t[0])[0]
+        return float(lo), float(hi)
+    k_min_fit, k_max_fit = pick_fit_window(k_P, Ek_P)
     
     # PSA of P
     ax1.loglog(k_P, Ek_P, 'o-', markersize=3, label=f'PSA of $P(\\lambda={lam:.1f})$')
@@ -707,7 +776,7 @@ def plot_derivative_slope_analysis(lam2_sep: np.ndarray, dvar_sep: np.ndarray,
 # Runner / demo
 # -----------------------------
 
-def run(h5_path: str, force_random_dominated: bool = False):
+def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = False, beam_sigma_px: float = 0.0):
     """
     Run full LP16 PFA + derivative analysis with both one-point and two-point statistics.
     
@@ -725,8 +794,13 @@ def run(h5_path: str, force_random_dominated: bool = False):
     Bx, By, Bz, ne = load_fields(h5_path, keys)
     Pi = polarized_emissivity(Bx, By, gamma=cfg.gamma)
     
-    # LOS along axis 0 → B_parallel = Bz by our key choice
-    Bpar = Bz
+    # Choose B_parallel based on cfg.los_axis
+    if cfg.los_axis == 0:
+        Bpar = Bz
+    elif cfg.los_axis == 1:
+        Bpar = By
+    else:
+        Bpar = Bx
     
     # Option to force random-dominated regime
     if force_random_dominated:
@@ -734,6 +808,9 @@ def run(h5_path: str, force_random_dominated: bool = False):
         Bpar = Bpar - Bpar.mean()
     
     phi = faraday_density(ne, Bpar, C=cfg.faraday_const)
+    if decorrelate:
+        print("⚙  Decorrelating φ from Pi along LOS (LP16/Zhang assumption test)")
+        phi = decorrelate_phi_along_z(phi, cfg.los_axis, seed=42, mode="shuffle")
     
     # Diagnose Faraday regime
     phi_info = compute_faraday_regime(phi, verbose=True)
@@ -752,6 +829,12 @@ def run(h5_path: str, force_random_dominated: bool = False):
     print(f"\nEffective Faraday depths:")
     print(f"  At λ={lam_short:.2f}: L_eff ≈ {L_eff_short:.1f} px  (vs LOS depth = {LOS_depth} px)")
     print(f"  At λ={lam_long:.2f}: L_eff ≈ {L_eff_long:.1f} px  (vs RM corr length ≈ {phi_info['r_i']:.1f} px)")
+
+    # Build a λ-grid that spans short→transition→long regimes
+    lam_mid = 1.0 / np.sqrt(max(abs(phi_info['phi_mean']), phi_info['phi_std']) * phi_info['r_i'])
+    lam_min = max(lam_mid / 8.0, 1e-3)
+    lam_max = lam_mid * 8.0
+    cfg.lam_grid = tuple(np.sqrt(np.geomspace(lam_min**2, lam_max**2, 300)))
 
     # Use multiprocessing for faster computation
     n_processes = min(11, cpu_count())
@@ -814,8 +897,11 @@ def run(h5_path: str, force_random_dominated: bool = False):
     P_map_mix = P_map_mixed(Pi, phi, lam_test, cfg)
     dP_map_mix = dP_map_mixed(Pi, phi, lam_test, cfg)
     
-    k_P, Ek_P = psa_of_map(P_map_mix, ring_bins=50, pad=2)
-    k_dP, Ek_dP = psa_of_map(dP_map_mix, ring_bins=50, pad=2)
+    k_P,  Ek_P  = psa_of_map(P_map_mix,  ring_bins=48, pad=1, apodize=True,
+                             k_min=6.0, min_counts_per_ring=10, beam_sigma_px=beam_sigma_px)
+    k_dP, Ek_dP = psa_of_map(dP_map_mix, ring_bins=48, pad=1, apodize=True,
+                             k_min=6.0, min_counts_per_ring=10, beam_sigma_px=beam_sigma_px)
+    print(f"  MIXED: usable PSA bins → P: {len(k_P)}, dP: {len(k_dP)}")
     
     m_P, m_dP = plot_spatial_psa_comparison(k_P, Ek_P, k_dP, Ek_dP, lam_test, case="Mixed")
     plt.savefig(f"lp2016_outputs/psa_P_vs_dP_spatial{suffix}.png", dpi=300)
@@ -824,8 +910,11 @@ def run(h5_path: str, force_random_dominated: bool = False):
     print("\n  Computing SEPARATED case...")
     P_map_sep = P_map_separated(Pi, phi, lam_test, cfg)
     dP_map_sep = dP_map_separated(Pi, phi, lam_test, cfg)
-    k_P_sep, Ek_P_sep = psa_of_map(P_map_sep, ring_bins=50, pad=2)
-    k_dP_sep, Ek_dP_sep = psa_of_map(dP_map_sep, ring_bins=50, pad=2)
+    k_P_sep,  Ek_P_sep  = psa_of_map(P_map_sep,  ring_bins=48, pad=1, apodize=True,
+                                     k_min=6.0, min_counts_per_ring=10, beam_sigma_px=beam_sigma_px)
+    k_dP_sep, Ek_dP_sep = psa_of_map(dP_map_sep, ring_bins=48, pad=1, apodize=True,
+                                     k_min=6.0, min_counts_per_ring=10, beam_sigma_px=beam_sigma_px)
+    print(f"  SEPARATED: usable PSA bins → P: {len(k_P_sep)}, dP: {len(k_dP_sep)}")
     
     m_P_sep, m_dP_sep = plot_spatial_psa_comparison(k_P_sep, Ek_P_sep, 
                                                      k_dP_sep, Ek_dP_sep, 
@@ -871,18 +960,57 @@ def run(h5_path: str, force_random_dominated: bool = False):
         print("   • Expect ⟨|P|²⟩ ∝ λ^{-(2+2m)} from transverse field")
         print("   • Derivative PSA less critical (variance works well)")
         print("\n   💡 TIP: Run with force_random_dominated=True to see derivative advantage")
+
+    # Optional quick re-run at the same λ but with random-dominated RM (for comparison)
+    if not force_random_dominated:
+        print("\n--- Quick comparison: random-dominated at same λ (diagnostic) ---")
+        Bpar_rd = Bpar - Bpar.mean()
+        phi_rd  = faraday_density(ne, Bpar_rd, C=cfg.faraday_const)
+        P_map_rd  = P_map_mixed(Pi, phi_rd, lam_test, cfg)
+        dP_map_rd = dP_map_mixed(Pi, phi_rd, lam_test, cfg)
+        kP_rd, EP_rd   = psa_of_map(P_map_rd,  ring_bins=48, pad=1, apodize=True,
+                                    k_min=6.0, min_counts_per_ring=10, beam_sigma_px=beam_sigma_px)
+        kDP_rd, EDP_rd = psa_of_map(dP_map_rd, ring_bins=48, pad=1, apodize=True,
+                                    k_min=6.0, min_counts_per_ring=10, beam_sigma_px=beam_sigma_px)
+        # Use auto-fit window for random-dominated comparison
+        def pick_fit_window(k):
+            km, kM = np.nanmin(k), np.nanmax(k)
+            if km <= 0 or not np.isfinite(km) or not np.isfinite(kM) or kM <= km:
+                return 12.0, 96.0
+            kmid = 10.0 ** np.nanmedian(np.log10(k))
+            lo = max(km, kmid / 3.0)
+            hi = min(kM, kmid * 3.0)
+            if hi / lo < 2.0:
+                lo = max(km, kmid / 5.0)
+                hi = min(kM, kmid * 5.0)
+            return float(lo), float(hi)
+        k_min_rd, k_max_rd = pick_fit_window(kP_rd)
+        m_P_rd, a_P_rd = fit_log_slope(kP_rd, EP_rd, xmin=k_min_rd, xmax=k_max_rd)
+        m_dP_rd, a_dP_rd = fit_log_slope(kDP_rd, EDP_rd, xmin=k_min_rd, xmax=k_max_rd)
+        print(f"  Random-dominated PSA slopes at λ={lam_test:.2f}:")
+        print(f"    PSA(P) slope:       {m_P_rd:.2f}")
+        print(f"    PSA(dP/dλ²) slope:  {m_dP_rd:.2f}")
+        print(f"    Difference:         {abs(m_dP_rd - m_P_rd):.2f}")
+        print("    → Should show clearer derivative advantage in random-dominated regime")
     
     print("\n" + "="*70)
-    
-    plt.show()
+
+    #plt.show()
 
 
 if __name__ == "__main__":
     import sys
     
+    print("sys.argv:", sys.argv)
     # Parse command line arguments
     force_random = "--random" in sys.argv or "-r" in sys.argv
     both_regimes = "--both" in sys.argv or "-b" in sys.argv
+    decorrelate = "--decorrelate" in sys.argv or "-d" in sys.argv
+    beam = 0.0
+    for a in sys.argv:
+        if a.startswith("--beam="):
+            try: beam = float(a.split("=")[1])
+            except: pass
     
     if both_regimes:
         print("\n" + "="*70)
@@ -892,12 +1020,12 @@ if __name__ == "__main__":
         print("\n\n" + "#"*70)
         print("# ANALYSIS 1: NATURAL REGIME (as-is)")
         print("#"*70)
-        run(H5_PATH, force_random_dominated=False)
+        run(H5_PATH, force_random_dominated=False, decorrelate=decorrelate, beam_sigma_px=beam)
         
         print("\n\n" + "#"*70)
         print("# ANALYSIS 2: FORCED RANDOM-DOMINATED REGIME")
         print("#"*70)
-        run(H5_PATH, force_random_dominated=True)
+        run(H5_PATH, force_random_dominated=True, decorrelate=decorrelate, beam_sigma_px=beam)
         
         print("\n\n" + "="*70)
         print("DONE! Check lp2016_outputs/ for comparison:")
@@ -905,11 +1033,14 @@ if __name__ == "__main__":
         print("  • *_spatial.png vs *_spatial_random.png")
         print("="*70)
     else:
-        run(H5_PATH, force_random_dominated=force_random)
+        run(H5_PATH, force_random_dominated=force_random, decorrelate=decorrelate, beam_sigma_px=beam)
     
     # Usage help
     if "--help" in sys.argv or "-h" in sys.argv:
         print("\nUsage:")
         print("  python pfa_and_derivative_lp_16_like.py         # Natural regime")
         print("  python pfa_and_derivative_lp_16_like.py -r      # Force random-dominated")
-        print("  python pfa_and_derivative_lp_16_like.py -b      # Run both for comparison")
+        print("  python pfa_and_derivative_lp_16_like.py -d      # Decorrelate Pi-Φ")
+        print("  python pfa_and_derivative_lp_16_like.py -r -d   # Random + decorrelate")
+        print("  python pfa_and_derivative_lp_16_like.py --beam=1.5  # Add beam smoothing")
+        print("  python pfa_and_derivative_lp_16_like.py -b     # Run both for comparison")
