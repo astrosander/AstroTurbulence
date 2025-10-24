@@ -72,15 +72,15 @@ def load_fields(h5_path: str, keys: FieldKeys) -> Tuple[np.ndarray, np.ndarray, 
 # -----------------------------------------
 
 def polarized_emissivity(Bx: np.ndarray, By: np.ndarray, gamma: float = 2.0) -> np.ndarray:
-    if gamma == 2.0:
-        # Fast path for gamma=2.0 (most common case)
-        return (Bx + 1j * By)**2
-    
-    B_perp2 = Bx**2 + By**2
-    eps = np.finfo(B_perp2.dtype).eps
-    phase_term = (Bx + 1j * By)**2
-    amp = np.power(np.maximum(B_perp2, eps), 0.5 * (gamma - 2.0))
-    return amp * phase_term
+    """
+    LP16 emissivity:
+      P_i = (Bx + i By)^2 * |B_perp|^(gamma-3)/2
+    For gamma=2: P_i = (Bx + i By)^2 / |B_perp|
+    """
+    B2 = Bx**2 + By**2
+    eps = np.finfo(B2.dtype).tiny
+    amp = np.power(np.maximum(B2, eps), 0.5*(gamma - 3.0))
+    return ((Bx + 1j*By)**2 * amp).astype(np.complex128)
 
 
 def faraday_density(ne: np.ndarray, B_parallel: np.ndarray, C: float = 1.0) -> np.ndarray:

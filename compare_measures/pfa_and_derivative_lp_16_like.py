@@ -817,7 +817,7 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
     LOS_depth = Pi.shape[cfg.los_axis]
     
     # Choose optimal wavelengths for analysis
-    lam_long = choose_lambda_for_regime(phi_info, LOS_depth, target_regime="long") * 0.9  # small nudge
+    lam_long = choose_lambda_for_regime(phi_info, LOS_depth, target_regime="long")  # small nudge
     lam_short = choose_lambda_for_regime(phi_info, LOS_depth, target_regime="short")
     
     print(f"λ: short={lam_short:.2f}, long={lam_long:.2f}")
@@ -910,9 +910,9 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
     P_map_mix = P_map_mixed(Pi, phi, lam_test, cfg)
     dP_map_mix = dP_map_mixed(Pi, phi, lam_test, cfg)
     
-    k_P,  Ek_P  = psa_of_map(P_map_mix,  ring_bins=48, pad=1, apodize=True,
+    k_P,  Ek_P  = psa_of_map(P_map_mix,  ring_bins=64, pad=2, apodize=True,
                              k_min=6.0, min_counts_per_ring=10, beam_sigma_px=0.0)
-    k_dP, Ek_dP = psa_of_map(dP_map_mix, ring_bins=48, pad=1, apodize=True,
+    k_dP, Ek_dP = psa_of_map(dP_map_mix, ring_bins=64, pad=2, apodize=True,
                              k_min=6.0, min_counts_per_ring=10, beam_sigma_px=0.0)
     print(f"  MIXED: PSA bins → P: {len(k_P)}, dP: {len(k_dP)}")
     
@@ -927,9 +927,9 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
     print("\n  Computing SEPARATED case...")
     P_map_sep = P_map_separated(Pi, phi, lam_test, cfg)
     dP_map_sep = dP_map_separated(Pi, phi, lam_test, cfg)
-    k_P_sep,  Ek_P_sep  = psa_of_map(P_map_sep,  ring_bins=48, pad=1, apodize=True,
+    k_P_sep,  Ek_P_sep  = psa_of_map(P_map_sep,  ring_bins=64, pad=2, apodize=True,
                                      k_min=6.0, min_counts_per_ring=10, beam_sigma_px=0.0)
-    k_dP_sep, Ek_dP_sep = psa_of_map(dP_map_sep, ring_bins=48, pad=1, apodize=True,
+    k_dP_sep, Ek_dP_sep = psa_of_map(dP_map_sep, ring_bins=64, pad=2, apodize=True,
                                      k_min=6.0, min_counts_per_ring=10, beam_sigma_px=0.0)
     print(f"  SEPARATED: PSA bins → P: {len(k_P_sep)}, dP: {len(k_dP_sep)}")
     
@@ -991,10 +991,10 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
         phi_rd  = faraday_density(ne, Bpar_rd, C=cfg.faraday_const)
         P_map_rd  = P_map_mixed(Pi, phi_rd, lam_test, cfg)
         dP_map_rd = dP_map_mixed(Pi, phi_rd, lam_test, cfg)
-        kP_rd, EP_rd   = psa_of_map(P_map_rd,  ring_bins=48, pad=1, apodize=True,
-                                    k_min=6.0, min_counts_per_ring=10, beam_sigma_px=0.0)
-        kDP_rd, EDP_rd = psa_of_map(dP_map_rd, ring_bins=48, pad=1, apodize=True,
-                                    k_min=6.0, min_counts_per_ring=10, beam_sigma_px=0.0)
+        kP_rd, EP_rd   = psa_of_map(P_map_rd,  ring_bins=64, pad=2, apodize=True,
+                                   k_min=6.0, min_counts_per_ring=10, beam_sigma_px=0.0)
+        kDP_rd, EDP_rd = psa_of_map(dP_map_rd, ring_bins=64, pad=2, apodize=True,
+                                   k_min=6.0, min_counts_per_ring=10, beam_sigma_px=0.0)
         # Use auto-fit window for random-dominated comparison
         def pick_fit_window(k, E):
             k = np.asarray(k); E = np.asarray(E)
