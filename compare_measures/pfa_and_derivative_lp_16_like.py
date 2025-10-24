@@ -74,12 +74,12 @@ def load_fields(h5_path: str, keys: FieldKeys):
 
 def polarized_emissivity(Bx: np.ndarray, By: np.ndarray, gamma: float = 2.0) -> np.ndarray:
     """
-    Physically correct LP16 polarized emissivity: P_i = (Bx + i*By)^2 * B_perp^{(gamma-3)/2}
-    For gamma=2: P_i = (Bx + i*By)^2 / B_perp
+    LP16-correct polarized emissivity: P_i = (Bx + i*By)^2 * |B_perp|^{(gamma-3)/2}
+    For gamma=2: P_i = (Bx + i*By)^2 / |B_perp|
     """
-    Bperp2 = Bx**2 + By**2
-    eps = np.finfo(Bperp2.dtype).tiny
-    amp = np.power(np.maximum(Bperp2, eps), 0.5*(gamma - 3.0))
+    B2 = Bx**2 + By**2
+    eps = np.finfo(B2.dtype).tiny
+    amp = np.power(np.maximum(B2, eps), 0.5*(gamma - 3.0))
     return ((Bx + 1j*By)**2 * amp).astype(np.complex128)
 
 
@@ -295,19 +295,19 @@ def choose_lambda_for_regime(phi_info: dict, LOS_depth: float,
     return lam_opt
 
 
-def decorrelate_phi_along_z(phi: np.ndarray, los_axis: int, seed: int = 0, mode: str = "shuffle") -> np.ndarray:
-    """Break Pi–Φ correlations by shuffling/rolling φ along the LOS per sightline."""
+def decorrelate_phi_along_z(phi: np.ndarray, los_axis: int, seed: int = 0, mode: str = "roll") -> np.ndarray:
+    """Break Pi–Φ correlations by rolling φ along the LOS per sightline (preserves r_i)."""
     rng = default_rng(seed)
-    phi_los = np.moveaxis(phi, los_axis, 0).copy()
-    Z, Ny, Nx = phi_los.shape
-    for j in range(Ny):
-        for i in range(Nx):
-            if mode == "shuffle":
-                rng.shuffle(phi_los[:, j, i])
-            else:  # 'roll'
-                shift = int(rng.integers(0, Z))
-                phi_los[:, j, i] = np.roll(phi_los[:, j, i], shift, axis=0)
-    return np.moveaxis(phi_los, 0, los_axis)
+    phi_los = np.moveaxis(phi, los_axis, 0)
+    out = np.empty_like(phi_los)
+    for j in range(phi_los.shape[1]):
+        for i in range(phi_los.shape[2]):
+            col = phi_los[:, j, i]
+            if mode == "roll":
+                out[:, j, i] = np.roll(col, rng.integers(0, col.size))
+            else:  # "shuffle" (discouraged - wrecks r_i)
+                out[:, j, i] = rng.permutation(col)
+    return np.moveaxis(out, 0, los_axis)
 
 # -----------------------------
 # P and dP/dλ² maps for two geometries
@@ -518,6 +518,39 @@ def fit_log_slope(x: np.ndarray, y: np.ndarray, xmin=None, xmax=None):
     return m, a
 
 
+def fit_log_slope_window(k: np.ndarray, E: np.ndarray) -> Tuple[float, float, Tuple[float, float]]:
+    """
+    Auto-select clean inertial-range decade and fit power law.
+    Avoids apodization roll-off regions.
+    
+    Returns:
+        (slope, intercept, (k_min, k_max)) where log(E) = intercept + slope * log(k)
+    """
+    k = np.asarray(k); E = np.asarray(E)
+    m = np.isfinite(k) & np.isfinite(E) & (k > 0) & (E > 0)
+    k, E = k[m], E[m]
+    if k.size < 12: 
+        return np.nan, np.nan, (np.nan, np.nan)
+    
+    lk, lE = np.log10(k), np.log10(E)
+    best = (np.inf, None, None, None)  # (curv, m, a, (lo,hi))
+    
+    for p in (30, 40, 50, 60, 70):
+        kmid = 10**np.percentile(lk, p)
+        for span in (2.0, 2.5, 3.0):  # ~0.8–1.2 decades
+            lo, hi = kmid/10**(span/6), kmid*10**(span/6)
+            s = (k >= lo) & (k <= hi)
+            if s.sum() < 10: 
+                continue
+            sl = np.diff(lE[s])/np.diff(lk[s])
+            curv = np.nanstd(sl)
+            mfit, afit = np.polyfit(lk[s], lE[s], 1)
+            if curv < best[0]:
+                best = (curv, mfit, afit, (lo, hi))
+    
+    return best[1], best[2], best[3]
+
+
 def plot_pfa(lam2: np.ndarray, var_list: list, labels: list, cfg: PFAConfig,
              title: str = "PFA: $\\langle|P|^2\\rangle$ vs $\\lambda^2$"):
     plt.figure(figsize=(6.5, 5.0))
@@ -627,36 +660,16 @@ def plot_spatial_psa_comparison(k_P: np.ndarray, Ek_P: np.ndarray,
     """
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5))
     
-    def pick_fit_window(k, E):
-        k = np.asarray(k); E = np.asarray(E)
-        m = np.isfinite(k) & np.isfinite(E) & (k > 0) & (E > 0)
-        k, E = k[m], E[m]
-        if k.size < 12:
-            return 12.0, 64.0
-        logk, logE = np.log10(k), np.log10(E)
-        best = (np.inf, 12.0, 64.0)
-        for p in (30, 40, 50, 60, 70):
-            kmid = 10**np.percentile(logk, p)
-            for span in (2.0, 2.5, 3.0):   # ~0.8–1.2 decades
-                lo = kmid / (10**(span/6))
-                hi = kmid * (10**(span/6))
-                sel = (k >= lo) & (k <= hi)
-                if sel.sum() >= 10:
-                    s = np.diff(logE[sel]) / np.diff(logk[sel])
-                    curv = np.nanstd(s)
-                    if curv < best[0]:
-                        best = (curv, lo, hi)
-        return best[1], best[2]
-    k_min_fit, k_max_fit = pick_fit_window(k_P, Ek_P)
+    # Use improved auto-fit window function
+    m_P, a_P, (k_min_fit, k_max_fit) = fit_log_slope_window(k_P, Ek_P)
     
     # PSA of P
     ax1.loglog(k_P, Ek_P, 'o-', markersize=3, label=f'PSA of $P(\\lambda={lam:.1f})$')
-    m_P, a_P = fit_log_slope(k_P, Ek_P, xmin=k_min_fit, xmax=k_max_fit)
     if np.isfinite(m_P):
         k_fit = np.array([k_min_fit, k_max_fit])
         E_fit = 10**(a_P + m_P * np.log10(k_fit))
         ax1.loglog(k_fit, E_fit, '--', linewidth=2, color='red', 
-                  label=f'slope = {m_P:.2f} (k∈[15,80])')
+                  label=f'slope = {m_P:.2f}')
         # Mark the fitting range
         ax1.axvspan(k_min_fit, k_max_fit, alpha=0.1, color='red', label='fit range')
     ax1.set_xlabel('$k$ (wavenumber)')
@@ -666,16 +679,16 @@ def plot_spatial_psa_comparison(k_P: np.ndarray, Ek_P: np.ndarray,
     ax1.legend()
     
     # PSA of dP/dλ²
+    m_dP, a_dP, (k_min_dP, k_max_dP) = fit_log_slope_window(k_dP, Ek_dP)
     ax2.loglog(k_dP, Ek_dP, 's-', markersize=3, color='darkorange',
               label=f'PSA of $dP/d\\lambda^2$ ($\\lambda={lam:.1f}$)')
-    m_dP, a_dP = fit_log_slope(k_dP, Ek_dP, xmin=k_min_fit, xmax=k_max_fit)
     if np.isfinite(m_dP):
-        k_fit = np.array([k_min_fit, k_max_fit])
+        k_fit = np.array([k_min_dP, k_max_dP])
         E_fit = 10**(a_dP + m_dP * np.log10(k_fit))
         ax2.loglog(k_fit, E_fit, '--', linewidth=2, color='red',
-                  label=f'slope = {m_dP:.2f} (k∈[15,80])')
+                  label=f'slope = {m_dP:.2f}')
         # Mark the fitting range
-        ax2.axvspan(k_min_fit, k_max_fit, alpha=0.1, color='red', label='fit range')
+        ax2.axvspan(k_min_dP, k_max_dP, alpha=0.1, color='red', label='fit range')
     ax2.set_xlabel('$k$ (wavenumber)')
     ax2.set_ylabel('$E(k)$')
     ax2.set_title(f'Spatial PSA of $dP/d\\lambda^2$ ({case}, $\\lambda={lam:.1f}$)')
@@ -807,8 +820,8 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
     phi_info = compute_faraday_regime(phi, verbose=True)
     
     if decorrelate:
-        print("⚙  Decorrelating φ from Pi along LOS (LP16/Zhang assumption test)")
-        phi = decorrelate_phi_along_z(phi, cfg.los_axis, seed=42, mode="roll")  # preserve r_i better
+        print("⚙  Decorrelating φ from Pi along LOS (roll; preserves r_i)")
+        phi = decorrelate_phi_along_z(phi, cfg.los_axis, seed=42, mode="roll")
     LOS_depth = Pi.shape[cfg.los_axis]
     
     # Choose optimal wavelengths for analysis
