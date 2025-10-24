@@ -74,12 +74,13 @@ def load_fields(h5_path: str, keys: FieldKeys):
 
 def polarized_emissivity(Bx: np.ndarray, By: np.ndarray, gamma: float = 2.0) -> np.ndarray:
     """
-    LP16-style polarized emissivity: P_i = (Bx + i*By)^2 * (Bx^2 + By^2)^{(gamma-2)/2}
-    For gamma=2, this reduces to (Bx + i*By)^2 without complex branch issues.
+    Physically correct LP16 polarized emissivity: P_i = (Bx + i*By)^2 * B_perp^{(gamma-3)/2}
+    For gamma=2: P_i = (Bx + i*By)^2 / B_perp
     """
     Bperp2 = Bx**2 + By**2
-    eps = np.finfo(Bperp2.dtype).eps
-    return (Bx + 1j*By)**2 * np.maximum(Bperp2, eps)**(0.5*(gamma - 2.0))
+    eps = np.finfo(Bperp2.dtype).tiny
+    amp = np.power(np.maximum(Bperp2, eps), 0.5*(gamma - 3.0))
+    return ((Bx + 1j*By)**2 * amp).astype(np.complex128)
 
 
 def faraday_density(ne: np.ndarray, Bpar: np.ndarray, C: float = 0.81) -> np.ndarray:
@@ -282,8 +283,8 @@ def choose_lambda_for_regime(phi_info: dict, LOS_depth: float,
     r_i = phi_info['r_i']
     
     if target_regime == "long":
-        # Choose L_eff ≈ 0.9–1.1 r_i (slightly milder than 0.75 r_i)
-        lam_opt = 1.0 / np.sqrt(phi_scale * (0.9 * r_i))
+        # target exactly L_eff≈r_i
+        lam_opt = 1.0 / np.sqrt(phi_scale * (1.0 * r_i))
     else:  # "short"
         # Want L_eff ~ LOS_depth (weak rotation)
         # λ ~ 1/√(φ_scale * LOS_depth)
@@ -626,32 +627,26 @@ def plot_spatial_psa_comparison(k_P: np.ndarray, Ek_P: np.ndarray,
     """
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5))
     
-    # Pick a fit window: scan candidate decades and choose the one with
-    # minimal curvature (slope stability). This avoids the high-k roll-off.
     def pick_fit_window(k, E):
         k = np.asarray(k); E = np.asarray(E)
-        msk = np.isfinite(k) & np.isfinite(E) & (k > 0) & (E > 0)
-        k, E = k[msk], E[msk]
-        if k.size < 12:  # not enough bins; fall back
+        m = np.isfinite(k) & np.isfinite(E) & (k > 0) & (E > 0)
+        k, E = k[m], E[m]
+        if k.size < 12:
             return 12.0, 64.0
-        logk = np.log10(k); logE = np.log10(E)
-        # candidate windows centered on percentiles, spanning ~0.8–1.2 decades
-        cands = []
+        logk, logE = np.log10(k), np.log10(E)
+        best = (np.inf, 12.0, 64.0)
         for p in (30, 40, 50, 60, 70):
             kmid = 10**np.percentile(logk, p)
-            for span in (2.0, 2.5, 3.0):  # lo=kmid/10^(span/6), hi=kmid*10^(span/6)
+            for span in (2.0, 2.5, 3.0):   # ~0.8–1.2 decades
                 lo = kmid / (10**(span/6))
                 hi = kmid * (10**(span/6))
-                m = (k >= lo) & (k <= hi)
-                if m.sum() >= 10:
-                    # curvature proxy: std of local finite-diff slopes
-                    s = np.diff(logE[m]) / np.diff(logk[m])
+                sel = (k >= lo) & (k <= hi)
+                if sel.sum() >= 10:
+                    s = np.diff(logE[sel]) / np.diff(logk[sel])
                     curv = np.nanstd(s)
-                    cands.append((curv, lo, hi))
-        if not cands:
-            return 12.0, 64.0
-        _, lo, hi = sorted(cands, key=lambda t: t[0])[0]
-        return float(lo), float(hi)
+                    if curv < best[0]:
+                        best = (curv, lo, hi)
+        return best[1], best[2]
     k_min_fit, k_max_fit = pick_fit_window(k_P, Ek_P)
     
     # PSA of P
@@ -776,7 +771,7 @@ def plot_derivative_slope_analysis(lam2_sep: np.ndarray, dvar_sep: np.ndarray,
 # Runner / demo
 # -----------------------------
 
-def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = False, beam_sigma_px: float = 0.0):
+def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = False, beam_sigma_px: float = 0.0, force_sequential: bool = False):
     """
     Run full LP16 PFA + derivative analysis with both one-point and two-point statistics.
     
@@ -808,12 +803,12 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
         Bpar = Bpar - Bpar.mean()
     
     phi = faraday_density(ne, Bpar, C=cfg.faraday_const)
+    # Diagnose regime on the *native* φ (so r_i is physical)
+    phi_info = compute_faraday_regime(phi, verbose=True)
+    
     if decorrelate:
         print("⚙  Decorrelating φ from Pi along LOS (LP16/Zhang assumption test)")
-        phi = decorrelate_phi_along_z(phi, cfg.los_axis, seed=42, mode="shuffle")
-    
-    # Diagnose Faraday regime
-    phi_info = compute_faraday_regime(phi, verbose=True)
+        phi = decorrelate_phi_along_z(phi, cfg.los_axis, seed=42, mode="roll")  # preserve r_i better
     LOS_depth = Pi.shape[cfg.los_axis]
     
     # Choose optimal wavelengths for analysis
@@ -834,11 +829,20 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
     lam_mid = 1.0 / np.sqrt(max(abs(phi_info['phi_mean']), phi_info['phi_std']) * phi_info['r_i'])
     lam_min = max(lam_mid / 8.0, 1e-3)
     lam_max = lam_mid * 8.0
-    cfg.lam_grid = tuple(np.sqrt(np.geomspace(lam_min**2, lam_max**2, 300)))
+    cfg.lam_grid = tuple(np.sqrt(np.geomspace(lam_min**2, lam_max**2, 100)))
 
-    # Use multiprocessing for faster computation
-    n_processes = min(11, cpu_count())
+    # Use multiprocessing for faster computation (reduced for memory efficiency)
+    n_processes = min(4, cpu_count())
     print(f"\nUsing {n_processes} parallel processes for computation")
+    
+    # Fallback: disable multiprocessing if memory issues occur
+    use_multiprocessing = True
+    if force_sequential:
+        print("⚠ Sequential computation forced by user")
+        use_multiprocessing = False
+    elif len(cfg.lam_grid) > 50:  # Large grid might cause memory issues
+        print("⚠ Large λ-grid detected, using sequential computation to avoid memory issues")
+        use_multiprocessing = False
 
     # ========================================
     # Part 1: One-point statistics (variance vs λ²)
@@ -849,12 +853,20 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
     print("Expected: PFA and derivative curves have SAME λ-shape, differ by constant")
     
     # PFA
-    lam2_sep, var_sep = pfa_curve_separated(Pi, phi, cfg, n_processes=n_processes)
-    lam2_mix, var_mix = pfa_curve_mixed(Pi, phi, cfg, n_processes=n_processes)
-
-    # Derivative measure
-    lam2_dsep, dvar_sep = pfa_curve_derivative_separated(Pi, phi, cfg, n_processes=n_processes)
-    lam2_dmix, dvar_mix = pfa_curve_derivative_mixed(Pi, phi, cfg, n_processes=n_processes)
+    if use_multiprocessing:
+        lam2_sep, var_sep = pfa_curve_separated(Pi, phi, cfg, n_processes=n_processes)
+        lam2_mix, var_mix = pfa_curve_mixed(Pi, phi, cfg, n_processes=n_processes)
+        # Derivative measure
+        lam2_dsep, dvar_sep = pfa_curve_derivative_separated(Pi, phi, cfg, n_processes=n_processes)
+        lam2_dmix, dvar_mix = pfa_curve_derivative_mixed(Pi, phi, cfg, n_processes=n_processes)
+    else:
+        # Sequential computation to avoid memory issues
+        print("Computing PFA curves sequentially...")
+        lam2_sep, var_sep = pfa_curve_separated(Pi, phi, cfg, n_processes=1)
+        lam2_mix, var_mix = pfa_curve_mixed(Pi, phi, cfg, n_processes=1)
+        # Derivative measure
+        lam2_dsep, dvar_sep = pfa_curve_derivative_separated(Pi, phi, cfg, n_processes=1)
+        lam2_dmix, dvar_mix = pfa_curve_derivative_mixed(Pi, phi, cfg, n_processes=1)
 
     # Combined plot of one-point statistics
     plot_combined_pfa_and_derivative(lam2_sep, [var_sep, var_mix], 
@@ -898,9 +910,9 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
     dP_map_mix = dP_map_mixed(Pi, phi, lam_test, cfg)
     
     k_P,  Ek_P  = psa_of_map(P_map_mix,  ring_bins=48, pad=1, apodize=True,
-                             k_min=6.0, min_counts_per_ring=10, beam_sigma_px=beam_sigma_px)
+                             k_min=6.0, min_counts_per_ring=10, beam_sigma_px=0.0)
     k_dP, Ek_dP = psa_of_map(dP_map_mix, ring_bins=48, pad=1, apodize=True,
-                             k_min=6.0, min_counts_per_ring=10, beam_sigma_px=beam_sigma_px)
+                             k_min=6.0, min_counts_per_ring=10, beam_sigma_px=0.0)
     print(f"  MIXED: usable PSA bins → P: {len(k_P)}, dP: {len(k_dP)}")
     
     m_P, m_dP = plot_spatial_psa_comparison(k_P, Ek_P, k_dP, Ek_dP, lam_test, case="Mixed")
@@ -911,9 +923,9 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
     P_map_sep = P_map_separated(Pi, phi, lam_test, cfg)
     dP_map_sep = dP_map_separated(Pi, phi, lam_test, cfg)
     k_P_sep,  Ek_P_sep  = psa_of_map(P_map_sep,  ring_bins=48, pad=1, apodize=True,
-                                     k_min=6.0, min_counts_per_ring=10, beam_sigma_px=beam_sigma_px)
+                                     k_min=6.0, min_counts_per_ring=10, beam_sigma_px=0.0)
     k_dP_sep, Ek_dP_sep = psa_of_map(dP_map_sep, ring_bins=48, pad=1, apodize=True,
-                                     k_min=6.0, min_counts_per_ring=10, beam_sigma_px=beam_sigma_px)
+                                     k_min=6.0, min_counts_per_ring=10, beam_sigma_px=0.0)
     print(f"  SEPARATED: usable PSA bins → P: {len(k_P_sep)}, dP: {len(k_dP_sep)}")
     
     m_P_sep, m_dP_sep = plot_spatial_psa_comparison(k_P_sep, Ek_P_sep, 
@@ -969,22 +981,31 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
         P_map_rd  = P_map_mixed(Pi, phi_rd, lam_test, cfg)
         dP_map_rd = dP_map_mixed(Pi, phi_rd, lam_test, cfg)
         kP_rd, EP_rd   = psa_of_map(P_map_rd,  ring_bins=48, pad=1, apodize=True,
-                                    k_min=6.0, min_counts_per_ring=10, beam_sigma_px=beam_sigma_px)
+                                    k_min=6.0, min_counts_per_ring=10, beam_sigma_px=0.0)
         kDP_rd, EDP_rd = psa_of_map(dP_map_rd, ring_bins=48, pad=1, apodize=True,
-                                    k_min=6.0, min_counts_per_ring=10, beam_sigma_px=beam_sigma_px)
+                                    k_min=6.0, min_counts_per_ring=10, beam_sigma_px=0.0)
         # Use auto-fit window for random-dominated comparison
-        def pick_fit_window(k):
-            km, kM = np.nanmin(k), np.nanmax(k)
-            if km <= 0 or not np.isfinite(km) or not np.isfinite(kM) or kM <= km:
-                return 12.0, 96.0
-            kmid = 10.0 ** np.nanmedian(np.log10(k))
-            lo = max(km, kmid / 3.0)
-            hi = min(kM, kmid * 3.0)
-            if hi / lo < 2.0:
-                lo = max(km, kmid / 5.0)
-                hi = min(kM, kmid * 5.0)
-            return float(lo), float(hi)
-        k_min_rd, k_max_rd = pick_fit_window(kP_rd)
+        def pick_fit_window(k, E):
+            k = np.asarray(k); E = np.asarray(E)
+            m = np.isfinite(k) & np.isfinite(E) & (k > 0) & (E > 0)
+            k, E = k[m], E[m]
+            if k.size < 12:
+                return 12.0, 64.0
+            logk, logE = np.log10(k), np.log10(E)
+            best = (np.inf, 12.0, 64.0)
+            for p in (30, 40, 50, 60, 70):
+                kmid = 10**np.percentile(logk, p)
+                for span in (2.0, 2.5, 3.0):
+                    lo = kmid / (10**(span/6))
+                    hi = kmid * (10**(span/6))
+                    sel = (k >= lo) & (k <= hi)
+                    if sel.sum() >= 10:
+                        s = np.diff(logE[sel]) / np.diff(logk[sel])
+                        curv = np.nanstd(s)
+                        if curv < best[0]:
+                            best = (curv, lo, hi)
+            return best[1], best[2]
+        k_min_rd, k_max_rd = pick_fit_window(kP_rd, EP_rd)
         m_P_rd, a_P_rd = fit_log_slope(kP_rd, EP_rd, xmin=k_min_rd, xmax=k_max_rd)
         m_dP_rd, a_dP_rd = fit_log_slope(kDP_rd, EDP_rd, xmin=k_min_rd, xmax=k_max_rd)
         print(f"  Random-dominated PSA slopes at λ={lam_test:.2f}:")
@@ -1006,6 +1027,7 @@ if __name__ == "__main__":
     force_random = "--random" in sys.argv or "-r" in sys.argv
     both_regimes = "--both" in sys.argv or "-b" in sys.argv
     decorrelate = "--decorrelate" in sys.argv or "-d" in sys.argv
+    sequential = "--sequential" in sys.argv or "-s" in sys.argv
     beam = 0.0
     for a in sys.argv:
         if a.startswith("--beam="):
@@ -1020,12 +1042,12 @@ if __name__ == "__main__":
         print("\n\n" + "#"*70)
         print("# ANALYSIS 1: NATURAL REGIME (as-is)")
         print("#"*70)
-        run(H5_PATH, force_random_dominated=False, decorrelate=decorrelate, beam_sigma_px=beam)
+        run(H5_PATH, force_random_dominated=False, decorrelate=decorrelate, beam_sigma_px=beam, force_sequential=sequential)
         
         print("\n\n" + "#"*70)
         print("# ANALYSIS 2: FORCED RANDOM-DOMINATED REGIME")
         print("#"*70)
-        run(H5_PATH, force_random_dominated=True, decorrelate=decorrelate, beam_sigma_px=beam)
+        run(H5_PATH, force_random_dominated=True, decorrelate=decorrelate, beam_sigma_px=beam, force_sequential=sequential)
         
         print("\n\n" + "="*70)
         print("DONE! Check lp2016_outputs/ for comparison:")
@@ -1033,7 +1055,7 @@ if __name__ == "__main__":
         print("  • *_spatial.png vs *_spatial_random.png")
         print("="*70)
     else:
-        run(H5_PATH, force_random_dominated=force_random, decorrelate=decorrelate, beam_sigma_px=beam)
+        run(H5_PATH, force_random_dominated=force_random, decorrelate=decorrelate, beam_sigma_px=beam, force_sequential=sequential)
     
     # Usage help
     if "--help" in sys.argv or "-h" in sys.argv:
@@ -1043,4 +1065,5 @@ if __name__ == "__main__":
         print("  python pfa_and_derivative_lp_16_like.py -d      # Decorrelate Pi-Φ")
         print("  python pfa_and_derivative_lp_16_like.py -r -d   # Random + decorrelate")
         print("  python pfa_and_derivative_lp_16_like.py --beam=1.5  # Add beam smoothing")
+        print("  python pfa_and_derivative_lp_16_like.py -s      # Force sequential (avoid memory issues)")
         print("  python pfa_and_derivative_lp_16_like.py -b     # Run both for comparison")
