@@ -784,6 +784,79 @@ def plot_psa_slopes_vs_lambda(lam_arr: np.ndarray,
     plt.tight_layout()
 
 
+def plot_three_measures_vs_lambda(lam2_pfa: np.ndarray,
+                                  pfa_var: np.ndarray,
+                                  lam_arr_psa: np.ndarray,
+                                  mP: np.ndarray, eP: np.ndarray,
+                                  mD: np.ndarray, eD: np.ndarray,
+                                  title: str,
+                                  normalize_pfa: bool = True,
+                                  outpath: Optional[str] = None):
+    """
+    Single figure comparing three measures vs λ²:
+      - PSA slope of P (left y-axis)
+      - PSA slope of dP/dλ² (left y-axis)
+      - PFA variance (right y-axis, log10, normalized)
+
+    Args:
+        lam2_pfa:  array of λ² used for the PFA curve
+        pfa_var:   ⟨|P|²⟩(λ²) for the chosen geometry
+        lam_arr_psa: λ array used for PSA slopes (from psa_slopes_vs_lambda)
+        mP, eP:    PSA slope and 1σ error for P
+        mD, eD:    PSA slope and 1σ error for dP/dλ²
+        title:     plot title
+        normalize_pfa: divide PFA by its value at the smallest λ² before log10
+        outpath:   if given, save figure there (dpi=300)
+    """
+    x_psa = lam_arr_psa**2
+
+    # Interpolate PFA onto the PSA λ² grid (safer if grids differ)
+    y_pfa = np.interp(x_psa, lam2_pfa, pfa_var, left=np.nan, right=np.nan)
+
+    # Normalize PFA (so it shares a visually comparable scale) and plot in log10
+    if normalize_pfa:
+        ref = np.nanmax([y_pfa[0], 1e-300]) if np.isfinite(y_pfa[0]) else np.nanmax([np.nanmin(y_pfa), 1e-300])
+        y_pfa = y_pfa / ref
+    y_pfa_plot = np.log10(y_pfa)
+
+    fig, ax1 = plt.subplots(figsize=(7.6, 5.2))
+
+    # PSA slopes (left y-axis)
+    okP = np.isfinite(mP)
+    okD = np.isfinite(mD)
+
+    if np.any(np.isfinite(eP)):
+        ax1.errorbar(x_psa[okP], mP[okP], yerr=eP[okP], fmt='o-', capsize=3, markersize=2, label=r'PSA slope of $P$')
+    else:
+        ax1.plot(x_psa[okP], mP[okP], 'o-', markersize=2, label=r'PSA slope of $P$')
+
+    if np.any(np.isfinite(eD)):
+        ax1.errorbar(x_psa[okD], mD[okD], yerr=eD[okD], fmt='s-', capsize=3, markersize=2, label=r'PSA slope of $\partial P/\partial\lambda^2$')
+    else:
+        ax1.plot(x_psa[okD], mD[okD], 's-', markersize=2, label=r'PSA slope of $\partial P/\partial\lambda^2$')
+
+    ax1.axhline(0, color='k', lw=0.6, alpha=0.35)
+    ax1.set_xlabel(r'$\lambda^2$ (arb. units)')
+    ax1.set_ylabel(r'slope $m$ in $E(k)\propto k^{\,m}$')
+    ax1.grid(True, which='both', alpha=0.25)
+
+    # PFA variance (right y-axis, log10 normalized)
+    ax2 = ax1.twinx()
+    ax2.plot(x_psa, y_pfa_plot, '-', lw=1.4, color='gray', label=r'$\log_{10}\langle |P|^2\rangle$ (PFA, norm.)')
+    ax2.set_ylabel(r'$\log_{10}\langle |P|^2\rangle$ (normalized)')
+
+    # Merge legends from both axes
+    h1, l1 = ax1.get_legend_handles_labels()
+    h2, l2 = ax2.get_legend_handles_labels()
+    ax1.legend(h1 + h2, l1 + l2, frameon=False, loc='best')
+
+    ax1.set_title(title)
+    fig.tight_layout()
+
+    if outpath:
+        plt.savefig(outpath, dpi=300)
+
+
 def plot_derivative_slope_analysis(lam2_sep: np.ndarray, dvar_sep: np.ndarray,
                                   lam2_mix: np.ndarray, dvar_mix: np.ndarray,
                                   cfg: PFAConfig):
@@ -929,141 +1002,65 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
         use_multiprocessing = False
 
     # ========================================
-    # Part 1: One-point statistics (variance vs λ²)
+    # Combined three-measures plot only
     # ========================================
     print("\n" + "="*70)
-    print("PART 1: One-point statistics (PFA variance vs λ²)")
+    print("COMPUTING THREE-MEASURES COMPARISON")
     print("="*70)
-    print("Expected: PFA and derivative curves have SAME λ-shape, differ by constant")
+    print("Computing PFA variance and PSA slopes for combined plot...")
     
-    # PFA
+    # Compute PFA curves
+    print("Computing PFA curves...")
     if use_multiprocessing:
         lam2_sep, var_sep = pfa_curve_separated(Pi, phi, cfg, n_processes=n_processes)
         lam2_mix, var_mix = pfa_curve_mixed(Pi, phi, cfg, n_processes=n_processes)
-        # Derivative measure
-        lam2_dsep, dvar_sep = pfa_curve_derivative_separated(Pi, phi, cfg, n_processes=n_processes)
-        lam2_dmix, dvar_mix = pfa_curve_derivative_mixed(Pi, phi, cfg, n_processes=n_processes)
     else:
-        # Sequential computation to avoid memory issues
-        print("Computing PFA curves sequentially...")
         lam2_sep, var_sep = pfa_curve_separated(Pi, phi, cfg, n_processes=1)
         lam2_mix, var_mix = pfa_curve_mixed(Pi, phi, cfg, n_processes=1)
-        # Derivative measure
-        lam2_dsep, dvar_sep = pfa_curve_derivative_separated(Pi, phi, cfg, n_processes=1)
-        lam2_dmix, dvar_mix = pfa_curve_derivative_mixed(Pi, phi, cfg, n_processes=1)
-
-    # Combined plot of one-point statistics
-    plot_combined_pfa_and_derivative(lam2_sep, [var_sep, var_mix], 
-                                    lam2_dsep, [dvar_sep, dvar_mix],
-                                    ["Separated", "Mixed"], cfg)
-    suffix = "_random" if force_random_dominated else ""
-    plt.savefig(f"lp2016_outputs/pfa_and_derivative_variance{suffix}.png", dpi=300)
     
-    # ========================================
-    # Part 1.5: Derivative slope analysis in specific λ² range
-    # ========================================
-    print("\n" + "="*70)
-    print("PART 1.5: Derivative measure slope analysis (λ² ∈ [0.3, 10])")
-    print("="*70)
-    
-    # Analyze derivative measure slopes in the specified range
-    m_der_sep, m_der_mix = plot_derivative_slope_analysis(lam2_dsep, dvar_sep, 
-                                                          lam2_dmix, dvar_mix, cfg)
-    plt.savefig(f"lp2016_outputs/derivative_slope_analysis{suffix}.png", dpi=300)
-
-    # ========================================
-    # Part 2: Two-point statistics (spatial PSA) at fixed λ
-    # ========================================
-    print("\n" + "="*70)
-    print("PART 2: Two-point (spatial) statistics at fixed λ")
-    print("="*70)
-    print("This is what LP16 §6 actually analyzes!")
-    print("\nExpected behavior by regime:")
-    print("  • Random-dominated + long-λ: derivative PSA better reveals turbulence slope")
-    print("  • Mean-dominated + long-λ: variance already shows slope ∝ λ^{-(2+2m)}")
-    
-    # Analyze at the optimal long-λ value
-    lam_test = lam_long
-    print(f"\nComputing spatial PSA at λ = {lam_test:.2f} (long-λ regime)...")
-    print(f"  L_eff/L ≈ {L_eff_long/LOS_depth:.3f} (<<1 = strong rotation)")
-    print(f"  L_eff/r_i ≈ {L_eff_long/phi_info['r_i']:.3f}")
-    
-    # Mixed case
-    print("\n  Computing MIXED case...")
-    P_map_mix = P_map_mixed(Pi, phi, lam_test, cfg)
-    dP_map_mix = dP_map_mixed(Pi, phi, lam_test, cfg)
-    
-    k_P,  Ek_P  = psa_of_map(P_map_mix,  ring_bins=24, pad=1, apodize=True,  # Increased bins for better resolution
-                             k_min=6.0, min_counts_per_ring=8, beam_sigma_px=0.0)
-    k_dP, Ek_dP = psa_of_map(dP_map_mix, ring_bins=24, pad=1, apodize=True,  # Increased bins for better resolution
-                             k_min=6.0, min_counts_per_ring=8, beam_sigma_px=0.0)
-    print(f"  MIXED: PSA bins → P: {len(k_P)}, dP: {len(k_dP)}")
-    
-    m_P, m_dP, err_P, err_dP = plot_spatial_psa_comparison(k_P, Ek_P, k_dP, Ek_dP, lam_test, case="Mixed")
-    plt.savefig(f"lp2016_outputs/psa_P_vs_dP_spatial{suffix}.png", dpi=300)
-    
-    # Print slope results with errors
-    if np.isfinite(m_P) and np.isfinite(m_dP):
-        print(f"  Mixed PSA slopes: P = {m_P:.2f} ± {err_P:.2f}, dP = {m_dP:.2f} ± {err_dP:.2f}, Δ = {abs(m_dP - m_P):.2f}")
-    
-    # Separated case
-    print("\n  Computing SEPARATED case...")
-    P_map_sep = P_map_separated(Pi, phi, lam_test, cfg)
-    dP_map_sep = dP_map_separated(Pi, phi, lam_test, cfg)
-    k_P_sep,  Ek_P_sep  = psa_of_map(P_map_sep,  ring_bins=24, pad=1, apodize=True,  # Increased bins for better resolution
-                                     k_min=6.0, min_counts_per_ring=8, beam_sigma_px=0.0)
-    k_dP_sep, Ek_dP_sep = psa_of_map(dP_map_sep, ring_bins=24, pad=1, apodize=True,  # Increased bins for better resolution
-                                     k_min=6.0, min_counts_per_ring=8, beam_sigma_px=0.0)
-    print(f"  SEPARATED: PSA bins → P: {len(k_P_sep)}, dP: {len(k_dP_sep)}")
-    
-    m_P_sep, m_dP_sep, err_P_sep, err_dP_sep = plot_spatial_psa_comparison(k_P_sep, Ek_P_sep, 
-                                                     k_dP_sep, Ek_dP_sep, 
-                                                     lam_test, case="Separated")
-    plt.savefig(f"lp2016_outputs/psa_P_vs_dP_spatial_separated{suffix}.png", dpi=300)
-    
-    # Print slope results with errors for separated case
-    if np.isfinite(m_P_sep) and np.isfinite(m_dP_sep):
-        print(f"  Separated PSA slopes: P = {m_P_sep:.2f} ± {err_P_sep:.2f}, dP = {m_dP_sep:.2f} ± {err_dP_sep:.2f}, Δ = {abs(m_dP_sep - m_P_sep):.2f}")
-    
-    # ========================================
-    # Part 3: PSA slopes vs λ (NEW)
-    # ========================================
-    print("\n" + "="*70)
-    print("PART 3: PSA slopes vs λ (spatial statistics evolution)")
-    print("="*70)
-    print("Computing PSA slopes for P and dP/dλ² across the λ-grid...")
-    
-    # Use a smaller λ-grid for efficiency (every 2nd point)
+    # Compute PSA slopes
+    print("Computing PSA slopes...")
     lam_subset = cfg.lam_grid[::2]  # Every 2nd point for efficiency
     
     # Mixed case
-    print("\n  Computing MIXED case PSA slopes vs λ...")
     lam_arr_mix, mP_mix, eP_mix, mD_mix, eD_mix = psa_slopes_vs_lambda(
         Pi, phi, cfg, geometry="mixed", lam_list=lam_subset,
-        ring_bins=24, pad=1, k_min=6.0, min_counts_per_ring=8)  # Increased bins for better resolution
-    
-    plot_psa_slopes_vs_lambda(lam_arr_mix, mP_mix, eP_mix, mD_mix, eD_mix, 
-                              x_is_lambda2=True, title=r"PSA slopes vs $\lambda^2$ (Mixed case)")
-    plt.savefig(f"lp2016_outputs/psa_slopes_vs_lambda_mixed{suffix}.png", dpi=300)
+        ring_bins=24, pad=1, k_min=6.0, min_counts_per_ring=8)
     
     # Separated case
-    print("\n  Computing SEPARATED case PSA slopes vs λ...")
     lam_arr_sep, mP_sep, eP_sep, mD_sep, eD_sep = psa_slopes_vs_lambda(
         Pi, phi, cfg, geometry="separated", lam_list=lam_subset,
-        ring_bins=24, pad=1, k_min=6.0, min_counts_per_ring=8)  # Increased bins for better resolution
+        ring_bins=24, pad=1, k_min=6.0, min_counts_per_ring=8)
     
-    plot_psa_slopes_vs_lambda(lam_arr_sep, mP_sep, eP_sep, mD_sep, eD_sep, 
-                              x_is_lambda2=True, title=r"PSA slopes vs $\lambda^2$ (Separated case)")
-    plt.savefig(f"lp2016_outputs/psa_slopes_vs_lambda_separated{suffix}.png", dpi=300)
+    # Create combined plots
+    print("Creating combined three-measures plots...")
+    suffix = "_random" if force_random_dominated else ""
     
-    # Print summary of PSA slope evolution
-    print(f"\nPSA slope evolution summary:")
-    print(f"  Mixed case:")
-    print(f"    P slopes: min={np.nanmin(mP_mix):.2f}, max={np.nanmax(mP_mix):.2f}, mean={np.nanmean(mP_mix):.2f}")
-    print(f"    dP slopes: min={np.nanmin(mD_mix):.2f}, max={np.nanmax(mD_mix):.2f}, mean={np.nanmean(mD_mix):.2f}")
-    print(f"  Separated case:")
-    print(f"    P slopes: min={np.nanmin(mP_sep):.2f}, max={np.nanmax(mP_sep):.2f}, mean={np.nanmean(mP_sep):.2f}")
-    print(f"    dP slopes: min={np.nanmin(mD_sep):.2f}, max={np.nanmax(mD_sep):.2f}, mean={np.nanmean(mD_sep):.2f}")
+    # Mixed geometry
+    plot_three_measures_vs_lambda(
+        lam2_pfa=lam2_mix,
+        pfa_var=var_mix,
+        lam_arr_psa=lam_arr_mix,
+        mP=mP_mix, eP=eP_mix,
+        mD=mD_mix, eD=eD_mix,
+        title=r"Mixed: PSA slopes and PFA variance vs $\lambda^2$",
+        normalize_pfa=True,
+        outpath=f"lp2016_outputs/three_measures_vs_lambda_mixed{suffix}.png"
+    )
+    print(f"  Saved mixed case to three_measures_vs_lambda_mixed{suffix}.png")
+    
+    # Separated geometry
+    plot_three_measures_vs_lambda(
+        lam2_pfa=lam2_sep,
+        pfa_var=var_sep,
+        lam_arr_psa=lam_arr_sep,
+        mP=mP_sep, eP=eP_sep,
+        mD=mD_sep, eD=eD_sep,
+        title=r"Separated: PSA slopes and PFA variance vs $\lambda^2$",
+        normalize_pfa=True,
+        outpath=f"lp2016_outputs/three_measures_vs_lambda_separated{suffix}.png"
+    )
+    print(f"  Saved separated case to three_measures_vs_lambda_separated{suffix}.png")
     
     # ========================================
     # Summary
@@ -1074,87 +1071,30 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
     print(f"\nRegime: {phi_info['regime'].upper()}")
     print(f"  |φ̄|/σ_φ = {phi_info['ratio']:.2f}")
     
-    print("\n1. One-point statistics (variance vs λ²):")
-    print("   ✓ PFA and derivative curves differ only by constant factor")
-    print("   ✓ Both show same λ-dependence (Gaussian Φ factorization)")
-    print("   → This is EXPECTED from LP16 theory")
+    print(f"\nThree-measures comparison completed:")
+    print("   ✓ Generated combined plots showing PSA slopes and PFA variance vs λ²")
+    print("   ✓ Mixed and separated geometries compared")
+    print("   → Shows how spatial (PSA) and amplitude (PFA) statistics relate")
     
-    print(f"\n1.5. Derivative slope analysis (λ² ∈ [0.3, 10]):")
-    print(f"   Separated case slope: {m_der_sep:.2f}")
-    print(f"   Mixed case slope:     {m_der_mix:.2f}")
-    print(f"   Difference:           {abs(m_der_mix - m_der_sep):.2f}")
-    
-    print(f"\n2. Two-point statistics (spatial PSA at λ={lam_test:.2f}):")
-    print(f"   Mixed case:")
-    if np.isfinite(m_P) and np.isfinite(m_dP):
-        print(f"     PSA(P) slope:       {m_P:.2f} ± {err_P:.2f}")
-        print(f"     PSA(dP/dλ²) slope:  {m_dP:.2f} ± {err_dP:.2f}")
-        print(f"     Difference:         {abs(m_dP - m_P):.2f}")
-    print(f"   Separated case:")
-    if np.isfinite(m_P_sep) and np.isfinite(m_dP_sep):
-        print(f"     PSA(P) slope:       {m_P_sep:.2f}")
-        print(f"     PSA(dP/dλ²) slope:  {m_dP_sep:.2f}")
-        print(f"     Difference:         {abs(m_dP_sep - m_P_sep):.2f}")
-    
-    print(f"\n3. PSA slope evolution vs λ:")
-    print(f"   Mixed case:")
-    print(f"     P slopes: min={np.nanmin(mP_mix):.2f}, max={np.nanmax(mP_mix):.2f}, mean={np.nanmean(mP_mix):.2f}")
-    print(f"     dP slopes: min={np.nanmin(mD_mix):.2f}, max={np.nanmax(mD_mix):.2f}, mean={np.nanmean(mD_mix):.2f}")
-    print(f"   Separated case:")
-    print(f"     P slopes: min={np.nanmin(mP_sep):.2f}, max={np.nanmax(mP_sep):.2f}, mean={np.nanmean(mP_sep):.2f}")
-    print(f"     dP slopes: min={np.nanmin(mD_sep):.2f}, max={np.nanmax(mD_sep):.2f}, mean={np.nanmean(mD_sep):.2f}")
-    
-    print("\n4. Interpretation:")
-    if phi_info['regime'] == "random-dominated":
-        print("   ✓ Random-dominated regime: derivative PSA should help recover m")
-        print("   ✓ PFA variance → universal λ⁻² masks turbulence")
-        print("   ✓ Derivative spatial PSA → better reveals turbulence slope")
+    print(f"\nInterpretation:")
+    if phi_info['regime'] == 'random-dominated':
+        print("   • Random-dominated regime: derivative PSA should better recover turbulence slope")
+        print("   • Look for differences between P and dP/dλ² PSA slopes")
+        print("   • PFA variance shows λ-dependence from Faraday rotation effects")
     else:
-        print("   • Mean-dominated regime: variance already reveals slope")
-        print("   • Expect ⟨|P|²⟩ ∝ λ^{-(2+2m)} from transverse field")
-        print("   • Derivative PSA less critical (variance works well)")
-        print("\n   💡 TIP: Run with force_random_dominated=True to see derivative advantage")
+        print("   • Mean-dominated regime: variance already shows slope ∝ λ^{-(2+2m)}")
+        print("   • PSA slopes may be similar between P and dP/dλ²")
+        print("   • PFA variance shows strong λ-dependence from mean field effects")
+    
+    print(f"\nFiles generated:")
+    print(f"   • three_measures_vs_lambda_mixed{suffix}.png")
+    print(f"   • three_measures_vs_lambda_separated{suffix}.png")
+    
+    print(f"\nNext steps:")
+    print("   • Compare the three-measures plots between mixed and separated geometries")
+    print("   • Look for regime transitions where PSA slopes change behavior")
+    print("   • Analyze how PFA variance relates to PSA slope evolution")
 
-    # Skip expensive random-dominated comparison for speed
-    if False:  # Disabled for speed
-        print("\n--- Quick comparison: random-dominated at same λ (diagnostic) ---")
-        Bpar_rd = Bpar - Bpar.mean()
-        phi_rd  = faraday_density(ne, Bpar_rd, C=cfg.faraday_const)
-        P_map_rd  = P_map_mixed(Pi, phi_rd, lam_test, cfg)
-        dP_map_rd = dP_map_mixed(Pi, phi_rd, lam_test, cfg)
-        kP_rd, EP_rd   = psa_of_map(P_map_rd,  ring_bins=24, pad=1, apodize=True,  # Increased bins for better resolution
-                                   k_min=6.0, min_counts_per_ring=8, beam_sigma_px=0.0)
-        kDP_rd, EDP_rd = psa_of_map(dP_map_rd, ring_bins=24, pad=1, apodize=True,  # Increased bins for better resolution
-                                   k_min=6.0, min_counts_per_ring=8, beam_sigma_px=0.0)
-        # Use auto-fit window for random-dominated comparison
-        def pick_fit_window(k, E):
-            k = np.asarray(k); E = np.asarray(E)
-            m = np.isfinite(k) & np.isfinite(E) & (k > 0) & (E > 0)
-            k, E = k[m], E[m]
-            if k.size < 12:
-                return 12.0, 64.0
-            logk, logE = np.log10(k), np.log10(E)
-            best = (np.inf, 12.0, 64.0)
-            for p in (30, 40, 50, 60, 70):
-                kmid = 10**np.percentile(logk, p)
-                for span in (2.0, 2.5, 3.0):
-                    lo = kmid / (10**(span/6))
-                    hi = kmid * (10**(span/6))
-                    sel = (k >= lo) & (k <= hi)
-                    if sel.sum() >= 10:
-                        s = np.diff(logE[sel]) / np.diff(logk[sel])
-                        curv = np.nanstd(s)
-                        if curv < best[0]:
-                            best = (curv, lo, hi)
-            return best[1], best[2]
-        k_min_rd, k_max_rd = pick_fit_window(kP_rd, EP_rd)
-        m_P_rd, a_P_rd = fit_log_slope(kP_rd, EP_rd, xmin=k_min_rd, xmax=k_max_rd)
-        m_dP_rd, a_dP_rd = fit_log_slope(kDP_rd, EDP_rd, xmin=k_min_rd, xmax=k_max_rd)
-        print(f"  Random-dominated PSA slopes at λ={lam_test:.2f}:")
-        print(f"    PSA(P) slope:       {m_P_rd:.2f}")
-        print(f"    PSA(dP/dλ²) slope:  {m_dP_rd:.2f}")
-        print(f"    Difference:         {abs(m_dP_rd - m_P_rd):.2f}")
-        print("    → Should show clearer derivative advantage in random-dominated regime")
     
     print("\n" + "="*70)
 
