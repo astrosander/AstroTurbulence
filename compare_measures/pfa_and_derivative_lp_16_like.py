@@ -793,10 +793,9 @@ def plot_three_measures_vs_lambda(lam2_pfa: np.ndarray,
                                   normalize_pfa: bool = True,
                                   outpath: Optional[str] = None):
     """
-    Single figure comparing three measures vs λ²:
-      - PSA slope of P (left y-axis)
-      - PSA slope of dP/dλ² (left y-axis)
-      - PFA variance (right y-axis, log10, normalized)
+    Panel figure comparing three measures vs 2σ_φλ²:
+      - Panel 1: PSA slopes (P and dP/dλ²)
+      - Panel 2: PFA variance (log10, normalized)
 
     Args:
         lam2_pfa:  array of λ² used for the PFA curve
@@ -808,10 +807,25 @@ def plot_three_measures_vs_lambda(lam2_pfa: np.ndarray,
         normalize_pfa: divide PFA by its value at the smallest λ² before log10
         outpath:   if given, save figure there (dpi=300)
     """
-    x_psa = lam_arr_psa**2
+    sigma_phi = 1.9101312160491943
+    x_psa = 2 * sigma_phi * lam_arr_psa**2
+    x_pfa = 2 * sigma_phi * lam2_pfa
 
-    # Interpolate PFA onto the PSA λ² grid (safer if grids differ)
-    y_pfa = np.interp(x_psa, lam2_pfa, pfa_var, left=np.nan, right=np.nan)
+    # Filter to x < 10
+    mask_psa = x_psa < 10000
+    mask_pfa = x_pfa < 10000
+    
+    x_psa = x_psa[mask_psa]
+    mP = mP[mask_psa]
+    eP = eP[mask_psa]
+    mD = mD[mask_psa]
+    eD = eD[mask_psa]
+    
+    x_pfa = x_pfa[mask_pfa]
+    pfa_var = pfa_var[mask_pfa]
+
+    # Interpolate PFA onto the PSA grid (safer if grids differ)
+    y_pfa = np.interp(x_psa, x_pfa, pfa_var, left=np.nan, right=np.nan)
 
     # Normalize PFA (so it shares a visually comparable scale) and plot in log10
     if normalize_pfa:
@@ -819,9 +833,9 @@ def plot_three_measures_vs_lambda(lam2_pfa: np.ndarray,
         y_pfa = y_pfa / ref
     y_pfa_plot = np.log10(y_pfa)
 
-    fig, ax1 = plt.subplots(figsize=(7.6, 5.2))
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8.0, 8.0), sharex=True)
 
-    # PSA slopes (left y-axis)
+    # Panel 1: PSA slopes
     okP = np.isfinite(mP)
     okD = np.isfinite(mD)
 
@@ -836,19 +850,16 @@ def plot_three_measures_vs_lambda(lam2_pfa: np.ndarray,
         ax1.plot(x_psa[okD], mD[okD], 's-', markersize=2, label=r'PSA slope of $\partial P/\partial\lambda^2$')
 
     ax1.axhline(0, color='k', lw=0.6, alpha=0.35)
-    ax1.set_xlabel(r'$\lambda^2$ (arb. units)')
     ax1.set_ylabel(r'slope $m$ in $E(k)\propto k^{\,m}$')
     ax1.grid(True, which='both', alpha=0.25)
+    ax1.legend(frameon=False, loc='best')
 
-    # PFA variance (right y-axis, log10 normalized)
-    ax2 = ax1.twinx()
+    # Panel 2: PFA variance (log10 normalized)
     ax2.plot(x_psa, y_pfa_plot, '-', lw=1.4, color='gray', label=r'$\log_{10}\langle |P|^2\rangle$ (PFA, norm.)')
     ax2.set_ylabel(r'$\log_{10}\langle |P|^2\rangle$ (normalized)')
-
-    # Merge legends from both axes
-    h1, l1 = ax1.get_legend_handles_labels()
-    h2, l2 = ax2.get_legend_handles_labels()
-    ax1.legend(h1 + h2, l1 + l2, frameon=False, loc='best')
+    ax2.set_xlabel(r'$2\sigma_\phi \lambda^2$')
+    ax2.grid(True, which='both', alpha=0.25)
+    ax2.legend(frameon=False, loc='best')
 
     ax1.set_title(title)
     fig.tight_layout()
