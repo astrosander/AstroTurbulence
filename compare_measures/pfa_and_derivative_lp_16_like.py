@@ -48,7 +48,7 @@ NE_KEY = "gas_density"
 # -----------------------------
 @dataclass
 class PFAConfig:
-    lam_grid: Iterable[float] = tuple(np.sqrt(np.geomspace(0.05**2, 10.0**2, 500)))
+    lam_grid: Iterable[float] = tuple(np.sqrt(np.linspace(0.05**2, 10.0**2, 50)))  # Homogeneous in λ², 50 points
     lam_mark: float = 1.0
     gamma: float = 2.0            # electron index → P_i ∝ (B_⊥)^{(γ+1)/2}
     faraday_const: float = 0.81    # arbitrary units here; relative scaling only
@@ -561,7 +561,7 @@ def plot_pfa(lam2: np.ndarray, var_list: list, labels: list, cfg: PFAConfig,
     lam_mark2 = cfg.lam_mark**2
     for var in var_list:
         vmark = np.interp(lam_mark2, lam2, var)
-        plt.scatter([lam_mark2], [vmark], marker='o')
+        plt.scatter([lam_mark2], [vmark], marker='o', s=10)
     plt.xlabel("$\\lambda^2$ (arb. units)")
     plt.ylabel("$\\langle |P|^2 \\rangle$ (arb. units)")
     plt.title(title)
@@ -586,7 +586,7 @@ def plot_pfa_derivative(lam2: np.ndarray, var_list: list, labels: list, cfg: PFA
     lam_mark2 = cfg.lam_mark**2
     for var in var_list:
         vmark = np.interp(lam_mark2, lam2, var)
-        plt.scatter([lam_mark2], [vmark], marker='o')
+        plt.scatter([lam_mark2], [vmark], marker='o', s=10)
     plt.xlabel(r"$\lambda^2$ (arb. units)")
     plt.ylabel(r"$\langle |dP/d\lambda^2|^2 \rangle$ (arb. units)")
     plt.title(title)
@@ -615,7 +615,7 @@ def plot_combined_pfa_and_derivative(lam2_pfa: np.ndarray, var_pfa_list: list,
     lam_mark2 = cfg.lam_mark**2
     for var in var_pfa_list:
         vmark = np.interp(lam_mark2, lam2_pfa, var)
-        ax1.scatter([lam_mark2], [vmark], marker='o')
+        ax1.scatter([lam_mark2], [vmark], marker='o', s=10)
     ax1.set_xlabel("$\\lambda^2$ (arb. units)")
     ax1.set_ylabel("$\\langle |P|^2 \\rangle$ (arb. units)")
     ax1.set_title("PFA: $\\langle|P|^2\\rangle$ vs $\\lambda^2$")
@@ -635,7 +635,7 @@ def plot_combined_pfa_and_derivative(lam2_pfa: np.ndarray, var_pfa_list: list,
             ax2.loglog(xline, yline, '--', linewidth=1, label=f"fit slope ≈ {m:.2f}")
     for var in var_der_list:
         vmark = np.interp(lam_mark2, lam2_der, var)
-        ax2.scatter([lam_mark2], [vmark], marker='o')
+        ax2.scatter([lam_mark2], [vmark], marker='o', s=10)
     ax2.set_xlabel(r"$\lambda^2$ (arb. units)")
     ax2.set_ylabel(r"$\langle |dP/d\lambda^2|^2 \rangle$ (arb. units)")
     ax2.set_title(r"Derivative measure $\langle|dP/d\lambda^2|^2\rangle$ vs $\lambda^2$")
@@ -658,7 +658,7 @@ def plot_spatial_psa_comparison(k_P: np.ndarray, Ek_P: np.ndarray,
     m_P, a_P, err_P, (k_min_fit, k_max_fit) = fit_log_slope_window(k_P, Ek_P)
     
     # PSA of P
-    ax1.loglog(k_P, Ek_P, 'o-', markersize=3, label=f'PSA of $P(\\lambda={lam:.1f})$')
+    ax1.loglog(k_P, Ek_P, 'o-', markersize=1, label=f'PSA of $P(\\lambda={lam:.1f})$')
     if np.isfinite(m_P):
         k_fit = np.array([k_min_fit, k_max_fit])
         E_fit = 10**(a_P + m_P * np.log10(k_fit))
@@ -674,7 +674,7 @@ def plot_spatial_psa_comparison(k_P: np.ndarray, Ek_P: np.ndarray,
     
     # PSA of dP/dλ²
     m_dP, a_dP, err_dP, (k_min_dP, k_max_dP) = fit_log_slope_window(k_dP, Ek_dP)
-    ax2.loglog(k_dP, Ek_dP, 's-', markersize=3, color='darkorange',
+    ax2.loglog(k_dP, Ek_dP, 's-', markersize=1, color='darkorange',
               label=f'PSA of $dP/d\\lambda^2$ ($\\lambda={lam:.1f}$)')
     if np.isfinite(m_dP):
         k_fit = np.array([k_min_dP, k_max_dP])
@@ -701,6 +701,89 @@ def plot_spatial_psa_comparison(k_P: np.ndarray, Ek_P: np.ndarray,
     return m_P, m_dP, err_P, err_dP
 
 
+# === PSA & derivative-PSA vs lambda ==========================================
+def psa_slopes_vs_lambda(Pi: np.ndarray,
+                         phi: np.ndarray,
+                         cfg: PFAConfig,
+                         geometry: str = "mixed",   # "mixed" or "separated"
+                         lam_list: Optional[Iterable[float]] = None,
+                         ring_bins: int = 64,
+                         pad: int = 2,
+                         k_min: float = 6.0,
+                         min_counts_per_ring: int = 10,
+                         ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    For each λ, build P(λ) and dP/dλ² maps, compute their plane-of-sky PSA,
+    fit a single power-law slope in k using fit_log_slope_window, and collect
+    the slopes (with 1σ errors) vs λ.
+
+    Returns:
+        lam_arr, mP, eP, mD, eD
+        where mP ≈ slope of E_P(k;λ) and mD ≈ slope of E_{dP}(k;λ).
+    """
+    lam_arr = np.array(list(lam_list if lam_list is not None else cfg.lam_grid), dtype=float)
+
+    mP, eP, mD, eD = [], [], [], []
+    for lam in lam_arr:
+        if geometry.lower().startswith("mix"):
+            Pmap  = P_map_mixed(Pi, phi, lam, cfg)
+            dPmap = dP_map_mixed(Pi, phi, lam, cfg)
+        else:
+            Pmap  = P_map_separated(Pi, phi, lam, cfg)
+            dPmap = dP_map_separated(Pi, phi, lam, cfg)
+
+        kP, EP   = psa_of_map(Pmap,  ring_bins=ring_bins, pad=pad,
+                              apodize=True, k_min=k_min, min_counts_per_ring=min_counts_per_ring)
+        kD, ED   = psa_of_map(dPmap, ring_bins=ring_bins, pad=pad,
+                              apodize=True, k_min=k_min, min_counts_per_ring=min_counts_per_ring)
+
+        mP_i, _, eP_i, _ = fit_log_slope_window(kP, EP)
+        mD_i, _, eD_i, _ = fit_log_slope_window(kD, ED)
+
+        mP.append(mP_i); eP.append(eP_i if np.isfinite(eP_i) else np.nan)
+        mD.append(mD_i); eD.append(eD_i if np.isfinite(eD_i) else np.nan)
+
+    return lam_arr, np.array(mP), np.array(eP), np.array(mD), np.array(eD)
+
+
+def plot_psa_slopes_vs_lambda(lam_arr: np.ndarray,
+                              mP: np.ndarray, eP: np.ndarray,
+                              mD: np.ndarray, eD: np.ndarray,
+                              x_is_lambda2: bool = True,
+                              title: Optional[str] = None,
+                              label_P: str = r"PSA slope of $P$",
+                              label_D: str = r"PSA slope of $\partial P/\partial\lambda^2$"):
+    """
+    Plot the fitted PSA slopes for P and dP/dλ² as a function of λ (or λ²) on one figure.
+    """
+    x = lam_arr**2 if x_is_lambda2 else lam_arr
+    xlab = r"$\lambda^2$" if x_is_lambda2 else r"$\lambda$"
+    ttl = title or (r"PSA slopes vs $\lambda^2$" if x_is_lambda2 else r"PSA slopes vs $\lambda$")
+
+    plt.figure(figsize=(7.2, 5.0))
+    # Use error bars if available; fall back to lines if NaNs
+    okP = np.isfinite(mP)
+    okD = np.isfinite(mD)
+
+    if np.any(np.isfinite(eP)):
+        plt.errorbar(x[okP], mP[okP], yerr=eP[okP], fmt='o-', capsize=3, label=label_P)
+    else:
+        plt.plot(x[okP], mP[okP], 'o-', label=label_P)
+
+    if np.any(np.isfinite(eD)):
+        plt.errorbar(x[okD], mD[okD], yerr=eD[okD], fmt='s-', capsize=3, label=label_D)
+    else:
+        plt.plot(x[okD], mD[okD], 's-', label=label_D)
+
+    plt.axhline(0, color='k', lw=0.6, alpha=0.4)
+    plt.xlabel(f"{xlab} (arb. units)")
+    plt.ylabel(r"slope $m$ in $E(k)\propto k^{\,m}$")
+    plt.title(ttl)
+    plt.grid(True, which='both', alpha=0.25)
+    plt.legend()
+    plt.tight_layout()
+
+
 def plot_derivative_slope_analysis(lam2_sep: np.ndarray, dvar_sep: np.ndarray,
                                   lam2_mix: np.ndarray, dvar_mix: np.ndarray,
                                   cfg: PFAConfig):
@@ -716,7 +799,7 @@ def plot_derivative_slope_analysis(lam2_sep: np.ndarray, dvar_sep: np.ndarray,
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5))
     
     # Plot derivative measure for separated case
-    ax1.loglog(lam2_sep, dvar_sep, 'o-', markersize=4, label='Separated (screen)')
+    ax1.loglog(lam2_sep, dvar_sep, 'o-', markersize=1, label='Separated (screen)')
     
     # Fit slope in the specified range
     m_sep, a_sep = fit_log_slope(lam2_sep, dvar_sep, xmin=lam2_min, xmax=lam2_max)
@@ -735,7 +818,7 @@ def plot_derivative_slope_analysis(lam2_sep: np.ndarray, dvar_sep: np.ndarray,
     ax1.legend()
     
     # Plot derivative measure for mixed case
-    ax2.loglog(lam2_mix, dvar_mix, 's-', markersize=4, color='darkorange', 
+    ax2.loglog(lam2_mix, dvar_mix, 's-', markersize=1, color='darkorange', 
               label='Mixed (in-situ)')
     
     # Fit slope in the specified range
@@ -830,10 +913,10 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
     lam_mid = 1.0 / np.sqrt(max(abs(phi_info['phi_mean']), phi_info['phi_std']) * phi_info['r_i'])
     lam_min = max(lam_mid / 8.0, 1e-3)
     lam_max = lam_mid * 8.0
-    cfg.lam_grid = tuple(np.sqrt(np.geomspace(lam_min**2, lam_max**2, 100)))
+    cfg.lam_grid = tuple(np.sqrt(np.linspace(lam_min**2, lam_max**2, 50)))  # Homogeneous in λ², 50 points
 
-    # Use multiprocessing for faster computation (reduced for memory efficiency)
-    n_processes = min(4, cpu_count())
+    # Use minimal multiprocessing for faster computation
+    n_processes = min(11, cpu_count())  # Reduced to 2 processes
     print(f"\nUsing {n_processes} parallel processes for computation")
     
     # Fallback: disable multiprocessing if memory issues occur
@@ -910,10 +993,10 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
     P_map_mix = P_map_mixed(Pi, phi, lam_test, cfg)
     dP_map_mix = dP_map_mixed(Pi, phi, lam_test, cfg)
     
-    k_P,  Ek_P  = psa_of_map(P_map_mix,  ring_bins=64, pad=2, apodize=True,
-                             k_min=6.0, min_counts_per_ring=10, beam_sigma_px=0.0)
-    k_dP, Ek_dP = psa_of_map(dP_map_mix, ring_bins=64, pad=2, apodize=True,
-                             k_min=6.0, min_counts_per_ring=10, beam_sigma_px=0.0)
+    k_P,  Ek_P  = psa_of_map(P_map_mix,  ring_bins=24, pad=1, apodize=True,  # Increased bins for better resolution
+                             k_min=6.0, min_counts_per_ring=8, beam_sigma_px=0.0)
+    k_dP, Ek_dP = psa_of_map(dP_map_mix, ring_bins=24, pad=1, apodize=True,  # Increased bins for better resolution
+                             k_min=6.0, min_counts_per_ring=8, beam_sigma_px=0.0)
     print(f"  MIXED: PSA bins → P: {len(k_P)}, dP: {len(k_dP)}")
     
     m_P, m_dP, err_P, err_dP = plot_spatial_psa_comparison(k_P, Ek_P, k_dP, Ek_dP, lam_test, case="Mixed")
@@ -927,10 +1010,10 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
     print("\n  Computing SEPARATED case...")
     P_map_sep = P_map_separated(Pi, phi, lam_test, cfg)
     dP_map_sep = dP_map_separated(Pi, phi, lam_test, cfg)
-    k_P_sep,  Ek_P_sep  = psa_of_map(P_map_sep,  ring_bins=64, pad=2, apodize=True,
-                                     k_min=6.0, min_counts_per_ring=10, beam_sigma_px=0.0)
-    k_dP_sep, Ek_dP_sep = psa_of_map(dP_map_sep, ring_bins=64, pad=2, apodize=True,
-                                     k_min=6.0, min_counts_per_ring=10, beam_sigma_px=0.0)
+    k_P_sep,  Ek_P_sep  = psa_of_map(P_map_sep,  ring_bins=24, pad=1, apodize=True,  # Increased bins for better resolution
+                                     k_min=6.0, min_counts_per_ring=8, beam_sigma_px=0.0)
+    k_dP_sep, Ek_dP_sep = psa_of_map(dP_map_sep, ring_bins=24, pad=1, apodize=True,  # Increased bins for better resolution
+                                     k_min=6.0, min_counts_per_ring=8, beam_sigma_px=0.0)
     print(f"  SEPARATED: PSA bins → P: {len(k_P_sep)}, dP: {len(k_dP_sep)}")
     
     m_P_sep, m_dP_sep, err_P_sep, err_dP_sep = plot_spatial_psa_comparison(k_P_sep, Ek_P_sep, 
@@ -941,6 +1024,46 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
     # Print slope results with errors for separated case
     if np.isfinite(m_P_sep) and np.isfinite(m_dP_sep):
         print(f"  Separated PSA slopes: P = {m_P_sep:.2f} ± {err_P_sep:.2f}, dP = {m_dP_sep:.2f} ± {err_dP_sep:.2f}, Δ = {abs(m_dP_sep - m_P_sep):.2f}")
+    
+    # ========================================
+    # Part 3: PSA slopes vs λ (NEW)
+    # ========================================
+    print("\n" + "="*70)
+    print("PART 3: PSA slopes vs λ (spatial statistics evolution)")
+    print("="*70)
+    print("Computing PSA slopes for P and dP/dλ² across the λ-grid...")
+    
+    # Use a smaller λ-grid for efficiency (every 2nd point)
+    lam_subset = cfg.lam_grid[::2]  # Every 2nd point for efficiency
+    
+    # Mixed case
+    print("\n  Computing MIXED case PSA slopes vs λ...")
+    lam_arr_mix, mP_mix, eP_mix, mD_mix, eD_mix = psa_slopes_vs_lambda(
+        Pi, phi, cfg, geometry="mixed", lam_list=lam_subset,
+        ring_bins=24, pad=1, k_min=6.0, min_counts_per_ring=8)  # Increased bins for better resolution
+    
+    plot_psa_slopes_vs_lambda(lam_arr_mix, mP_mix, eP_mix, mD_mix, eD_mix, 
+                              x_is_lambda2=True, title=r"PSA slopes vs $\lambda^2$ (Mixed case)")
+    plt.savefig(f"lp2016_outputs/psa_slopes_vs_lambda_mixed{suffix}.png", dpi=300)
+    
+    # Separated case
+    print("\n  Computing SEPARATED case PSA slopes vs λ...")
+    lam_arr_sep, mP_sep, eP_sep, mD_sep, eD_sep = psa_slopes_vs_lambda(
+        Pi, phi, cfg, geometry="separated", lam_list=lam_subset,
+        ring_bins=24, pad=1, k_min=6.0, min_counts_per_ring=8)  # Increased bins for better resolution
+    
+    plot_psa_slopes_vs_lambda(lam_arr_sep, mP_sep, eP_sep, mD_sep, eD_sep, 
+                              x_is_lambda2=True, title=r"PSA slopes vs $\lambda^2$ (Separated case)")
+    plt.savefig(f"lp2016_outputs/psa_slopes_vs_lambda_separated{suffix}.png", dpi=300)
+    
+    # Print summary of PSA slope evolution
+    print(f"\nPSA slope evolution summary:")
+    print(f"  Mixed case:")
+    print(f"    P slopes: min={np.nanmin(mP_mix):.2f}, max={np.nanmax(mP_mix):.2f}, mean={np.nanmean(mP_mix):.2f}")
+    print(f"    dP slopes: min={np.nanmin(mD_mix):.2f}, max={np.nanmax(mD_mix):.2f}, mean={np.nanmean(mD_mix):.2f}")
+    print(f"  Separated case:")
+    print(f"    P slopes: min={np.nanmin(mP_sep):.2f}, max={np.nanmax(mP_sep):.2f}, mean={np.nanmean(mP_sep):.2f}")
+    print(f"    dP slopes: min={np.nanmin(mD_sep):.2f}, max={np.nanmax(mD_sep):.2f}, mean={np.nanmean(mD_sep):.2f}")
     
     # ========================================
     # Summary
@@ -973,7 +1096,15 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
         print(f"     PSA(dP/dλ²) slope:  {m_dP_sep:.2f}")
         print(f"     Difference:         {abs(m_dP_sep - m_P_sep):.2f}")
     
-    print("\n3. Interpretation:")
+    print(f"\n3. PSA slope evolution vs λ:")
+    print(f"   Mixed case:")
+    print(f"     P slopes: min={np.nanmin(mP_mix):.2f}, max={np.nanmax(mP_mix):.2f}, mean={np.nanmean(mP_mix):.2f}")
+    print(f"     dP slopes: min={np.nanmin(mD_mix):.2f}, max={np.nanmax(mD_mix):.2f}, mean={np.nanmean(mD_mix):.2f}")
+    print(f"   Separated case:")
+    print(f"     P slopes: min={np.nanmin(mP_sep):.2f}, max={np.nanmax(mP_sep):.2f}, mean={np.nanmean(mP_sep):.2f}")
+    print(f"     dP slopes: min={np.nanmin(mD_sep):.2f}, max={np.nanmax(mD_sep):.2f}, mean={np.nanmean(mD_sep):.2f}")
+    
+    print("\n4. Interpretation:")
     if phi_info['regime'] == "random-dominated":
         print("   ✓ Random-dominated regime: derivative PSA should help recover m")
         print("   ✓ PFA variance → universal λ⁻² masks turbulence")
@@ -984,17 +1115,17 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
         print("   • Derivative PSA less critical (variance works well)")
         print("\n   💡 TIP: Run with force_random_dominated=True to see derivative advantage")
 
-    # Optional quick re-run at the same λ but with random-dominated RM (for comparison)
-    if not force_random_dominated:
+    # Skip expensive random-dominated comparison for speed
+    if False:  # Disabled for speed
         print("\n--- Quick comparison: random-dominated at same λ (diagnostic) ---")
         Bpar_rd = Bpar - Bpar.mean()
         phi_rd  = faraday_density(ne, Bpar_rd, C=cfg.faraday_const)
         P_map_rd  = P_map_mixed(Pi, phi_rd, lam_test, cfg)
         dP_map_rd = dP_map_mixed(Pi, phi_rd, lam_test, cfg)
-        kP_rd, EP_rd   = psa_of_map(P_map_rd,  ring_bins=64, pad=2, apodize=True,
-                                   k_min=6.0, min_counts_per_ring=10, beam_sigma_px=0.0)
-        kDP_rd, EDP_rd = psa_of_map(dP_map_rd, ring_bins=64, pad=2, apodize=True,
-                                   k_min=6.0, min_counts_per_ring=10, beam_sigma_px=0.0)
+        kP_rd, EP_rd   = psa_of_map(P_map_rd,  ring_bins=24, pad=1, apodize=True,  # Increased bins for better resolution
+                                   k_min=6.0, min_counts_per_ring=8, beam_sigma_px=0.0)
+        kDP_rd, EDP_rd = psa_of_map(dP_map_rd, ring_bins=24, pad=1, apodize=True,  # Increased bins for better resolution
+                                   k_min=6.0, min_counts_per_ring=8, beam_sigma_px=0.0)
         # Use auto-fit window for random-dominated comparison
         def pick_fit_window(k, E):
             k = np.asarray(k); E = np.asarray(E)
