@@ -571,7 +571,7 @@ def plot_pfa(lam2: np.ndarray, var_list: list, labels: list, cfg: PFAConfig,
 
 
 def plot_pfa_derivative(lam2: np.ndarray, var_list: list, labels: list, cfg: PFAConfig,
-                        title: str = r"Derivative measure $\langle|dP/d\lambda^2|^2\rangle$ vs $\lambda^2$"):
+                        title: str = r"Derivative measure $\langle|dP/d\lambda^2|^2\rangle$"):
     plt.figure(figsize=(6.5, 5.0))
     for var, lab in zip(var_list, labels):
         plt.loglog(lam2, var, label=lab)
@@ -638,7 +638,7 @@ def plot_combined_pfa_and_derivative(lam2_pfa: np.ndarray, var_pfa_list: list,
         ax2.scatter([lam_mark2], [vmark], marker='o', s=10)
     ax2.set_xlabel(r"$\lambda^2$ (arb. units)")
     ax2.set_ylabel(r"$\langle |dP/d\lambda^2|^2 \rangle$ (arb. units)")
-    ax2.set_title(r"Derivative measure $\langle|dP/d\lambda^2|^2\rangle$ vs $\lambda^2$")
+    ax2.set_title(r"Derivative measure $\langle|dP/d\lambda^2|^2\rangle$")
     ax2.grid(True, which='both', alpha=0.2)
     ax2.legend()
     
@@ -701,6 +701,129 @@ def plot_spatial_psa_comparison(k_P: np.ndarray, Ek_P: np.ndarray,
     return m_P, m_dP, err_P, err_dP
 
 
+# === Directional spectrum: P_dir(k;λ) = |FFT[cos 2χ]|^2 + |FFT[sin 2χ]|^2 ===
+# We build A=cos(2χ), B=sin(2χ) from the complex polarization map P = Q+iU at each λ.
+# Implemented to share the same radial binning/fit machinery used by PSA.
+
+def _ring_average_power(P2: np.ndarray, ring_bins: int = 24,
+                        k_min: float = 6.0, min_counts_per_ring: int = 8) -> Tuple[np.ndarray, np.ndarray]:
+    """Radial (ring) average of a 2D power array P2 on integer-log bins."""
+    ky = np.fft.fftshift(np.fft.fftfreq(P2.shape[0])) * P2.shape[0]
+    kx = np.fft.fftshift(np.fft.fftfreq(P2.shape[1])) * P2.shape[1]
+    KX, KY = np.meshgrid(kx, ky)
+    KR = np.hypot(KX, KY).ravel()
+    # geometric k-bins similar to psa_of_map defaults
+    k_max = min(P2.shape) / 3.5
+    bins = np.geomspace(max(1.0, k_min), k_max, ring_bins + 1)
+    lab = np.digitize(KR, bins) - 1
+    counts = np.array([(lab == i).sum() for i in range(ring_bins)])
+    Ek = np.array([P2.ravel()[lab == i].mean() if counts[i] >= min_counts_per_ring else np.nan
+                   for i in range(ring_bins)])
+    kcen = np.sqrt(bins[:-1] * bins[1:])
+    msk = np.isfinite(Ek) & (kcen >= k_min) & (kcen <= k_max)
+    # Fallback to integer rings if too sparse
+    if msk.sum() < 10:
+        kr = np.floor(np.hypot(KX, KY) + 0.5).astype(int)
+        kmax_int = int(min(P2.shape) / 2)
+        w = P2.ravel(); idx = kr.ravel()
+        Ek_int = np.bincount(idx, weights=w, minlength=kmax_int + 1)
+        Nk_int = np.bincount(idx, minlength=kmax_int + 1)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            Ek_int = Ek_int / np.maximum(Nk_int, 1)
+        kvec = np.arange(kmax_int + 1)
+        ok = (kvec >= int(k_min)) & (kvec <= int(k_max)) & (Nk_int > 25)
+        return kvec[ok], Ek_int[ok]
+    return kcen[msk], Ek[msk]
+
+def _prep_window_and_pad(M: np.ndarray, pad: int = 1, apodize: bool = True) -> np.ndarray:
+    """Hann-apodize and zero-pad a 2D map."""
+    Y = M - np.nanmean(M)
+    if apodize:
+        wy = np.hanning(Y.shape[0]); wx = np.hanning(Y.shape[1])
+        Y = Y * np.outer(wy, wx)
+    if pad > 1:
+        Yp = np.zeros((pad * Y.shape[0], pad * Y.shape[1]), dtype=float)
+        Yp[:Y.shape[0], :Y.shape[1]] = Y
+        Y = Yp
+    return Y
+
+def directional_spectrum_of_map(P_map: np.ndarray,
+                                ring_bins: int = 24, pad: int = 1, apodize: bool = True,
+                                k_min: float = 6.0, min_counts_per_ring: int = 8,
+                                beam_sigma_px: float = 0.0) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Compute the directional spectrum P_dir(k;λ) = |Â|^2+|B̂|^2 with
+    A=cos(2χ), B=sin(2χ), χ = 0.5*arg P, from a single complex map P_map.
+    """
+    Q = P_map.real; U = P_map.imag
+    amp = np.hypot(Q, U)
+    eps = np.finfo(amp.dtype).eps
+    amp = np.maximum(amp, eps)
+    A = Q / amp
+    B = U / amp
+
+    A = _prep_window_and_pad(A, pad=pad, apodize=apodize)
+    B = _prep_window_and_pad(B, pad=pad, apodize=apodize)
+
+    FA = np.fft.fft2(A); FB = np.fft.fft2(B)
+    if beam_sigma_px > 0:
+        ky = np.fft.fftfreq(A.shape[0]) * A.shape[0]
+        kx = np.fft.fftfreq(A.shape[1]) * A.shape[1]
+        KX, KY = np.meshgrid(kx, ky)
+        G = np.exp(-0.5 * beam_sigma_px**2 * (KX**2 + KY**2))
+        FA *= G; FB *= G
+    FA = np.fft.fftshift(FA); FB = np.fft.fftshift(FB)
+    P2 = (FA * np.conj(FA)).real + (FB * np.conj(FB)).real
+    return _ring_average_power(P2, ring_bins=ring_bins, k_min=k_min, min_counts_per_ring=min_counts_per_ring)
+
+def dir_slopes_vs_lambda(Pi: np.ndarray,
+                         phi: np.ndarray,
+                         cfg: PFAConfig,
+                         geometry: str = "mixed",
+                         lam_list: Optional[Iterable[float]] = None,
+                         ring_bins: int = 24, pad: int = 1,
+                         k_min: float = 6.0, min_counts_per_ring: int = 8
+                         ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    For each λ, compute P_map (mixed/separated), form directional spectrum P_dir(k;λ),
+    fit a power-law slope, and collect slope ±1σ vs λ.
+    """
+    lam_arr = np.array(list(lam_list if lam_list is not None else cfg.lam_grid), dtype=float)
+    mDir, eDir = [], []
+    for lam in lam_arr:
+        if geometry.lower().startswith("mix"):
+            Pmap = P_map_mixed(Pi, phi, lam, cfg)
+        else:
+            Pmap = P_map_separated(Pi, phi, lam, cfg)
+        kD, EDir = directional_spectrum_of_map(Pmap, ring_bins=ring_bins, pad=pad,
+                                               apodize=True, k_min=k_min, min_counts_per_ring=min_counts_per_ring)
+        m_i, a_i, err_i, _ = fit_log_slope_window(kD, EDir)
+        mDir.append(m_i); eDir.append(err_i if np.isfinite(err_i) else np.nan)
+    return lam_arr, np.array(mDir), np.array(eDir)
+
+def plot_dir_slopes_vs_lambda(lam_arr: np.ndarray,
+                              mDir: np.ndarray, eDir: np.ndarray,
+                              x_is_lambda2: bool = True,
+                              title: Optional[str] = None,
+                              label: str = r"Directional $|\widehat{\cos2\chi}|^2+|\widehat{\sin2\chi}|^2$ slope"):
+    x = lam_arr**2 if x_is_lambda2 else lam_arr
+    xlab = r"$\lambda^2$" if x_is_lambda2 else r"$\lambda$"
+    ttl = title or (r"Directional-spectrum slope" if x_is_lambda2 else r"Directional-spectrum slope vs $\lambda$")
+    plt.figure(figsize=(7.2, 5.0))
+    if np.any(np.isfinite(eDir)):
+        ok = np.isfinite(mDir)
+        plt.errorbar(x[ok], mDir[ok], yerr=eDir[ok], fmt='d-', capsize=3, label=label)
+    else:
+        plt.plot(x, mDir, 'd-', label=label)
+    plt.axhline(0, color='k', lw=0.6, alpha=0.4)
+    plt.xlabel(f"{xlab} (arb. units)")
+    plt.ylabel(r"slope $m$ in $P_{\rm dir}(k)\propto k^{\,m}$")
+    plt.title(ttl)
+    plt.grid(True, which='both', alpha=0.25)
+    plt.legend()
+    plt.tight_layout()
+
+
 # === PSA & derivative-PSA vs lambda ==========================================
 def psa_slopes_vs_lambda(Pi: np.ndarray,
                          phi: np.ndarray,
@@ -758,7 +881,7 @@ def plot_psa_slopes_vs_lambda(lam_arr: np.ndarray,
     """
     x = lam_arr**2 if x_is_lambda2 else lam_arr
     xlab = r"$\lambda^2$" if x_is_lambda2 else r"$\lambda$"
-    ttl = title or (r"PSA slopes vs $\lambda^2$" if x_is_lambda2 else r"PSA slopes vs $\lambda$")
+    ttl = title or (r"PSA slopes" if x_is_lambda2 else r"PSA slopes vs $\lambda$")
 
     plt.figure(figsize=(7.2, 5.0))
     # Use error bars if available; fall back to lines if NaNs
@@ -1047,6 +1170,45 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
     print("Creating combined three-measures plots...")
     suffix = "_random" if force_random_dominated else ""
     
+    # ========================================
+    # Part 3.5: Directional-spectrum slopes vs λ (NEW, 4th measure)
+    # ========================================
+    print("\n" + "="*70)
+    print("PART 3.5: Directional-spectrum slopes vs λ")
+    print("="*70)
+    print("Computing slopes of P_dir(k;λ) = |Â|^2 + |B̂|^2 with A=cos2χ, B=sin2χ ...")
+
+    # Mixed
+    lam_arr_dir_m, mDir_mix, eDir_mix = dir_slopes_vs_lambda(
+        Pi, phi, cfg, geometry="mixed", lam_list=lam_subset,
+        ring_bins=24, pad=1, k_min=6.0, min_counts_per_ring=8)
+    plot_dir_slopes_vs_lambda(lam_arr_dir_m, mDir_mix, eDir_mix, x_is_lambda2=True,
+                              title=r"Directional-spectrum slope (Mixed)")
+    plt.savefig(f"lp2016_outputs/dir_slopes_vs_lambda_mixed{suffix}.png", dpi=300)
+
+    # Separated
+    lam_arr_dir_s, mDir_sep, eDir_sep = dir_slopes_vs_lambda(
+        Pi, phi, cfg, geometry="separated", lam_list=lam_subset,
+        ring_bins=24, pad=1, k_min=6.0, min_counts_per_ring=8)
+    plot_dir_slopes_vs_lambda(lam_arr_dir_s, mDir_sep, eDir_sep, x_is_lambda2=True,
+                              title=r"Directional-spectrum slope (Separated)")
+    plt.savefig(f"lp2016_outputs/dir_slopes_vs_lambda_separated{suffix}.png", dpi=300)
+
+    # Optional overlay of the three k-slope measures vs λ² (PSA of P, PSA of dP/dλ², Directional)
+    try:
+        plt.figure(figsize=(7.6, 5.0))
+        xmix = lam_arr_mix**2
+        plt.errorbar(xmix, mP_mix,  eP_mix,  fmt='o-', capsize=3, label=r"PSA slope of $P$")
+        plt.errorbar(xmix, mD_mix,  eD_mix,  fmt='s-', capsize=3, label=r"PSA slope of $\partial P/\partial\lambda^2$")
+        plt.errorbar(lam_arr_dir_m**2, mDir_mix, eDir_mix, fmt='d-', capsize=3, label=r"Directional slope")
+        plt.axhline(0, color='k', lw=0.6, alpha=0.4)
+        plt.xlabel(r"$\lambda^2$ (arb. units)"); plt.ylabel(r"slope $m$")
+        plt.title(r"Spatial $k$-slope measures (Mixed)")
+        plt.grid(True, which='both', alpha=0.25); plt.legend(); plt.tight_layout()
+        plt.savefig(f"lp2016_outputs/slopes_three_measures_mixed{suffix}.png", dpi=300)
+    except Exception as _e:
+        pass
+    
     # Mixed geometry
     plot_three_measures_vs_lambda(
         lam2_pfa=lam2_mix,
@@ -1054,7 +1216,7 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
         lam_arr_psa=lam_arr_mix,
         mP=mP_mix, eP=eP_mix,
         mD=mD_mix, eD=eD_mix,
-        title=r"Mixed: PSA slopes and PFA variance vs $\lambda^2$",
+        title=r"Mixed",
         normalize_pfa=True,
         outpath=f"lp2016_outputs/three_measures_vs_lambda_mixed{suffix}.png"
     )
@@ -1067,7 +1229,7 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
         lam_arr_psa=lam_arr_sep,
         mP=mP_sep, eP=eP_sep,
         mD=mD_sep, eD=eD_sep,
-        title=r"Separated: PSA slopes and PFA variance vs $\lambda^2$",
+        title=r"Separated",
         normalize_pfa=True,
         outpath=f"lp2016_outputs/three_measures_vs_lambda_separated{suffix}.png"
     )
@@ -1082,10 +1244,11 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
     print(f"\nRegime: {phi_info['regime'].upper()}")
     print(f"  |φ̄|/σ_φ = {phi_info['ratio']:.2f}")
     
-    print(f"\nThree-measures comparison completed:")
+    print(f"\nFour-measures comparison completed:")
     print("   ✓ Generated combined plots showing PSA slopes and PFA variance vs λ²")
+    print("   ✓ Added directional spectrum slopes (4th measure)")
     print("   ✓ Mixed and separated geometries compared")
-    print("   → Shows how spatial (PSA) and amplitude (PFA) statistics relate")
+    print("   → Shows how spatial (PSA, directional) and amplitude (PFA) statistics relate")
     
     print(f"\nInterpretation:")
     if phi_info['regime'] == 'random-dominated':
@@ -1100,6 +1263,9 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
     print(f"\nFiles generated:")
     print(f"   • three_measures_vs_lambda_mixed{suffix}.png")
     print(f"   • three_measures_vs_lambda_separated{suffix}.png")
+    print(f"   • dir_slopes_vs_lambda_mixed{suffix}.png")
+    print(f"   • dir_slopes_vs_lambda_separated{suffix}.png")
+    print(f"   • slopes_three_measures_mixed{suffix}.png")
     
     print(f"\nNext steps:")
     print("   • Compare the three-measures plots between mixed and separated geometries")
