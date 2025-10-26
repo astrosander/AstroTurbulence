@@ -29,50 +29,36 @@ def replot(npz="M_A=2.0, 792^3, t=1.0.npz", meta="M_A=2.0, 792^3, t=1.0.json", o
     for ax, g in [(ax1, gv[mask_main]), (ax2, gb[mask_main])]:
         ax.loglog(kv_main[mask_main], g*50, "--", lw=1.4, label="slope: $-5/3$", c='k')
     
-    # Collect kA values first to find common position
-    kA_values = []
-    for npz_file, meta_file, label, color, alpha in data_files:
-        try:
-            m_add = json.load(open(meta_file))
-            kA_add = m_add["kA"]
-            kA_values.append(kA_add)
-        except:
-            kA_values.append(None)
-    
-    # Use the first valid kA as reference (or find median)
-    reference_kA = next((kA for kA in kA_values if kA is not None), None)
-    
     # Plot kA lines and data curves
-    for i, (npz_file, meta_file, label, color, alpha) in enumerate(data_files):
+    for npz_file, meta_file, label, color, alpha in data_files:
         try:
             a_add = np.load(npz_file)
             m_add = json.load(open(meta_file))
             kv_add, Ev_add, kb_add, Eb_add, kA_add = a_add["k_v"], a_add["E_v"], a_add["k_b"], a_add["E_b"], m_add["kA"]
             
-            # Scale x-axis for lower resolutions
-            if "512" in label:
-                scale_factor = (792/2) / (512/2)  # 396/256 = 1.547
-                kv_add = kv_add * scale_factor
-                kb_add = kb_add * scale_factor
+            # Get resolution limit
+            if "792" in label:
+                xlim_max = 792/2
+            elif "512" in label:
+                xlim_max = 512/2
             elif "256" in label:
-                scale_factor = (792/2) / (256/2)  # 396/128 = 3.094
-                kv_add = kv_add * scale_factor
-                kb_add = kb_add * scale_factor
+                xlim_max = 256/2
+            else:
+                xlim_max = 792/2  # default
             
             # Filter data
-            mask = kv_add <= 792/2
+            mask = kv_add <= xlim_max
             kv_f, Ev_f, kb_f, Eb_f = kv_add[mask], Ev_add[mask], kb_add[mask], Eb_add[mask]
             
-            # Plot kA line at reference position (all overlap)
-            if reference_kA is not None:
-                ax1.axvline(reference_kA, ls=":", lw=1.0, c=color, alpha=alpha*0.7)
-                ax2.axvline(reference_kA, ls=":", lw=1.0, c=color, alpha=alpha*0.7)
+            # Plot kA line if within limit
+            if kA_add <= xlim_max:
+                ax1.axvline(kA_add, ls=":", lw=1.0, c=color, alpha=alpha*0.7)
+                ax2.axvline(kA_add, ls=":", lw=1.0, c=color, alpha=alpha*0.7)
             
             # Plot spectra
             if "256" in label:
                 Ev_f *= 30 
                 Eb_f *= 30
-
 
             ax1.loglog(kv_f, Ev_f, lw=1.5, label=label, c=color, alpha=alpha)
             ax2.loglog(kb_f, Eb_f, lw=1.5, label=label, c=color, alpha=alpha)
