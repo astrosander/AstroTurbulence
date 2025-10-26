@@ -56,9 +56,9 @@ def replot(npz="M_A=2.0, 792^3, t=1.0.npz", meta="M_A=2.0, 792^3, t=1.0.json", o
                 ax2.axvline(kA_add, ls=":", lw=1.0, c=color, alpha=alpha*0.7)
             
             # Plot spectra
-            if "256" in label:
-                Ev_f *= 30 
-                Eb_f *= 30
+            # if "256" in label:
+            #     Ev_f *= 30 
+            #     Eb_f *= 30
 
             ax1.loglog(kv_f, Ev_f, lw=1.5, label=label, c=color, alpha=alpha)
             ax2.loglog(kb_f, Eb_f, lw=1.5, label=label, c=color, alpha=alpha)
