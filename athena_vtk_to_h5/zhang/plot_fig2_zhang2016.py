@@ -29,7 +29,7 @@ def decorrelate_phi_along_z(phi):
             out[i, j, :] = np.roll(phi[i, j, :], s)
     return out
 
-def pfa_variance_curve(path, lam2_grid, gamma=2.0, lam2_break_target=1.0,
+def pfa_variance_curve(path, lam2_grid, gamma=2.0, lam2_break_target=0.1,
                        decorrelate=False):
     """
     Mixed case PFA: Pmap(λ) = Σ_z P_i(z) exp[2i λ² Φ(z+1/2)] Δz, with φ = n_e B∥.
@@ -101,7 +101,7 @@ def process_wavelength_batch_worker(args):
 
     return y
 
-def pfa_variance_curve_parallel(path, lam2_grid, gamma=2.0, lam2_break_target=1.0,
+def pfa_variance_curve_parallel(path, lam2_grid, gamma=2.0, lam2_break_target=0.1,
                                 decorrelate=False, n_processes=11):
     """Parallel version with multiprocessing"""
     batch_size = max(1, len(lam2_grid) // n_processes)
@@ -147,20 +147,20 @@ def main():
             print(f"\nProcessing {p} with 11 parallel processes...")
             start_time = time.time()
             if "256" in p:
-                continue
-                y = pfa_variance_curve_parallel(p, lam2, gamma=2.0, lam2_break_target=1.0, 
+                # continue
+                y = pfa_variance_curve_parallel(p, lam2, gamma=2.0, lam2_break_target=0.1, 
                                             decorrelate=True, n_processes=11)
             elif "512" in p:
-                y = pfa_variance_curve_parallel(p, lam2, gamma=2.0, lam2_break_target=1.0, 
+                y = pfa_variance_curve_parallel(p, lam2, gamma=2.0, lam2_break_target=0.1, 
                                             decorrelate=True, n_processes=8)
             elif "1024" in p:
-                y = pfa_variance_curve_parallel(p, lam2, gamma=2.0, lam2_break_target=1.0, 
+                y = pfa_variance_curve_parallel(p, lam2, gamma=2.0, lam2_break_target=0.1, 
                                             decorrelate=True, n_processes=4)
             elif "2048" in p:
-                y = pfa_variance_curve_parallel(p, lam2, gamma=2.0, lam2_break_target=1.0, 
+                y = pfa_variance_curve_parallel(p, lam2, gamma=2.0, lam2_break_target=0.1, 
                                             decorrelate=True, n_processes=2)
             else:
-                y = pfa_variance_curve_parallel(p, lam2, gamma=2.0, lam2_break_target=1.0, 
+                y = pfa_variance_curve_parallel(p, lam2, gamma=2.0, lam2_break_target=0.1, 
                                             decorrelate=True, n_processes=1) 
             elapsed = time.time() - start_time
             print(f"Completed in {elapsed:.2f} seconds")

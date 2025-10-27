@@ -58,7 +58,7 @@ def main():
         # Filter to x-axis range from 1 to 2 (log10)
         log10_lam2 = np.log10(lam2)
         mask = (log10_lam2 >= 1) & (log10_lam2 <= 1.6)
-        ax.plot(log10_lam2[mask], np.log10(ref)[mask] - 0.1, color="k", linewidth=1.0, label=r"$\lambda^{-2}$")
+        ax.plot(log10_lam2[mask], np.log10(ref)[mask] - 0.3, color="k", linewidth=1.0, label=r"$\lambda^{-2}$")
     
     ax.set_xlabel(r"$\log_{10}[\lambda^2]$")
     ax.set_ylabel(r"$\log_{10}\langle |P|^2\rangle$")
