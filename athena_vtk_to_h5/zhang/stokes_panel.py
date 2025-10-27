@@ -56,17 +56,17 @@ fig.colorbar(im0, ax=axs[0])
 
 # Stokes Q
 im1 = axs[1].imshow(Qn, origin="lower", vmin=-1, vmax=1, cmap=custom_cmap)
-axs[1].set_title("Stokes parameter Q")
+axs[1].set_title("Stokes parameter $Q$")
 fig.colorbar(im1, ax=axs[1])
 
 # Stokes U
 im2 = axs[2].imshow(Un, origin="lower", vmin=-1, vmax=1, cmap=custom_cmap)
-axs[2].set_title("Stokes parameter U")
+axs[2].set_title("Stokes parameter $U$")
 fig.colorbar(im2, ax=axs[2])
 
 for ax in axs:
     ax.set_xticks([])
     ax.set_yticks([])
 
-plt.savefig("stokes.png", dpi=300)
+plt.savefig("stokes.pdf", dpi=300)
 plt.show()
