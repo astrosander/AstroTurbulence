@@ -886,19 +886,28 @@ def dir_slopes_vs_lambda(Pi: np.ndarray,
     return lam_arr, np.array(mDir), np.array(eDir)
 
 def plot_dir_slopes_vs_lambda(lam_arr: np.ndarray,
-                              mDir: np.ndarray, eDir: np.ndarray,
-                              x_is_lambda2: bool = True,
-                              title: Optional[str] = None,
-                              label: str = r"Directional $|\widehat{\cos2\chi}|^2+|\widehat{\sin2\chi}|^2$ slope"):
-    x = lam_arr**2 if x_is_lambda2 else lam_arr
-    xlab = r"$\lambda^2$" if x_is_lambda2 else r"$\lambda$"
-    ttl = title or (r"Directional-spectrum slope" if x_is_lambda2 else r"Directional-spectrum slope vs $\lambda$")
+                             mDir: np.ndarray, eDir: np.ndarray,
+                             x_is_lambda2: bool = True,
+                             title: Optional[str] = None,
+                             label: str = r"Directional $|\widehat{\cos2\chi}|^2+|\widehat{\sin2\chi}|^2$ slope",
+                             sigma_phi: Optional[float] = None):
+    # X-axis: either λ²/λ or χ=2σ_φ λ² if sigma_phi is provided
+    if sigma_phi is not None:
+        x = 2.0 * (lam_arr**2) * float(sigma_phi)
+        xlab = r"$2\,\sigma_\phi\,\lambda^2$"
+        # Mask to 0 < χ < 20 as requested
+        mask = np.isfinite(x) & (x > 0) & (x < 20)
+    else:
+        x = lam_arr**2 if x_is_lambda2 else lam_arr
+        xlab = r"$\lambda^2$" if x_is_lambda2 else r"$\lambda$"
+        mask = np.isfinite(x)
+    ttl = title or (r"Directional-spectrum slope" if x_is_lambda2 else r"Directional-spectrum slope vs $\\lambda$")
     plt.figure(figsize=(7.2, 5.0))
     if np.any(np.isfinite(eDir)):
-        ok = np.isfinite(mDir)
+        ok = np.isfinite(mDir) & mask
         plt.errorbar(x[ok], mDir[ok], yerr=eDir[ok], fmt='d-', capsize=3, label=label)
     else:
-        plt.plot(x, mDir, 'd-', label=label)
+        plt.plot(x[mask], mDir[mask], 'd-', label=label)
     plt.axhline(0, color='k', lw=0.6, alpha=0.4)
     plt.xlabel(f"{xlab} (arb. units)")
     plt.ylabel(r"slope $m$ in $P_{\rm dir}(k)\propto k^{\,m}$")
@@ -954,18 +963,27 @@ def psa_slopes_vs_lambda(Pi: np.ndarray,
 
 
 def plot_psa_slopes_vs_lambda(lam_arr: np.ndarray,
-                              mP: np.ndarray, eP: np.ndarray,
-                              mD: np.ndarray, eD: np.ndarray,
-                              x_is_lambda2: bool = True,
-                              title: Optional[str] = None,
-                              label_P: str = r"PSA slope of $P$",
-                              label_D: str = r"PSA slope of $\partial P/\partial\lambda^2$"):
+                             mP: np.ndarray, eP: np.ndarray,
+                             mD: np.ndarray, eD: np.ndarray,
+                             x_is_lambda2: bool = True,
+                             title: Optional[str] = None,
+                             label_P: str = r"PSA slope of $P$",
+                             label_D: str = r"PSA slope of $\\partial P/\\partial\\lambda^2$",
+                             sigma_phi: Optional[float] = None):
     """
-    Plot the fitted PSA slopes for P and dP/dλ² as a function of λ (or λ²) on one figure.
+    Plot the fitted PSA slopes for P and dP/dλ² as a function of χ=2σ_φλ² if sigma_phi is provided,
+    otherwise as a function of λ² (or λ).
     """
-    x = lam_arr**2 if x_is_lambda2 else lam_arr
-    xlab = r"$\lambda^2$" if x_is_lambda2 else r"$\lambda$"
-    ttl = title or (r"PSA slopes" if x_is_lambda2 else r"PSA slopes vs $\lambda$")
+    if sigma_phi is not None:
+        print("SIGMA_PHI", sigma_phi)
+        x = 2.0 * (lam_arr**2) * float(sigma_phi)
+        xlab = r"$2\,\sigma_\phi\,\lambda^2$"
+        mask = np.isfinite(x) & (x > 0) & (x < 20)
+    else:
+        x = lam_arr**2 if x_is_lambda2 else lam_arr
+        xlab = r"$\lambda^2$" if x_is_lambda2 else r"$\lambda$"
+        mask = np.isfinite(x)
+    ttl = title or (r"PSA slopes" if x_is_lambda2 else r"PSA slopes vs $\\lambda$")
 
     plt.figure(figsize=(7.2, 5.0))
     # Use error bars if available; fall back to lines if NaNs
@@ -973,14 +991,14 @@ def plot_psa_slopes_vs_lambda(lam_arr: np.ndarray,
     okD = np.isfinite(mD)
 
     if np.any(np.isfinite(eP)):
-        plt.errorbar(x[okP], mP[okP], yerr=eP[okP], fmt='o-', capsize=3, label=label_P)
+        plt.errorbar(x[okP & mask], mP[okP & mask], yerr=eP[okP & mask], fmt='o-', capsize=3, label=label_P)
     else:
-        plt.plot(x[okP], mP[okP], 'o-', label=label_P)
+        plt.plot(x[okP & mask], mP[okP & mask], 'o-', label=label_P)
 
     if np.any(np.isfinite(eD)):
-        plt.errorbar(x[okD], mD[okD], yerr=eD[okD], fmt='s-', capsize=3, label=label_D)
+        plt.errorbar(x[okD & mask], mD[okD & mask], yerr=eD[okD & mask], fmt='s-', capsize=3, label=label_D)
     else:
-        plt.plot(x[okD], mD[okD], 's-', label=label_D)
+        plt.plot(x[okD & mask], mD[okD & mask], 's-', label=label_D)
 
     plt.axhline(0, color='k', lw=0.6, alpha=0.4)
     plt.xlabel(f"{xlab} (arb. units)")
@@ -1044,7 +1062,7 @@ def plot_three_measures_vs_lambda(lam2_pfa: np.ndarray,
     y_pfa_plot = np.log10(y_pfa)
     
     # Compute χ(λ) for annotation
-    chi = 2.0 * lam_arr_psa**2 * sigma_phi
+    chi = 2.0 * (lam_arr_psa[mask_psa]**2) * sigma_phi
 
     # Print plateau diagnostics
     print(f"\n[Plateau diagnostics] {title}:")
@@ -1186,7 +1204,7 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
     print("LP16 PFA + DERIVATIVE ANALYSIS")
 
     Bx, By, Bz, ne = load_fields(h5_path, keys)
-    Pi = polarized_emissivity(Bx, By, gamma=cfg.gamma)
+    Pi = polarized_emissivity_lp16(Bx, By, gamma=cfg.gamma)
     
     # Choose B_parallel based on cfg.los_axis (corrected mapping)
     if cfg.los_axis == 0:
@@ -1258,7 +1276,7 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
         use_multiprocessing = False
     elif len(cfg.lam_grid) > 50:  # Large grid might cause memory issues
         print("⚠ Large λ-grid detected, using sequential computation to avoid memory issues")
-        use_multiprocessing = False
+        use_multiprocessing = True#False
 
     # ========================================
     # Combined three-measures plot only

@@ -152,7 +152,7 @@ def reproduce_directional_sweep_plot(npz_path: str, output_path: str = None):
     plt.figure(figsize=(10, 6))
     plt.errorbar(chi_values, slopes_dir, yerr=errors_dir, fmt='d-', capsize=3, 
                  label=f'Directional spectrum ({geometry})', color='#FF6B35', linewidth=2, alpha=0.8)
-    plt.xlabel('$\\chi = 2\\sigma_\\phi \\lambda^2$')
+    plt.xlabel('$\\chi = 2\\sigma_\\Phi \\lambda^2$')
     plt.ylabel('Directional Spectrum Slope')
     plt.title(f'Directional Spectrum Slope vs $\\chi$ ({geometry.capitalize()} Geometry, $\\chi \\in [0, 20]$)')
     plt.grid(True, alpha=0.3)
@@ -195,7 +195,7 @@ def reproduce_psa_slopes_plot(npz_path: str, output_path: str = None):
                  label='PSA of $P$', color='blue', alpha=0.7)
     plt.errorbar(chi_values, slopes_dP, yerr=errors_dP, fmt='s-', capsize=3, 
                  label='PSA of $dP/d\\lambda^2$', color='red', alpha=0.7)
-    plt.xlabel('$\\chi = 2\\sigma_\\phi \\lambda^2$')
+    plt.xlabel('$\\chi = 2\\sigma_\\Phi \\lambda^2$')
     plt.ylabel('PSA Slope')
     plt.title('PSA Slopes vs $\\chi$ (Mixed Geometry, Random-Dominated)')
     plt.grid(True, alpha=0.3)
@@ -245,7 +245,7 @@ def reproduce_pfa_variance_plot(npz_path: str, output_path: str = None):
     plt.figure(figsize=(10, 6))
     plt.loglog(chi_values, pfa_var, 'o-', markersize=4, alpha=0.9, 
                label='PFA variance', color='#8E44AD', linewidth=2.5, markerfacecolor='#E67E22', markeredgecolor='#8E44AD', markeredgewidth=1.5)
-    plt.xlabel('$\\chi = 2\\sigma_\\phi \\lambda^2$')
+    plt.xlabel('$\\chi = 2\\sigma_\\Phi \\lambda^2$')
     plt.ylabel('$\\langle|P|^2\\rangle$ (PFA variance)')
     plt.title('PFA Variance vs $\\chi$')
     plt.grid(True, alpha=0.3)
@@ -322,7 +322,7 @@ def create_combined_panel_plot(npz_dir: str = None):
             
             axes[0].loglog(chi_values, pfa_var, 'o-', markersize=4, alpha=0.9, 
                           label='PFA variance', color='#8E44AD', linewidth=2.5, markerfacecolor='#E67E22', markeredgecolor='#8E44AD', markeredgewidth=1.5)
-            axes[0].set_xlabel('$\\chi = 2\\sigma_\\phi \\lambda^2$')
+            axes[0].set_xlabel('$\\chi = 2\\sigma_\\Phi \\lambda^2$')
             axes[0].set_ylabel('$\\langle|P|^2\\rangle$ (PFA variance)')
             # axes[0].set_title('PFA Variance vs $\\chi$')
             axes[0].grid(True, alpha=0.3)
@@ -350,7 +350,7 @@ def create_combined_panel_plot(npz_dir: str = None):
             
             axes[1].errorbar(chi_values, slopes_dir, yerr=errors_dir, fmt='d-', capsize=3, 
                             label='Directional spectrum', color='#FF6B35', linewidth=2, alpha=0.8)
-            axes[1].set_xlabel('$\\chi = 2\\sigma_\\phi \\lambda^2$')
+            axes[1].set_xlabel('$\\chi = 2\\sigma_\\Phi \\lambda^2$')
             axes[1].set_ylabel('Directional Spectrum Slope')
             # axes[1].set_title('Directional Spectrum Slope vs $\\chi$')
             axes[1].grid(True, alpha=0.3)
@@ -380,7 +380,7 @@ def create_combined_panel_plot(npz_dir: str = None):
                             label='PSA of $P$', color='#4A90E2', linewidth=2, alpha=0.8)
             axes[2].errorbar(chi_values, slopes_dP, yerr=errors_dP, fmt='s-', capsize=3, 
                             label='PSA of $dP/d\\lambda^2$', color='#F5A623', linewidth=2, alpha=0.8)
-            axes[2].set_xlabel('$\\chi = 2\\sigma_\\phi \\lambda^2$')
+            axes[2].set_xlabel('$\\chi = 2\\sigma_\\Phi \\lambda^2$')
             axes[2].set_ylabel('PSA Slope')
             # axes[2].set_title('PSA Slopes vs $\\chi$')
             axes[2].grid(True, alpha=0.3)
