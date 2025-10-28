@@ -421,9 +421,12 @@ def dP_map_mixed(Pi: np.ndarray, phi: np.ndarray, lam: float, cfg: PFAConfig,
     Nz = Pi_los.shape[0]
     z0, z1 = bounds or (0, Nz)
     dz = 1.0 / float(Nz)
-    Phi_cum = np.cumsum(phi_los[z0:z1, :, :] * dz, axis=0)
-    phase = np.exp(2j * (lam**2) * Phi_cum)
-    contrib = 2j * (Pi_los[z0:z1, :, :] * Phi_cum) * phase
+    # half-cell Faraday depth: Φ(z+½) = (Σ_0^z φ Δz) + ½ φ Δz
+    rm = phi_los[z0:z1, :, :]
+    Phi_cum = np.cumsum(rm * dz, axis=0)
+    Phi_half = Phi_cum - 0.5 * rm * dz
+    phase = np.exp(2j * (lam**2) * Phi_half)
+    contrib = 2j * (Pi_los[z0:z1, :, :] * Phi_half) * phase
     return np.sum(contrib, axis=0) * dz
 
 # -----------------------------
@@ -1043,6 +1046,12 @@ def plot_three_measures_vs_lambda(lam2_pfa: np.ndarray,
     # Compute χ(λ) for annotation
     chi = 2.0 * lam_arr_psa**2 * sigma_phi
 
+    # Print plateau diagnostics
+    print(f"\n[Plateau diagnostics] {title}:")
+    print(f"  Small-λ plateau (first 3 points): {np.mean(y_pfa[:3]):.3g}")
+    print(f"  Large-λ plateau (last 10 points): {np.mean(y_pfa[-10:]):.3g}")
+    print(f"  Plateau ratio: {np.mean(y_pfa[-10:]) / np.mean(y_pfa[:3]):.3g}")
+    
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8.0, 8.0), sharex=True)
 
     # Panel 1: PSA slopes
@@ -1208,9 +1217,13 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
             C = 1.0
         phi *= C
         print(f"[PFA] σΦ={sigma_Phi:.3g}, C={C:.3g}")
+        print(f"[diag] σΦ = {sigma_Phi:.3g} ⇒ λ²_break ~ 1/(2σΦ) = {1/(2*sigma_Phi):.3g}")
     else:
         # fallback: honor user-specified constant
         phi *= cfg.faraday_const
+        sigma_Phi = sigma_phi_total(phi, cfg.los_axis)
+        print(f"[PFA] Using user-specified faraday_const={cfg.faraday_const}")
+        print(f"[diag] σΦ = {sigma_Phi:.3g} ⇒ λ²_break ~ 1/(2σΦ) = {1/(2*sigma_Phi):.3g}")
     
     # Diagnose regime on the *native* φ (so r_i is physical)
     phi_info = compute_faraday_regime(phi, verbose=True)
