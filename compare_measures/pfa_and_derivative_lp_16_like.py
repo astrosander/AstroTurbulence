@@ -129,6 +129,15 @@ def linear_tracer(Bx: np.ndarray, By: np.ndarray) -> np.ndarray:
     return Bx + 1j*By
 
 
+def sigma_phi_total(phi: np.ndarray, los_axis: int) -> float:
+    """σ_Φ from integrating φ along LOS with Δz=1/Nz."""
+    arr = np.moveaxis(phi, los_axis, 0)
+    Nz = arr.shape[0]
+    dz = 1.0 / float(Nz)
+    Phi_tot = np.sum(arr * dz, axis=0)   # Ny×Nx map
+    return float(Phi_tot.std())
+
+
 def _move_los(arr: np.ndarray, axis: int) -> np.ndarray:
     return np.moveaxis(arr, axis, 0)
 
@@ -382,9 +391,13 @@ def P_map_mixed(Pi: np.ndarray, phi: np.ndarray, lam: float, cfg: PFAConfig,
     Nz = Pi_los.shape[0]
     z0, z1 = bounds or (0, Nz)
     dz = 1.0 / float(Nz)   
-    Phi_cum = np.cumsum(phi_los[z0:z1, :, :] * dz, axis=0)
-    phase = np.exp(2j * (lam**2) * Phi_cum)
-    return np.sum(Pi_los[z0:z1, :, :] * phase, axis=0) * dz
+    # half-cell Faraday depth: Φ(z+½) = (Σ_0^z φ Δz) + ½ φ Δz
+    rm = phi_los[z0:z1, :, :]
+    Phi_cum = np.cumsum(rm * dz, axis=0)
+    Phi_half = Phi_cum - 0.5 * rm * dz
+    phase = np.exp(2j * (lam**2) * Phi_half)
+    contrib = Pi_los[z0:z1, :, :] * phase
+    return np.sum(contrib, axis=0) * dz
 
 
 def dP_map_separated(Pi: np.ndarray, phi: np.ndarray, lam: float, cfg: PFAConfig,
@@ -425,11 +438,14 @@ def _compute_separated_single(args):
 
 
 def _compute_mixed_single(args):
-    """Helper function for parallel computation of single lambda value"""
-    lam2, Pi_los, Phi_cum, z0, z1, voxel_depth = args
-    phase = np.exp(2j * lam2 * Phi_cum)
-    contrib = Pi_los[z0:z1, :, :] * phase
-    P_map = np.sum(contrib, axis=0) * voxel_depth
+    """Helper for mixed case (uses half-cell Φ and Δz)."""
+    lam2, Pi_los, rm, z0, z1 = args
+    Nz = Pi_los.shape[0]
+    dz = 1.0 / float(Nz)
+    Phi_cum = np.cumsum(rm[z0:z1, :, :] * dz, axis=0)
+    Phi_half = Phi_cum - 0.5 * rm[z0:z1, :, :] * dz
+    phase = np.exp(2j * lam2 * Phi_half)
+    P_map = np.sum(Pi_los[z0:z1, :, :] * phase, axis=0) * dz
     return np.mean(np.abs(P_map)**2)
 
 
@@ -442,11 +458,15 @@ def _compute_derivative_separated_single(args):
 
 
 def _compute_derivative_mixed_single(args):
-    """Helper function for parallel computation of derivative measure for mixed case"""
-    lam2, Pi_los, Phi_cum, z0, z1, voxel_depth = args
-    phase = np.exp(2j * lam2 * Phi_cum)
-    contrib = 2j * (Pi_los[z0:z1, :, :] * Phi_cum) * phase
-    dP_map = np.sum(contrib, axis=0) * voxel_depth
+    """Helper for dP/dλ² in mixed case with half-cell Φ and Δz."""
+    lam2, Pi_los, rm, z0, z1 = args
+    Nz = Pi_los.shape[0]
+    dz = 1.0 / float(Nz)
+    Phi_cum = np.cumsum(rm[z0:z1, :, :] * dz, axis=0)
+    Phi_half = Phi_cum - 0.5 * rm[z0:z1, :, :] * dz
+    phase = np.exp(2j * lam2 * Phi_half)
+    contrib = 2j * (Pi_los[z0:z1, :, :] * Phi_half) * phase
+    dP_map = np.sum(contrib, axis=0) * dz
     return np.mean(np.abs(dP_map)**2)
 
 
@@ -466,8 +486,9 @@ def pfa_curve_separated(Pi: np.ndarray, phi: np.ndarray, cfg: PFAConfig,
     Nz = Pi_los.shape[0]
     e0 = emit_bounds or (0, max(1, int(0.9 * Nz)))
     s0 = screen_bounds or (max(0, e0[1]), Nz)
-    P_emit = np.sum(Pi_los[e0[0]:e0[1], :, :], axis=0) * cfg.voxel_depth
-    Phi_screen = np.sum(phi_los[s0[0]:s0[1], :, :], axis=0) * cfg.voxel_depth
+    dz = 1.0 / float(Nz)
+    P_emit = np.sum(Pi_los[e0[0]:e0[1], :, :], axis=0) * dz
+    Phi_screen = np.sum(phi_los[s0[0]:s0[1], :, :], axis=0) * dz
     
     # Parallel computation for all lambda values
     lam2_grid = lam_grid**2
@@ -490,12 +511,9 @@ def pfa_curve_mixed(Pi: np.ndarray, phi: np.ndarray, cfg: PFAConfig,
     Nz = Pi_los.shape[0]
     z0, z1 = bounds or (0, Nz)
     
-    # Pre-compute cumulative Faraday depth for efficiency
-    Phi_cum = np.cumsum(phi_los[z0:z1, :, :] * cfg.voxel_depth, axis=0)
-    
-    # Parallel computation for all lambda values
+    # Parallel computation for all λ: pass raw rm=φ to worker (it builds Φ_half)
     lam2_grid = lam_grid**2
-    args_list = [(lam2, Pi_los, Phi_cum, z0, z1, cfg.voxel_depth) for lam2 in lam2_grid]
+    args_list = [(lam2, Pi_los, phi_los, z0, z1) for lam2 in lam2_grid]
     
     with Pool(processes=n_processes) as pool:
         var = pool.map(_compute_mixed_single, args_list)
@@ -515,8 +533,9 @@ def pfa_curve_derivative_separated(Pi: np.ndarray, phi: np.ndarray, cfg: PFAConf
     Nz = Pi_los.shape[0]
     e0 = emit_bounds or (0, max(1, int(0.9 * Nz)))
     s0 = screen_bounds or (max(0, e0[1]), Nz)
-    P_emit = np.sum(Pi_los[e0[0]:e0[1], :, :], axis=0) * cfg.voxel_depth
-    Phi_screen = np.sum(phi_los[s0[0]:s0[1], :, :], axis=0) * cfg.voxel_depth
+    dz = 1.0 / float(Nz)
+    P_emit = np.sum(Pi_los[e0[0]:e0[1], :, :], axis=0) * dz
+    Phi_screen = np.sum(phi_los[s0[0]:s0[1], :, :], axis=0) * dz
     
     # Parallel computation for all lambda values
     lam2_grid = lam_grid**2
@@ -539,12 +558,9 @@ def pfa_curve_derivative_mixed(Pi: np.ndarray, phi: np.ndarray, cfg: PFAConfig,
     Nz = Pi_los.shape[0]
     z0, z1 = bounds or (0, Nz)
     
-    # Pre-compute cumulative Faraday depth for efficiency
-    Phi_cum = np.cumsum(phi_los[z0:z1, :, :] * cfg.voxel_depth, axis=0)
-    
-    # Parallel computation for all lambda values
+    # Parallel computation: pass raw rm=φ
     lam2_grid = lam_grid**2
-    args_list = [(lam2, Pi_los, Phi_cum, z0, z1, cfg.voxel_depth) for lam2 in lam2_grid]
+    args_list = [(lam2, Pi_los, phi_los, z0, z1) for lam2 in lam2_grid]
     
     with Pool(processes=n_processes) as pool:
         var = pool.map(_compute_derivative_mixed_single, args_list)
@@ -978,6 +994,7 @@ def plot_three_measures_vs_lambda(lam2_pfa: np.ndarray,
                                   mP: np.ndarray, eP: np.ndarray,
                                   mD: np.ndarray, eD: np.ndarray,
                                   title: str,
+                                  sigma_phi: float,
                                   normalize_pfa: bool = True,
                                   outpath: Optional[str] = None):
     """
@@ -992,10 +1009,10 @@ def plot_three_measures_vs_lambda(lam2_pfa: np.ndarray,
         mP, eP:    PSA slope and 1σ error for P
         mD, eD:    PSA slope and 1σ error for dP/dλ²
         title:     plot title
+        sigma_phi: standard deviation of integrated Faraday depth
         normalize_pfa: divide PFA by its value at the smallest λ² before log10
         outpath:   if given, save figure there (dpi=300)
     """
-    sigma_phi = 1.9101312160491943
     x_psa = 2 * sigma_phi * lam_arr_psa**2
     x_pfa = 2 * sigma_phi * lam2_pfa
 
@@ -1017,8 +1034,10 @@ def plot_three_measures_vs_lambda(lam2_pfa: np.ndarray,
 
     # Normalize PFA (so it shares a visually comparable scale) and plot in log10
     if normalize_pfa:
-        ref = np.nanmax([y_pfa[0], 1e-300]) if np.isfinite(y_pfa[0]) else np.nanmax([np.nanmin(y_pfa), 1e-300])
-        y_pfa = y_pfa / ref
+        # average the first few λ² points that are firmly in the small-λ plateau
+        n0 = max(3, int(0.03 * x_pfa.size))
+        ref = np.nanmean(y_pfa[:n0])
+        y_pfa = 0.1 * (y_pfa / max(ref, 1e-300))
     y_pfa_plot = np.log10(y_pfa)
     
     # Compute χ(λ) for annotation
@@ -1211,11 +1230,9 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
     L_eff_short = effective_faraday_depth(lam_short, phi_info)
     print(f"L_eff: short={L_eff_short:.1f}px, long={L_eff_long:.1f}px (r_i={phi_info['r_i']:.1f}px)")
 
-    # Build a λ-grid that spans short→transition→long regimes
-    lam_mid = 1.0 / np.sqrt(max(abs(phi_info['phi_mean']), phi_info['phi_std']) * phi_info['r_i'])
-    lam_min = max(lam_mid / 8.0, 1e-3)
-    lam_max = lam_mid * 8.0
-    cfg.lam_grid = tuple(np.sqrt(np.linspace(lam_min**2, lam_max**2, 50)))  # Homogeneous in λ², 50 points
+    # Zhang Fig.2 style: λ² ∈ [1e-3, 1e3] (⇒ 6 decades), use ~180 samples
+    lam2 = np.logspace(-3, 3, 180)
+    cfg.lam_grid = tuple(np.sqrt(lam2))
 
     # Use minimal multiprocessing for faster computation
     n_processes = min(11, cpu_count())  # Reduced to 2 processes
@@ -1305,6 +1322,7 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
         pass
     
     # Mixed geometry
+    sigPhi = sigma_phi_total(phi, cfg.los_axis)
     plot_three_measures_vs_lambda(
         lam2_pfa=lam2_mix,
         pfa_var=var_mix,
@@ -1312,6 +1330,7 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
         mP=mP_mix, eP=eP_mix,
         mD=mD_mix, eD=eD_mix,
         title=r"Mixed",
+        sigma_phi=sigPhi,
         normalize_pfa=True,
         outpath=f"lp2016_outputs/three_measures_vs_lambda_mixed{suffix}.png"
     )
@@ -1325,6 +1344,7 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
         mP=mP_sep, eP=eP_sep,
         mD=mD_sep, eD=eD_sep,
         title=r"Separated",
+        sigma_phi=sigPhi,
         normalize_pfa=True,
         outpath=f"lp2016_outputs/three_measures_vs_lambda_separated{suffix}.png"
     )
