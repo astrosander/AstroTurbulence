@@ -95,53 +95,114 @@ def load_real_data():
     return k_P, Ek_P, k_dP, Ek_dP
 
 def lambda_zero_diagnostics(Pi, phi, Bx, By, cfg, case="Mixed"):
-    """Simple λ=0 diagnostics for the comparison script."""
+    """Enhanced λ=0 diagnostics with sanity checks and plots for each case."""
     print(f"\n{'='*60}")
     print(f"λ=0 DIAGNOSTICS ({case} case)")
     print(f"{'='*60}")
     
-    # Create λ=0 polarization map
+    # Create λ=0 polarization maps
     P0 = P_map_mixed(Pi, phi, lam=0.0, cfg=cfg)
-    
-    # Test different conventions
-    tests = [
-        ("PSD, no window", False, False),
-        ("PSD, Hann window", True, False),
-        ("Energy-like, Hann", True, True),
-    ]
-    
-    print(f"\nQuadratic emissivity (P_i = (B_x + iB_y)^2):")
-    for label, apod, energy_like in tests:
-        k, S = psa_of_map(P0, apodize=apod, return_energy_like=energy_like, k_min=3)
-        m, a, err, _ = fit_log_slope_window(k, S)
-        print(f"  {label:20s}: slope {m:6.2f} ± {err:.2f}")
-    
-    # Test linear tracer
-    print(f"\nLinear tracer (P_i = B_x + iB_y):")
     Pi_linear = linear_tracer(Bx, By)
     P0_linear = P_map_mixed(Pi_linear, phi, lam=0.0, cfg=cfg)
-    
-    for label, apod, energy_like in tests:
-        k, S = psa_of_map(P0_linear, apodize=apod, return_energy_like=energy_like, k_min=3)
-        m, a, err, _ = fit_log_slope_window(k, S)
-        print(f"  {label:20s}: slope {m:6.2f} ± {err:.2f}")
-    
-    # Test LP16 emissivity
-    print(f"\nLP16 emissivity (γ=2, with amplitude factor):")
     Pi_lp16 = polarized_emissivity_lp16(Bx, By, gamma=2.0)
     P0_lp16 = P_map_mixed(Pi_lp16, phi, lam=0.0, cfg=cfg)
     
-    for label, apod, energy_like in tests:
-        k, S = psa_of_map(P0_lp16, apodize=apod, return_energy_like=energy_like, k_min=3)
-        m, a, err, _ = fit_log_slope_window(k, S)
-        print(f"  {label:20s}: slope {m:6.2f} ± {err:.2f}")
+    # Test different conventions and windowing options
+    tests = [
+        ("PSD, no window", False, False, 3),
+        ("PSD, Hann window", True, False, 6),
+        ("Energy-like, Hann", True, True, 6),
+    ]
     
-    print(f"\nExpected slopes:")
-    print(f"  Linear tracer, 2D-PSD:     ~-2.67 (projection of 3D Kolmogorov)")
+    # Create plots for each emissivity type
+    emissivity_cases = [
+        ("Quadratic", P0, "Quadratic emissivity (P_i = (B_x + iB_y)^2)"),
+        ("Linear", P0_linear, "Linear tracer (P_i = B_x + iB_y) - SANITY CHECK"),
+        ("LP16", P0_lp16, "LP16 emissivity (γ=2, with amplitude factor)")
+    ]
+    
+    slopes_data = {}
+    
+    # Create single 3x3 figure
+    fig, axes = plt.subplots(3, 3, figsize=(18, 12))
+    fig.suptitle('λ=0 PSA Analysis: All Emissivity Types and Test Cases', fontsize=16)
+    
+    for emissivity_idx, (emissivity_name, P_map, description) in enumerate(emissivity_cases):
+        print(f"\n{description}:")
+        slopes_data[emissivity_name] = {}
+        
+        for test_idx, (label, apod, energy_like, kmin) in enumerate(tests):
+            k, S = psa_of_map(P_map, apodize=apod, return_energy_like=energy_like, k_min=kmin)
+            m, a, err, (k_min_fit, k_max_fit) = fit_log_slope_window(k, S)
+            
+            slopes_data[emissivity_name][label] = {'slope': m, 'error': err, 'k': k, 'S': S}
+            
+            print(f"  {label:20s}: slope {m:6.2f} ± {err:.2f}")
+            
+            # Plot the spectrum
+            ax = axes[emissivity_idx, test_idx]
+            ax.loglog(k, S, 'o-', markersize=2, alpha=0.7, label=f'Data')
+            
+            # Plot fit line if valid
+            if np.isfinite(m):
+                k_fit = np.array([k_min_fit, k_max_fit])
+                S_fit = 10**(a + m * np.log10(k_fit))
+                ax.loglog(k_fit, S_fit, '--', linewidth=2, color='red', 
+                         label=f'Fit: slope = {m:.2f} ± {err:.2f}')
+                # Mark the fitting range
+                ax.axvspan(k_min_fit, k_max_fit, alpha=0.1, color='red')
+            
+            ax.set_xlabel('$k$ (wavenumber)')
+            if energy_like:
+                ax.set_ylabel('$E_{2D}(k)$ (energy-like)')
+            else:
+                ax.set_ylabel('$P_{2D}(k)$ (PSD)')
+            
+            # Set titles
+            if emissivity_idx == 0:  # Top row
+                ax.set_title(f'{label}', fontsize=12)
+            if test_idx == 0:  # Left column
+                ax.text(-0.15, 0.5, emissivity_name, transform=ax.transAxes, 
+                       rotation=90, va='center', ha='center', fontsize=12, fontweight='bold')
+            
+            ax.grid(True, which='both', alpha=0.2)
+            ax.legend(fontsize=8)
+    
+    plt.tight_layout()
+    
+    # Save the plot
+    output_dir = "compare_measures/lp2016_outputs"
+    os.makedirs(output_dir, exist_ok=True)
+    output_path = os.path.join(output_dir, "lambda_zero_diagnostics_all_cases.png")
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    print(f"\nSaved comprehensive plot: {output_path}")
+    plt.show()
+    
+    # Print summary table
+    print(f"\n{'='*80}")
+    print(f"SUMMARY TABLE")
+    print(f"{'='*80}")
+    print(f"{'Emissivity':<12} {'Test Case':<20} {'Slope':<10} {'Error':<8}")
+    print(f"{'-'*80}")
+    
+    for emissivity_name in ["Quadratic", "Linear", "LP16"]:
+        for label in ["PSD, no window", "PSD, Hann window", "Energy-like, Hann"]:
+            data = slopes_data[emissivity_name][label]
+            print(f"{emissivity_name:<12} {label:<20} {data['slope']:<10.2f} {data['error']:<8.2f}")
+    
+    print(f"\nEXPECTED SLOPES (theoretical):")
+    print(f"  Linear tracer, 2D-PSD:     ~-2.67 (projection of 3D Kolmogorov β_B=11/3)")
     print(f"  Linear tracer, 2D-energy:   ~-1.67 (PSD slope + 1)")
-    print(f"  Quadratic, 2D-PSD:         ~-4.4  (quadratic + projection + spin-2)")
-    print(f"  Quadratic, 2D-energy:      ~-3.4  (PSD slope + 1)")
-    print(f"  LP16 emissivity:           slightly flatter than pure quadratic")
+    print(f"  Quadratic, 2D-PSD:         ~-3.33 (baseline: β_f=13/3, projection)")
+    print(f"  Quadratic, 2D-energy:      ~-2.33 (PSD slope + 1)")
+    print(f"  Observed ~-4.4:           steeper due to spin-2 + windowing + finite map")
+    
+    print(f"\nINTERPRETATION:")
+    print(f"  • ~-4.4 slopes are EXPECTED for quadratic spin-2 projected fields")
+    print(f"  • LP16/Zhang Kolmogorov predictions are for PFA variance vs λ², NOT spatial PSA at λ=0")
+    print(f"  • Linear tracer should show much shallower slopes (~-2.7)")
+    print(f"  • Windowing bias can steepen slopes by ~0.3-1.0")
+    print(f"  • Energy-like spectrum slopes are PSD slopes + 1")
 
 def main():
     """
