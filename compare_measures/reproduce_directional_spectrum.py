@@ -13,6 +13,17 @@ import sys
 import numpy as np
 import matplotlib.pyplot as plt
 
+import matplotlib as mpl
+
+# --- unified TeX-style appearance (MathText, no system LaTeX needed) ---
+mpl.rcParams.update({
+    "text.usetex": False,          # use MathText (portable)
+    "font.family": "STIXGeneral",  # match math fonts
+    "font.size": 16,
+    "mathtext.fontset": "stix",
+    "axes.unicode_minus": False,   # proper minus sign
+})
+
 # Make project root importable
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(THIS_DIR)
@@ -140,10 +151,10 @@ def reproduce_directional_sweep_plot(npz_path: str, output_path: str = None):
     # Create the plot with the same styling as the original script
     plt.figure(figsize=(10, 6))
     plt.errorbar(chi_values, slopes_dir, yerr=errors_dir, fmt='d-', capsize=3, 
-                 label=f'Directional spectrum ({geometry})', color='green', alpha=0.7)
-    plt.xlabel('χ = 2σ_φ λ²')
+                 label=f'Directional spectrum ({geometry})', color='#FF6B35', linewidth=2, alpha=0.8)
+    plt.xlabel('$\\chi = 2\\sigma_\\phi \\lambda^2$')
     plt.ylabel('Directional Spectrum Slope')
-    plt.title(f'Directional Spectrum Slope vs χ ({geometry.capitalize()} Geometry, χ ∈ [0, 20])')
+    plt.title(f'Directional Spectrum Slope vs $\\chi$ ({geometry.capitalize()} Geometry, $\\chi \\in [0, 20]$)')
     plt.grid(True, alpha=0.3)
     plt.legend()
     
@@ -181,12 +192,12 @@ def reproduce_psa_slopes_plot(npz_path: str, output_path: str = None):
     # Create combined plot (same as run_spatial_psa_comparison.py)
     plt.figure(figsize=(10, 6))
     plt.errorbar(chi_values, slopes_P, yerr=errors_P, fmt='o-', capsize=3, 
-                 label='PSA of P', color='blue', alpha=0.7)
+                 label='PSA of $P$', color='blue', alpha=0.7)
     plt.errorbar(chi_values, slopes_dP, yerr=errors_dP, fmt='s-', capsize=3, 
-                 label='PSA of dP/dλ²', color='red', alpha=0.7)
-    plt.xlabel('χ = 2σΦλ²')
+                 label='PSA of $dP/d\\lambda^2$', color='red', alpha=0.7)
+    plt.xlabel('$\\chi = 2\\sigma_\\phi \\lambda^2$')
     plt.ylabel('PSA Slope')
-    plt.title('PSA Slopes vs χ (Mixed Geometry, Random-Dominated)')
+    plt.title('PSA Slopes vs $\\chi$ (Mixed Geometry, Random-Dominated)')
     plt.grid(True, alpha=0.3)
     plt.legend()
     
@@ -232,11 +243,11 @@ def reproduce_pfa_variance_plot(npz_path: str, output_path: str = None):
     
     # Create PFA variance plot
     plt.figure(figsize=(10, 6))
-    plt.loglog(chi_values, pfa_var, 'o-', markersize=3, alpha=0.7, 
-               label='PFA variance', color='purple')
-    plt.xlabel('χ = 2σ_φ λ²')
-    plt.ylabel('⟨|P|²⟩ (PFA variance)')
-    plt.title('PFA Variance vs χ')
+    plt.loglog(chi_values, pfa_var, 'o-', markersize=4, alpha=0.9, 
+               label='PFA variance', color='#8E44AD', linewidth=2.5, markerfacecolor='#E67E22', markeredgecolor='#8E44AD', markeredgewidth=1.5)
+    plt.xlabel('$\\chi = 2\\sigma_\\phi \\lambda^2$')
+    plt.ylabel('$\\langle|P|^2\\rangle$ (PFA variance)')
+    plt.title('PFA Variance vs $\\chi$')
     plt.grid(True, alpha=0.3)
     plt.legend()
     
@@ -250,7 +261,149 @@ def reproduce_pfa_variance_plot(npz_path: str, output_path: str = None):
     return output_path
 
 
-def reproduce_all_plots(npz_dir: str = None):
+def create_combined_panel_plot(npz_dir: str = None):
+    """Create a single panel figure with all three plots side by side."""
+    if npz_dir is None:
+        npz_dir = os.path.join(THIS_DIR, "lp2016_outputs")
+    
+    # Look for NPZ files in both directories
+    npz_dirs = [
+        os.path.join(THIS_DIR, "lp2016_outputs"),
+        os.path.join(THIS_DIR, "npz")
+    ]
+    
+    print("="*70)
+    print("CREATING COMBINED PANEL PLOT")
+    print("="*70)
+    
+    # Find the required NPZ files
+    pfa_npz_path = None
+    dir_npz_path = None
+    psa_npz_path = None
+    
+    for npz_dir in npz_dirs:
+        if pfa_npz_path is None:
+            test_path = os.path.join(npz_dir, "curve_mixed_chi.npz")
+            if os.path.exists(test_path):
+                pfa_npz_path = test_path
+        
+        if dir_npz_path is None:
+            test_path = os.path.join(npz_dir, "dir_slopes_vs_lambda_mixed_data.npz")
+            if os.path.exists(test_path):
+                dir_npz_path = test_path
+        
+        if psa_npz_path is None:
+            test_path = os.path.join(npz_dir, "psa_slopes_vs_chi_data.npz")
+            if os.path.exists(test_path):
+                psa_npz_path = test_path
+    
+    # Create the combined figure
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+    
+    # Plot 1: PFA Variance
+    if pfa_npz_path:
+        try:
+            data, data_type = load_npz_data(pfa_npz_path)
+            if data_type == 'pfa_variance':
+                chi_values = data['chi_values']
+                pfa_var = data['pfa_var']
+            else:
+                keys = list(data.keys())
+                def pick_key(candidates):
+                    for c in candidates:
+                        for k in keys:
+                            if c.lower() in k.lower():
+                                return k
+                    return None
+                chi_key = pick_key(["chi_values", "chi", "x", "lambda2", "lam2"])
+                pfa_key = pick_key(["pfa_var", "pfa", "variance", "y", "pvar", "PFA"])
+                chi_values = data[chi_key]
+                pfa_var = data[pfa_key]
+            
+            axes[0].loglog(chi_values, pfa_var, 'o-', markersize=4, alpha=0.9, 
+                          label='PFA variance', color='#8E44AD', linewidth=2.5, markerfacecolor='#E67E22', markeredgecolor='#8E44AD', markeredgewidth=1.5)
+            axes[0].set_xlabel('$\\chi = 2\\sigma_\\phi \\lambda^2$')
+            axes[0].set_ylabel('$\\langle|P|^2\\rangle$ (PFA variance)')
+            # axes[0].set_title('PFA Variance vs $\\chi$')
+            axes[0].grid(True, alpha=0.3)
+            axes[0].legend()
+            print(f"✓ Added PFA plot from: {os.path.basename(pfa_npz_path)}")
+        except Exception as e:
+            print(f"✗ Error loading PFA data: {e}")
+            axes[0].text(0.5, 0.5, 'PFA data\nnot available', ha='center', va='center', 
+                        transform=axes[0].transAxes)
+            # axes[0].set_title('PFA Variance vs $\\chi$')
+    else:
+        axes[0].text(0.5, 0.5, 'PFA data\nnot found', ha='center', va='center', 
+                    transform=axes[0].transAxes)
+        # axes[0].set_title('PFA Variance vs $\\chi$')
+    
+    # Plot 2: Directional Spectrum
+    if dir_npz_path:
+        try:
+            data, data_type = load_npz_data(dir_npz_path)
+            lam_arr = data['lam_arr']
+            slopes_dir = data['slopes_dir']
+            errors_dir = data['errors_dir']
+            chi_values = data['chi_values']
+            sigmaPhi0 = float(data['sigmaPhi0'])
+            
+            axes[1].errorbar(chi_values, slopes_dir, yerr=errors_dir, fmt='d-', capsize=3, 
+                            label='Directional spectrum', color='#FF6B35', linewidth=2, alpha=0.8)
+            axes[1].set_xlabel('$\\chi = 2\\sigma_\\phi \\lambda^2$')
+            axes[1].set_ylabel('Directional Spectrum Slope')
+            # axes[1].set_title('Directional Spectrum Slope vs $\\chi$')
+            axes[1].grid(True, alpha=0.3)
+            axes[1].legend()
+            print(f"✓ Added directional spectrum plot from: {os.path.basename(dir_npz_path)}")
+        except Exception as e:
+            print(f"✗ Error loading directional spectrum data: {e}")
+            axes[1].text(0.5, 0.5, 'Directional spectrum\ndata not available', ha='center', va='center', 
+                        transform=axes[1].transAxes)
+            # axes[1].set_title('Directional Spectrum Slope vs $\\chi$')
+    else:
+        axes[1].text(0.5, 0.5, 'Directional spectrum\ndata not found', ha='center', va='center', 
+                    transform=axes[1].transAxes)
+        # axes[1].set_title('Directional Spectrum Slope vs $\\chi$')
+    
+    # Plot 3: PSA Slopes
+    if psa_npz_path:
+        try:
+            data, data_type = load_npz_data(psa_npz_path)
+            chi_values = data['chi_values']
+            slopes_P = data['slopes_P']
+            slopes_dP = data['slopes_dP']
+            errors_P = data['errors_P']
+            errors_dP = data['errors_dP']
+            
+            axes[2].errorbar(chi_values, slopes_P, yerr=errors_P, fmt='o-', capsize=3, 
+                            label='PSA of $P$', color='#4A90E2', linewidth=2, alpha=0.8)
+            axes[2].errorbar(chi_values, slopes_dP, yerr=errors_dP, fmt='s-', capsize=3, 
+                            label='PSA of $dP/d\\lambda^2$', color='#F5A623', linewidth=2, alpha=0.8)
+            axes[2].set_xlabel('$\\chi = 2\\sigma_\\phi \\lambda^2$')
+            axes[2].set_ylabel('PSA Slope')
+            # axes[2].set_title('PSA Slopes vs $\\chi$')
+            axes[2].grid(True, alpha=0.3)
+            axes[2].legend()
+            print(f"✓ Added PSA slopes plot from: {os.path.basename(psa_npz_path)}")
+        except Exception as e:
+            print(f"✗ Error loading PSA slopes data: {e}")
+            axes[2].text(0.5, 0.5, 'PSA slopes\ndata not available', ha='center', va='center', 
+                        transform=axes[2].transAxes)
+            # axes[2].set_title('PSA Slopes vs $\\chi$')
+    else:
+        axes[2].text(0.5, 0.5, 'PSA slopes\ndata not found', ha='center', va='center', 
+                    transform=axes[2].transAxes)
+        # axes[2].set_title('PSA Slopes vs $\\chi$')
+    
+    plt.tight_layout()
+    
+    # Save the combined plot
+    output_path = os.path.join(npz_dir, "combined_panel_plot.png")
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    print(f"\nSaved combined panel plot: {output_path}")
+    
+    return output_path
     """Reproduce all available plots from NPZ data files."""
     if npz_dir is None:
         npz_dir = os.path.join(THIS_DIR, "lp2016_outputs")
@@ -286,76 +439,18 @@ def reproduce_all_plots(npz_dir: str = None):
 
 
 def main():
-    """Reproduce all available plots from NPZ data files."""
-    # Check both lp2016_outputs and npz directories
-    npz_dirs = [
-        os.path.join(THIS_DIR, "lp2016_outputs"),
-        os.path.join(THIS_DIR, "npz")
-    ]
-    
+    """Create a combined panel plot with all three analyses."""
     print("="*70)
-    print("REPRODUCING PLOTS FROM NPZ DATA FILES")
+    print("CREATING COMBINED PANEL PLOT")
     print("="*70)
     
-    reproduced_files = []
-
-    # Priority: reproduce PFA from compare_measures/npz/curve_mixed_chi.npz → PFA.png
-    pfa_npz_path = os.path.join(THIS_DIR, "npz", "curve_mixed_chi.npz")
-    if os.path.exists(pfa_npz_path):
-        try:
-            pfa_png_path = os.path.join(THIS_DIR, "npz", "PFA.png")
-            print(f"\nReproducing PFA from: {pfa_npz_path}")
-            reproduce_pfa_variance_plot(pfa_npz_path, pfa_png_path)
-            reproduced_files.append(pfa_png_path)
-        except Exception as e:
-            print(f"Error reproducing PFA from {pfa_npz_path}: {e}")
-    
-    # Define all possible NPZ files and their corresponding plot functions
-    plot_configs = [
-        # Directional spectrum plots
-        ("dir_slopes_vs_lambda_mixed_data.npz", reproduce_directional_original_plot),
-        ("dir_slopes_vs_lambda_separated_data.npz", reproduce_directional_original_plot),
-        ("dir_slopes_vs_chi_mixed_data.npz", reproduce_directional_sweep_plot),
-        ("dir_slopes_vs_chi_separated_data.npz", reproduce_directional_sweep_plot),
-        # PSA slopes plot
-        ("psa_slopes_vs_chi_data.npz", reproduce_psa_slopes_plot),
-        # PFA variance plot
-        ("curve_mixed_chi.npz", reproduce_pfa_variance_plot),
-    ]
-    
-    for npz_file, plot_func in plot_configs:
-        npz_path = None
-        found_dir = None
-        
-        # Look for the file in all directories
-        for npz_dir in npz_dirs:
-            test_path = os.path.join(npz_dir, npz_file)
-            if os.path.exists(test_path):
-                npz_path = test_path
-                found_dir = npz_dir
-                break
-        
-        if npz_path:
-            try:
-                print(f"\nReproducing from: {npz_file} (found in {found_dir})")
-                output_path = plot_func(npz_path)
-                reproduced_files.append(output_path)
-            except Exception as e:
-                print(f"Error reproducing {npz_file}: {e}")
-        else:
-            print(f"Data file not found: {npz_file} (searched in {npz_dirs})")
+    # Create the combined panel plot
+    output_path = create_combined_panel_plot()
     
     print(f"\n" + "="*70)
     print("SUMMARY")
     print("="*70)
-    
-    if reproduced_files:
-        print(f"Successfully reproduced {len(reproduced_files)} plots:")
-        for file_path in reproduced_files:
-            print(f"  • {file_path}")
-    else:
-        print("No NPZ data files found to reproduce.")
-    
+    print(f"Combined panel plot saved: {output_path}")
     print("="*70)
 
 
