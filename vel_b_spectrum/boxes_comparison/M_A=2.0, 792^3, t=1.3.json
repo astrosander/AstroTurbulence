@@ -1,0 +1,11 @@
+{
+  "kA": 16.0,
+  "MA": 2.0,
+  "kinj": 2.0,
+  "norm": "total",
+  "png": "spectrum_both.png",
+  "units": "k*Lbox/(2\u03c0)",
+  "Lbox": 1.0012626262626263,
+  "vtk_w": "../vtk/ms1ma2_256.mhd_w.00005.vtk",
+  "vtk_bcc": "../vtk/ms1ma2_256.mhd_bcc.00005.vtk"
+}
