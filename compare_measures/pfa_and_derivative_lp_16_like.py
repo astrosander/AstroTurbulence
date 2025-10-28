@@ -296,7 +296,7 @@ def compute_faraday_regime(phi: np.ndarray, verbose: bool = True) -> dict:
         print(f"  Mean φ: {phi_mean:.4f}")
         print(f"  Std φ:  {phi_std:.4f}")
         print(f"  |φ̄|/σ_φ: {ratio:.4f}")
-        print(f"  → {regime.upper()}")
+        print(f"  → {regime}")
         print(f"  RM correlation length r_i ≈ {r_i:.1f} pixels")
     
     return result
@@ -563,6 +563,20 @@ def fit_log_slope(x: np.ndarray, y: np.ndarray, xmin=None, xmax=None):
     return m, a
 
 
+def fit_log_slope_with_bounds(k, E, kmin=None, kmax=None):
+    """Fit log-log slope with optional k bounds to avoid edge effects."""
+    k = np.asarray(k); E = np.asarray(E)
+    sel = np.isfinite(k) & np.isfinite(E) & (k>0) & (E>0)
+    if kmin is not None: sel &= (k >= kmin)
+    if kmax is not None: sel &= (k <= kmax)
+    k = k[sel]; E = E[sel]
+    if k.size < 10: return np.nan, np.nan, np.nan, (np.nan, np.nan)
+    lk, lE = np.log10(k), np.log10(E)
+    m, a = np.polyfit(lk, lE, 1)
+    err = np.sqrt(np.mean((lE-(m*lk+a))**2) / np.sum((lk-lk.mean())**2))
+    return m, a, err, (k.min(), k.max())
+
+
 def fit_log_slope_window(k: np.ndarray, E: np.ndarray):
     """Pick a clean ~decade in k with minimal curvature, then fit log-log slope with error."""
     k = np.asarray(k); E = np.asarray(E)
@@ -692,60 +706,57 @@ def plot_combined_pfa_and_derivative(lam2_pfa: np.ndarray, var_pfa_list: list,
     plt.tight_layout()
 
 
+# --- replace your plot_spatial_psa_comparison signature & body ---
 def plot_spatial_psa_comparison(k_P: np.ndarray, Ek_P: np.ndarray, 
                                 k_dP: np.ndarray, Ek_dP: np.ndarray,
-                                lam: float, case: str = "Mixed"):
+                                lam: float, case: str = "Mixed",
+                                spectrum: str = "psd",      # "psd" or "energy"
+                                kfit_bounds: tuple = (4, 25) # match diagnostics
+                                ):
     """
-    Plot spatial power spectra (PSA) of P and dP/dλ² to show the difference
-    in spatial statistics that LP16 §6 discusses.
+    Plot spatial spectra with consistent settings and fit bounds.
+    'spectrum' just labels the y-axis; the actual E(k) vs P(k) choice must
+    be done upstream by calling psa_of_map(return_energy_like=bool).
     """
+    import numpy as np
+    import matplotlib.pyplot as plt
+
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5))
-    
-    # Use improved auto-fit window function with error estimates
-    m_P, a_P, err_P, (k_min_fit, k_max_fit) = fit_log_slope_window(k_P, Ek_P)
 
     # PSA of P
-    ax1.loglog(k_P, Ek_P, 'o-', markersize=1, label=f'PSA of $P(\\lambda={lam:.1f})$')
+    ax1.loglog(k_P, Ek_P, 'o-', markersize=2, label=f'{spectrum} of $P(\\lambda={lam:.1f})$')
+    m_P, a_P, err_P, (klo_P, khi_P) = fit_log_slope_with_bounds(k_P, Ek_P, *kfit_bounds)
     if np.isfinite(m_P):
-        k_fit = np.array([k_min_fit, k_max_fit])
+        k_fit = np.array([klo_P, khi_P])
         E_fit = 10**(a_P + m_P * np.log10(k_fit))
-        ax1.loglog(k_fit, E_fit, '--', linewidth=2, color='red', 
-                  label=f'slope = {m_P:.2f} ± {err_P:.2f}')
-        # Mark the fitting range
-        ax1.axvspan(k_min_fit, k_max_fit, alpha=0.1, color='red', label='fit range')
-    ax1.set_xlabel('$k$ (wavenumber)')
-    ax1.set_ylabel('$E(k)$')
-    ax1.set_title(f'Spatial PSA of $P$ ({case}, $\\lambda={lam:.1f}$)')
-    ax1.grid(True, which='both', alpha=0.2)
-    ax1.legend()
-    
-    # PSA of dP/dλ²
-    m_dP, a_dP, err_dP, (k_min_dP, k_max_dP) = fit_log_slope_window(k_dP, Ek_dP)
+        ax1.loglog(k_fit, E_fit, '--', linewidth=2, color='red',
+                   label=f'slope = {m_P:.2f} ± {err_P:.2f}')
+        ax1.axvspan(klo_P, khi_P, alpha=0.08, color='red', label='fit range')
+    ax1.set_xlabel('$k$'); ax1.set_ylabel('$E(k)$' if spectrum=='energy' else '$P(k)$')
+    ax1.set_title(f'{case}: {spectrum} of $P$ at $\\lambda={lam:.1f}$')
+    ax1.grid(True, which='both', alpha=0.2); ax1.legend()
 
-    ax2.loglog(k_dP, Ek_dP, 's-', markersize=1, color='darkorange',
-              label=f'PSA of $dP/d\\lambda^2$ ($\\lambda={lam:.1f}$)')
+    # PSA of dP/dλ²
+    ax2.loglog(k_dP, Ek_dP, 's-', markersize=2, color='darkorange',
+               label=f'{spectrum} of $\\partial P/\\partial\\lambda^2$')
+    m_dP, a_dP, err_dP, (klo_D, khi_D) = fit_log_slope_with_bounds(k_dP, Ek_dP, *kfit_bounds)
     if np.isfinite(m_dP):
-        k_fit = np.array([k_min_dP, k_max_dP])
+        k_fit = np.array([klo_D, khi_D])
         E_fit = 10**(a_dP + m_dP * np.log10(k_fit))
         ax2.loglog(k_fit, E_fit, '--', linewidth=2, color='red',
-                  label=f'slope = {m_dP:.2f} ± {err_dP:.2f}')
-        # Mark the fitting range
-        ax2.axvspan(k_min_dP, k_max_dP, alpha=0.1, color='red', label='fit range')
-    ax2.set_xlabel('$k$ (wavenumber)')
-    ax2.set_ylabel('$E(k)$')
-    ax2.set_title(f'Spatial PSA of $dP/d\\lambda^2$ ({case}, $\\lambda={lam:.1f}$)')
-    ax2.grid(True, which='both', alpha=0.2)
-    ax2.legend()
-    
+                   label=f'slope = {m_dP:.2f} ± {err_dP:.2f}')
+        ax2.axvspan(klo_D, khi_D, alpha=0.08, color='red', label='fit range')
+    ax2.set_xlabel('$k$'); ax2.set_ylabel('$E(k)$' if spectrum=='energy' else '$P(k)$')
+    ax2.set_title(f'{case}: {spectrum} of $\\partial P/\\partial\\lambda^2$ at $\\lambda={lam:.1f}$')
+    ax2.grid(True, which='both', alpha=0.2); ax2.legend()
+
     plt.tight_layout()
-    
-    # Print slopes for comparison
+
+    # Console summary
     print(f"\n{case} case at λ={lam:.1f}:")
-    print(f"  PSA of P slope: {m_P:.2f} ± {err_P:.2f}")
-    print(f"  PSA of dP/dλ² slope: {m_dP:.2f} ± {err_dP:.2f}")
+    print(f"  {spectrum} of P slope: {m_P:.2f} ± {err_P:.2f}")
+    print(f"  {spectrum} of dP/dλ² slope: {m_dP:.2f} ± {err_dP:.2f}")
     print(f"  → Difference: {abs(m_dP - m_P):.2f}")
-    print("  (LP16 predicts derivative PSA better recovers turbulence slope m)")
-    
     return m_P, m_dP, err_P, err_dP
 
 
@@ -1290,7 +1301,7 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
     print("\n" + "="*70)
     print("SUMMARY")
     print("="*70)
-    print(f"\nRegime: {phi_info['regime'].upper()}")
+    print(f"\nRegime: {phi_info['regime']}")
     print(f"  |φ̄|/σ_φ = {phi_info['ratio']:.2f}")
     
     print(f"\nFour-measures comparison completed:")

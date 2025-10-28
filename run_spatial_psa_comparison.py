@@ -86,16 +86,39 @@ def load_real_data():
     
     print("Computing spatial power spectra...")
     
-    # Compute PSA for both maps
-    k_P, Ek_P = psa_of_map(P_map, ring_bins=48, pad=1, apodize=True, k_min=6.0)
-    k_dP, Ek_dP = psa_of_map(dP_map, ring_bins=48, pad=1, apodize=True, k_min=6.0)
+    # Compute PSA for both maps using consistent settings (match diagnostics)
+    k_P, Ek_P = psa_of_map(P_map, ring_bins=48, pad=1, apodize=True, 
+                           k_min=3.0, min_counts_per_ring=10, return_energy_like=False)
+    k_dP, Ek_dP = psa_of_map(dP_map, ring_bins=48, pad=1, apodize=True, 
+                             k_min=3.0, min_counts_per_ring=10, return_energy_like=False)
     
     print(f"Generated PSA data: {len(k_P)} points for P, {len(k_dP)} points for dP/dλ²")
     
     return k_P, Ek_P, k_dP, Ek_dP
 
+def fit_log_slope_with_bounds(k, E, kmin=None, kmax=None):
+    """Fit log-log slope with optional k bounds to avoid edge effects."""
+    k = np.asarray(k); E = np.asarray(E)
+    sel = np.isfinite(k) & np.isfinite(E) & (k>0) & (E>0)
+    if kmin is not None: sel &= (k >= kmin)
+    if kmax is not None: sel &= (k <= kmax)
+    k = k[sel]; E = E[sel]
+    if k.size < 10: return np.nan, np.nan, np.nan, (np.nan, np.nan)
+    lk, lE = np.log10(k), np.log10(E)
+    m, a = np.polyfit(lk, lE, 1)
+    err = np.sqrt(np.mean((lE-(m*lk+a))**2) / np.sum((lk-lk.mean())**2))
+    return m, a, err, (k.min(), k.max())
+
+
+def P_map_thin_slice(Bx, By, z0=0, dz=8):
+    """Create a linear tracer thin slice for comparison with column integration."""
+    # Returns a linear tracer slice: Q+iU ≈ Bx + i By integrated over dz
+    slab = slice(z0, z0+dz)
+    return (Bx[:,:,slab].sum(axis=2) + 1j*By[:,:,slab].sum(axis=2))
+
+
 def lambda_zero_diagnostics(Pi, phi, Bx, By, cfg, case="Mixed"):
-    """Enhanced λ=0 diagnostics with sanity checks and plots for each case."""
+    """Enhanced λ=0 diagnostics with comprehensive comparisons."""
     print(f"\n{'='*60}")
     print(f"λ=0 DIAGNOSTICS ({case} case)")
     print(f"{'='*60}")
@@ -107,6 +130,9 @@ def lambda_zero_diagnostics(Pi, phi, Bx, By, cfg, case="Mixed"):
     Pi_lp16 = polarized_emissivity_lp16(Bx, By, gamma=2.0)
     P0_lp16 = P_map_mixed(Pi_lp16, phi, lam=0.0, cfg=cfg)
     
+    # Add thin slice comparison
+    P0_linear_thin = P_map_thin_slice(Bx, By, z0=Bx.shape[2]//2, dz=8)
+    
     # Test different conventions and windowing options
     tests = [
         ("PSD, no window", False, False, 3),
@@ -117,14 +143,15 @@ def lambda_zero_diagnostics(Pi, phi, Bx, By, cfg, case="Mixed"):
     # Create plots for each emissivity type
     emissivity_cases = [
         ("Quadratic", P0, "Quadratic emissivity (P_i = (B_x + iB_y)^2)"),
-        ("Linear", P0_linear, "Linear tracer (P_i = B_x + iB_y) - SANITY CHECK"),
+        ("Linear", P0_linear, "Linear tracer (P_i = B_x + iB_y) - Column integration"),
+        ("Linear-Thin", P0_linear_thin, "Linear tracer thin slice (dz=8) - SANITY CHECK"),
         ("LP16", P0_lp16, "LP16 emissivity (γ=2, with amplitude factor)")
     ]
     
     slopes_data = {}
     
-    # Create single 3x3 figure
-    fig, axes = plt.subplots(3, 3, figsize=(18, 12))
+    # Create single 4x3 figure (4 emissivity types, 3 test cases)
+    fig, axes = plt.subplots(4, 3, figsize=(18, 16))
     fig.suptitle('λ=0 PSA Analysis: All Emissivity Types and Test Cases', fontsize=16)
     
     for emissivity_idx, (emissivity_name, P_map, description) in enumerate(emissivity_cases):
@@ -133,7 +160,8 @@ def lambda_zero_diagnostics(Pi, phi, Bx, By, cfg, case="Mixed"):
         
         for test_idx, (label, apod, energy_like, kmin) in enumerate(tests):
             k, S = psa_of_map(P_map, apodize=apod, return_energy_like=energy_like, k_min=kmin)
-            m, a, err, (k_min_fit, k_max_fit) = fit_log_slope_window(k, S)
+            # Use bounded fitting to avoid edge effects
+            m, a, err, (k_min_fit, k_max_fit) = fit_log_slope_with_bounds(k, S, kmin=4, kmax=25)
             
             slopes_data[emissivity_name][label] = {'slope': m, 'error': err, 'k': k, 'S': S}
             
@@ -185,24 +213,27 @@ def lambda_zero_diagnostics(Pi, phi, Bx, By, cfg, case="Mixed"):
     print(f"{'Emissivity':<12} {'Test Case':<20} {'Slope':<10} {'Error':<8}")
     print(f"{'-'*80}")
     
-    for emissivity_name in ["Quadratic", "Linear", "LP16"]:
+    for emissivity_name in ["Quadratic", "Linear", "Linear-Thin", "LP16"]:
         for label in ["PSD, no window", "PSD, Hann window", "Energy-like, Hann"]:
             data = slopes_data[emissivity_name][label]
             print(f"{emissivity_name:<12} {label:<20} {data['slope']:<10.2f} {data['error']:<8.2f}")
     
     print(f"\nEXPECTED SLOPES (theoretical):")
-    print(f"  Linear tracer, 2D-PSD:     ~-2.67 (projection of 3D Kolmogorov β_B=11/3)")
-    print(f"  Linear tracer, 2D-energy:   ~-1.67 (PSD slope + 1)")
-    print(f"  Quadratic, 2D-PSD:         ~-3.33 (baseline: β_f=13/3, projection)")
-    print(f"  Quadratic, 2D-energy:      ~-2.33 (PSD slope + 1)")
-    print(f"  Observed ~-4.4:           steeper due to spin-2 + windowing + finite map")
+    print(f"  Linear thin-slice, 2D-PSD:  ~-2.67 (projection of 3D Kolmogorov β_B=11/3)")
+    print(f"  Linear thin-slice, 2D-energy: ~-1.67 (PSD slope + 1)")
+    print(f"  Linear column, 2D-PSD:     ~-3.0  (steeper due to cancellations)")
+    print(f"  Quadratic, 2D-PSD:        ~-3.33 (baseline: β_f=13/3, projection)")
+    print(f"  Quadratic, 2D-energy:     ~-2.33 (PSD slope + 1)")
+    print(f"  Observed ~-4.5:           steeper due to spin-2 + windowing + finite map")
     
     print(f"\nINTERPRETATION:")
-    print(f"  • ~-4.4 slopes are EXPECTED for quadratic spin-2 projected fields")
+    print(f"  • ~-4.5 slopes are EXPECTED for quadratic spin-2 projected fields")
     print(f"  • LP16/Zhang Kolmogorov predictions are for PFA variance vs λ², NOT spatial PSA at λ=0")
-    print(f"  • Linear tracer should show much shallower slopes (~-2.7)")
+    print(f"  • Linear thin-slice should show slopes closest to projection expectation (~-2.7)")
+    print(f"  • Linear column integration steepens slopes due to cancellations")
     print(f"  • Windowing bias can steepen slopes by ~0.3-1.0")
     print(f"  • Energy-like spectrum slopes are PSD slopes + 1")
+    print(f"  • Bounded fitting (k∈[4,25]) avoids edge effects")
 
 def main():
     """
@@ -264,14 +295,40 @@ def main():
     
     print(f"\nCreating spatial PSA comparison plot for λ = {lam}...")
     
-    # Create the plot
+    # Create the plot with unified settings (PSD)
     m_P, m_dP, err_P, err_dP = plot_spatial_psa_comparison(
         k_P=k_P, 
         Ek_P=Ek_P, 
         k_dP=k_dP, 
         Ek_dP=Ek_dP, 
         lam=lam, 
-        case="Mixed"
+        case="Mixed",
+        spectrum="psd",
+        kfit_bounds=(4, 25)
+    )
+    
+    # Also test energy-like spectrum for comparison
+    print(f"\nTesting energy-like spectrum for consistency...")
+    
+    # Recompute with energy-like spectrum
+    P_map = P_map_mixed(Pi, phi, lam, cfg)
+    dP_map = dP_map_mixed(Pi, phi, lam, cfg)
+    
+    k_P_E, Ek_P_E = psa_of_map(P_map, ring_bins=48, pad=1, apodize=True, 
+                               k_min=3.0, min_counts_per_ring=10, return_energy_like=True)
+    k_dP_E, Ek_dP_E = psa_of_map(dP_map, ring_bins=48, pad=1, apodize=True, 
+                                 k_min=3.0, min_counts_per_ring=10, return_energy_like=True)
+    
+    # Create energy-like plot
+    m_P_E, m_dP_E, err_P_E, err_dP_E = plot_spatial_psa_comparison(
+        k_P=k_P_E, 
+        Ek_P=Ek_P_E, 
+        k_dP=k_dP_E, 
+        Ek_dP=Ek_dP_E, 
+        lam=lam, 
+        case="Mixed",
+        spectrum="energy",
+        kfit_bounds=(4, 25)
     )
     
     # Save the plot to the specified output path
@@ -285,9 +342,20 @@ def main():
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     
     print(f"\nPlot saved successfully!")
-    print(f"PSA of P slope: {m_P:.2f} ± {err_P:.2f}")
-    print(f"PSA of dP/dλ² slope: {m_dP:.2f} ± {err_dP:.2f}")
-    print(f"Difference: {abs(m_dP - m_P):.2f}")
+    print(f"\nCONSISTENCY CHECK:")
+    print(f"PSD spectrum:")
+    print(f"  PSA of P slope: {m_P:.2f} ± {err_P:.2f}")
+    print(f"  PSA of dP/dλ² slope: {m_dP:.2f} ± {err_dP:.2f}")
+    print(f"  Difference: {abs(m_dP - m_P):.2f}")
+    
+    print(f"\nEnergy-like spectrum:")
+    print(f"  PSA of P slope: {m_P_E:.2f} ± {err_P_E:.2f}")
+    print(f"  PSA of dP/dλ² slope: {m_dP_E:.2f} ± {err_dP_E:.2f}")
+    print(f"  Difference: {abs(m_dP_E - m_P_E):.2f}")
+    
+    print(f"\nExpected relationship: Energy-like slope = PSD slope + 1")
+    print(f"  P: {m_P_E:.2f} vs {m_P + 1:.2f} (diff: {abs(m_P_E - (m_P + 1)):.2f})")
+    print(f"  dP: {m_dP_E:.2f} vs {m_dP + 1:.2f} (diff: {abs(m_dP_E - (m_dP + 1)):.2f})")
     
     # Show the plot
     plt.show()
