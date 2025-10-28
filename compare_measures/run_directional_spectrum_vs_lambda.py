@@ -78,16 +78,17 @@ def main():
         psa_kwargs = dict(ring_bins=48, pad=1, apodize=True, k_min=6.0, min_counts_per_ring=10)
         fit_bounds = dict(kmin=4, kmax=25)
         
-        # Define λ² grid for sweep so that 1 ≤ (σ_φ λ²) ≤ 20
-        # This implies 2σ_φλ² (χ) spans [2, 40] on the x-axis
-        lam2_min = 0.0 / (sigmaPhi0)
-        lam2_max = 20.0 / (sigmaPhi0)
-        n_points = 100
-        lam2_values = np.linspace(lam2_min, lam2_max, n_points)
+        # Define λ² grid for sweep so that 0 ≤ 2(σ_φ λ²) ≤ 20
+        # This implies χ = 2σ_φλ² spans [0, 20] on the x-axis
+        # Ensure λ=0 is included (λ²=0, χ=0)
+        lam2_max = 20.0 / (2.0 * sigmaPhi0)  # χ = 20
+        n_points = 250
+        # Create grid that includes λ²=0 and goes to lam2_max
+        lam2_values = np.linspace(0.0, lam2_max, n_points)
         
-        print(f"\nλ² sweep: {lam2_min:.3f} to {lam2_max:.3f} ({n_points} points)")
-        print(f"Corresponding σ_φλ² range: {sigmaPhi0*lam2_min:.2f} to {sigmaPhi0*lam2_max:.2f}")
-        print(f"Corresponding χ=2σ_φλ² range: {2*sigmaPhi0*lam2_min:.2f} to {2*sigmaPhi0*lam2_max:.2f}")
+        print(f"\nλ² sweep: 0.0 to {lam2_max:.3f} ({n_points} points)")
+        print(f"Corresponding σ_φλ² range: 0.0 to {sigmaPhi0*lam2_max:.2f}")
+        print(f"Corresponding χ=2σ_φλ² range: 0.0 to {2*sigmaPhi0*lam2_max:.2f}")
         
         # Initialize arrays to store results
         chi_values = []
@@ -152,7 +153,7 @@ def main():
                      label=f'Directional spectrum ({args.geometry})', color='green', alpha=0.7)
         plt.xlabel('χ = 2σ_φ λ²')
         plt.ylabel('Directional Spectrum Slope')
-        plt.title(f'Directional Spectrum Slope vs χ ({args.geometry.capitalize()} Geometry, χ ∈ [1, 20])')
+        plt.title(f'Directional Spectrum Slope vs χ ({args.geometry.capitalize()} Geometry, χ ∈ [0, 20])')
         plt.grid(True, alpha=0.3)
         plt.legend()
         
@@ -169,17 +170,21 @@ def main():
         print(f"Directional slopes range: {min(slopes_dir):.2f} to {max(slopes_dir):.2f}")
         
     else:
-        # Original single plot mode - restrict to 1 ≤ (σ_φ λ²) ≤ 20
-        lam2_min = 0.0 / (sigmaPhi0)
-        lam2_max = 20.0 / (sigmaPhi0)
-        lam2 = np.linspace(lam2_min, lam2_max, 100)  # uniform in λ² over the requested region
+        # Original single plot mode - restrict to 0 ≤ 2(σ_φ λ²) ≤ 20
+        # Ensure λ=0 is included (λ²=0, χ=0)
+        lam2_max = 20.0 / (2.0 * sigmaPhi0)  # χ = 20
+        lam2 = np.linspace(0.0, lam2_max, 250)  # uniform in λ² over the requested region, includes λ²=0
         cfg.lam_grid = tuple(np.sqrt(lam2))
+        # Ensure λ=0 is always included, even when thinning
         lam_list = cfg.lam_grid[:: max(1, int(args.every))]
+        if lam_list[0] != 0.0:  # If λ=0 was skipped due to thinning, add it back
+            lam_list = [0.0] + list(lam_list)
 
         print(f"Computing directional-spectrum slopes vs lambda ({args.geometry}) ...")
-        print(f"λ² range: {lam2_min:.3f} to {lam2_max:.3f}")
-        print(f"Corresponding σ_φλ² range: {sigmaPhi0*lam2_min:.2f} to {sigmaPhi0*lam2_max:.2f}")
-        print(f"Corresponding χ=2σ_φλ² range: {2*sigmaPhi0*lam2_min:.2f} to {2*sigmaPhi0*lam2_max:.2f}")
+        print(f"λ² range: 0.0 to {lam2_max:.3f}")
+        print(f"Corresponding σ_φλ² range: 0.0 to {sigmaPhi0*lam2_max:.2f}")
+        print(f"Corresponding χ=2σ_φλ² range: 0.0 to {2*sigmaPhi0*lam2_max:.2f}")
+        print(f"Lambda list starts with: {lam_list[:3]} (should include 0.0)")
         
         lam_arr, mDir, eDir = dir_slopes_vs_lambda(
             Pi,
@@ -193,13 +198,34 @@ def main():
             min_counts_per_ring=args.min_counts,
         )
 
+        # Save results to NPZ for reproducibility
+        out_dir = os.path.join(THIS_DIR, "lp2016_outputs")
+        os.makedirs(out_dir, exist_ok=True)
+        npz_path = os.path.join(out_dir, f"dir_slopes_vs_lambda_{args.geometry}_data.npz")
+        np.savez(
+            npz_path,
+            lam_arr=np.array(lam_arr),
+            slopes_dir=np.array(mDir),
+            errors_dir=np.array(eDir),
+            lam2_values=np.array([lam**2 for lam in lam_arr]),
+            chi_values=np.array([2*sigmaPhi0*lam**2 for lam in lam_arr]),
+            ring_bins=np.array(args.ring_bins),
+            pad=np.array(args.pad),
+            k_min=np.array(args.k_min),
+            min_counts_per_ring=np.array(args.min_counts),
+            sigmaPhi0=np.array(sigmaPhi0),
+            faraday_const=np.array(cfg.faraday_const),
+            los_axis=np.array(cfg.los_axis),
+            gamma=np.array(cfg.gamma),
+            geometry=args.geometry,
+        )
+        print(f"Saved data to: {npz_path}")
+
         print("Plotting...")
-        title = f"Directional-spectrum slope ({args.geometry.capitalize()}, χ ∈ [2, 40])"
+        title = f"Directional-spectrum slope ({args.geometry.capitalize()}, χ ∈ [0, 20])"
         # Pass sigma_phi so x-axis is χ = 2σ_φλ²
         plot_dir_slopes_vs_lambda(lam_arr, mDir, eDir, x_is_lambda2=True, title=title, sigma_phi=sigmaPhi0)
 
-        out_dir = os.path.join(THIS_DIR, "lp2016_outputs")
-        os.makedirs(out_dir, exist_ok=True)
         out_path = (
             args.out
             if args.out is not None
@@ -207,7 +233,7 @@ def main():
         )
         import matplotlib.pyplot as plt
         plt.savefig(out_path, dpi=300)
-        print(f"Saved: {out_path}")
+        print(f"Saved plot: {out_path}")
 
 
 if __name__ == "__main__":
