@@ -52,8 +52,10 @@ class PFAConfig:
     lam_mark: float = 1.0
     gamma: float = 2.0            # electron index → P_i ∝ (B_⊥)^{(γ+1)/2}
     faraday_const: float = 0.81    # arbitrary units here; relative scaling only
-    los_axis: int = 0              # integrate along this axis
-    voxel_depth: float = 1.0       # Δz in code units
+    los_axis: int = 2              # integrate along this axis (z is LOS by default)
+    voxel_depth: float = 1.0       # unused after Patch 1; retained for backward compat
+    lam2_break_target: float = 1e-1  # place χ≈1 near this λ² (matches Zhang fig)
+    use_auto_faraday: bool = True
 
 
 class FieldKeys:
@@ -365,10 +367,11 @@ def P_map_separated(Pi: np.ndarray, phi: np.ndarray, lam: float, cfg: PFAConfig,
     Pi_los = _move_los(Pi, cfg.los_axis)
     phi_los = _move_los(phi, cfg.los_axis)
     Nz = Pi_los.shape[0]
+    dz = 1.0 / float(Nz)   
     e0 = emit_bounds or (0, max(1, int(0.9 * Nz)))
     s0 = screen_bounds or (max(0, e0[1]), Nz)
-    P_emit = np.sum(Pi_los[e0[0]:e0[1], :, :], axis=0) * cfg.voxel_depth
-    Phi_screen = np.sum(phi_los[s0[0]:s0[1], :, :], axis=0) * cfg.voxel_depth
+    P_emit = np.sum(Pi_los[e0[0]:e0[1], :, :], axis=0) * dz
+    Phi_screen = np.sum(phi_los[s0[0]:s0[1], :, :], axis=0) * dz
     return P_emit * np.exp(2j * (lam**2) * Phi_screen)
 
 
@@ -378,9 +381,10 @@ def P_map_mixed(Pi: np.ndarray, phi: np.ndarray, lam: float, cfg: PFAConfig,
     phi_los = _move_los(phi, cfg.los_axis)
     Nz = Pi_los.shape[0]
     z0, z1 = bounds or (0, Nz)
-    Phi_cum = np.cumsum(phi_los[z0:z1, :, :] * cfg.voxel_depth, axis=0)
+    dz = 1.0 / float(Nz)   
+    Phi_cum = np.cumsum(phi_los[z0:z1, :, :] * dz, axis=0)
     phase = np.exp(2j * (lam**2) * Phi_cum)
-    return np.sum(Pi_los[z0:z1, :, :] * phase, axis=0) * cfg.voxel_depth
+    return np.sum(Pi_los[z0:z1, :, :] * phase, axis=0) * dz
 
 
 def dP_map_separated(Pi: np.ndarray, phi: np.ndarray, lam: float, cfg: PFAConfig,
@@ -390,8 +394,9 @@ def dP_map_separated(Pi: np.ndarray, phi: np.ndarray, lam: float, cfg: PFAConfig
     P = P_map_separated(Pi, phi, lam, cfg, emit_bounds=emit_bounds, screen_bounds=screen_bounds)
     phi_los = _move_los(phi, cfg.los_axis)
     Nz = phi_los.shape[0]
+    dz = 1.0 / float(Nz)
     s0 = screen_bounds or (max(0, int(0.9 * Nz)), Nz)
-    Phi_screen = np.sum(phi_los[s0[0]:s0[1], :, :], axis=0) * cfg.voxel_depth
+    Phi_screen = np.sum(phi_los[s0[0]:s0[1], :, :], axis=0) * dz
     return 2j * Phi_screen * P
 
 
@@ -402,10 +407,11 @@ def dP_map_mixed(Pi: np.ndarray, phi: np.ndarray, lam: float, cfg: PFAConfig,
     phi_los = _move_los(phi, cfg.los_axis)
     Nz = Pi_los.shape[0]
     z0, z1 = bounds or (0, Nz)
-    Phi_cum = np.cumsum(phi_los[z0:z1, :, :] * cfg.voxel_depth, axis=0)
+    dz = 1.0 / float(Nz)
+    Phi_cum = np.cumsum(phi_los[z0:z1, :, :] * dz, axis=0)
     phase = np.exp(2j * (lam**2) * Phi_cum)
     contrib = 2j * (Pi_los[z0:z1, :, :] * Phi_cum) * phase
-    return np.sum(contrib, axis=0) * cfg.voxel_depth
+    return np.sum(contrib, axis=0) * dz
 
 # -----------------------------
 # Multiprocessing helper functions
@@ -1014,6 +1020,9 @@ def plot_three_measures_vs_lambda(lam2_pfa: np.ndarray,
         ref = np.nanmax([y_pfa[0], 1e-300]) if np.isfinite(y_pfa[0]) else np.nanmax([np.nanmin(y_pfa), 1e-300])
         y_pfa = y_pfa / ref
     y_pfa_plot = np.log10(y_pfa)
+    
+    # Compute χ(λ) for annotation
+    chi = 2.0 * lam_arr_psa**2 * sigma_phi
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8.0, 8.0), sharex=True)
 
@@ -1042,6 +1051,13 @@ def plot_three_measures_vs_lambda(lam2_pfa: np.ndarray,
     ax2.set_xlabel(r'$2\sigma_\phi \lambda^2$')
     ax2.grid(True, which='both', alpha=0.25)
     ax2.legend(frameon=False, loc='best')
+    
+    # Add χ(λ) annotation on secondary y-axis
+    ax2_twin = ax2.twinx()
+    ax2_twin.semilogx(x_psa, chi, alpha=0.25, color='gray', linestyle='--')
+    ax2_twin.axhline(1.0, ls=':', lw=0.8, color='k', alpha=0.7)
+    ax2_twin.set_ylabel(r'$\chi(\lambda)=2\,\lambda^2\sigma_\Phi$', color='gray')
+    ax2_twin.tick_params(axis='y', labelcolor='gray')
 
     ax1.set_title(title)
     fig.tight_layout()
@@ -1144,20 +1160,39 @@ def run(h5_path: str, force_random_dominated: bool = False, decorrelate: bool = 
     Bx, By, Bz, ne = load_fields(h5_path, keys)
     Pi = polarized_emissivity(Bx, By, gamma=cfg.gamma)
     
-    # Choose B_parallel based on cfg.los_axis
+    # Choose B_parallel based on cfg.los_axis (corrected mapping)
     if cfg.los_axis == 0:
-        Bpar = Bz
+        Bpar = Bx
     elif cfg.los_axis == 1:
         Bpar = By
     else:
-        Bpar = Bx
+        Bpar = Bz
     
     # Option to force random-dominated regime
     if force_random_dominated:
         print("\n⚠ FORCING RANDOM-DOMINATED REGIME (subtracting mean B_∥)")
         Bpar = Bpar - Bpar.mean()
     
-    phi = faraday_density(ne, Bpar, C=cfg.faraday_const)
+    # provisional φ with C=1 for measuring σ_Φ
+    phi = faraday_density(ne, Bpar, C=1.0)
+
+    if cfg.use_auto_faraday:
+        # integrate φ along LOS to get total Φ per LOS (Ny×Nx map), using Δz=1/Nz
+        Nz = Bx.shape[cfg.los_axis]
+        dz = 1.0 / float(Nz)
+        Phi_tot = np.sum(np.moveaxis(phi, cfg.los_axis, 0), axis=0) * dz
+        sigma_Phi = float(Phi_tot.std())
+        # choose C so that χ(λ)=2 λ² σ_Φ ≈ 1 at λ² = lam2_break_target
+        if sigma_Phi > 0:
+            C = 1.0 / (max(cfg.lam2_break_target, 1e-30) * sigma_Phi)
+        else:
+            C = 1.0
+        phi *= C
+        print(f"[PFA] σΦ={sigma_Phi:.3g}, C={C:.3g}")
+    else:
+        # fallback: honor user-specified constant
+        phi *= cfg.faraday_const
+    
     # Diagnose regime on the *native* φ (so r_i is physical)
     phi_info = compute_faraday_regime(phi, verbose=True)
     

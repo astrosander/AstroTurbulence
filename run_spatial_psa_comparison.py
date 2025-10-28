@@ -62,13 +62,13 @@ def load_real_data():
     # Compute polarization emissivity
     Pi = polarized_emissivity_simple(Bx, By, gamma=cfg.gamma)
     
-    # Choose B_parallel based on cfg.los_axis
+    # Choose B_parallel based on cfg.los_axis (corrected mapping)
     if cfg.los_axis == 0:
-        Bpar = Bz
+        Bpar = Bx
     elif cfg.los_axis == 1:
         Bpar = By
     else:
-        Bpar = Bx
+        Bpar = Bz
     
     # Compute Faraday density
     phi = faraday_density(ne, Bpar, C=cfg.faraday_const)
@@ -93,6 +93,14 @@ def load_real_data():
                              k_min=3.0, min_counts_per_ring=10, return_energy_like=False)
     
     print(f"Generated PSA data: {len(k_P)} points for P, {len(k_dP)} points for dP/dλ²")
+    
+    # Sanity check: verify slopes match diagnostics expectations
+    print(f"\n[Sanity] Using PSD + Hann, k∈[4,25] like diagnostics")
+    mP, aP, eP, _ = fit_log_slope_with_bounds(k_P, Ek_P, kmin=4, kmax=25)
+    mD, aD, eD, _ = fit_log_slope_with_bounds(k_dP, Ek_dP, kmin=4, kmax=25)
+    print(f"  P  slope = {mP:.2f} ± {eP:.2f}")
+    print(f"  dP slope = {mD:.2f} ± {eD:.2f}")
+    print(f"  Expected: ~-3.5 for PSD (should match diagnostics)")
     
     return k_P, Ek_P, k_dP, Ek_dP
 
@@ -273,13 +281,13 @@ def main():
     # Compute polarization emissivity
     Pi = polarized_emissivity_simple(Bx, By, gamma=cfg.gamma)
     
-    # Choose B_parallel based on cfg.los_axis
+    # Choose B_parallel based on cfg.los_axis (corrected mapping)
     if cfg.los_axis == 0:
-        Bpar = Bz
+        Bpar = Bx
     elif cfg.los_axis == 1:
         Bpar = By
     else:
-        Bpar = Bx
+        Bpar = Bz
     
     # Compute Faraday density
     phi = faraday_density(ne, Bpar, C=cfg.faraday_const)
