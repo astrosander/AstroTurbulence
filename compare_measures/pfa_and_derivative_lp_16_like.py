@@ -72,7 +72,27 @@ def load_fields(h5_path: str, keys: FieldKeys):
     return Bx, By, Bz, ne
 
 
-def polarized_emissivity(Bx: np.ndarray, By: np.ndarray, gamma: float = 2.0) -> np.ndarray:
+def polarized_emissivity_lp16(Bx: np.ndarray, By: np.ndarray, gamma: float = 2.0) -> np.ndarray:
+    """
+    Compute polarized emissivity P_i = (B_x + iB_y)^2 |B_perp|^((γ-3)/2)
+    
+    This is the LP16 formula with γ-dependent amplitude factor.
+    For γ=2: P_i = (B_x + iB_y)^2 / sqrt(|B_perp|)
+    For γ=3: P_i = (B_x + iB_y)^2 (pure quadratic, no amplitude factor)
+    
+    Args:
+        Bx, By: magnetic field components perpendicular to LOS
+        gamma: spectral index of relativistic electron distribution
+    
+    Returns:
+        Pi: complex polarized emissivity
+    """
+    Bp2 = Bx*Bx + By*By
+    amp = np.maximum(Bp2, 1e-30)**(0.5*(gamma-3.0))
+    return (Bx + 1j*By)**2 * amp
+
+
+def polarized_emissivity_simple(Bx: np.ndarray, By: np.ndarray, gamma: float = 2.0) -> np.ndarray:
     """
     LP16 emissivity:
       P_i = (Bx + i By)^2 * |B_perp|^{(gamma-3)/2}
@@ -88,6 +108,25 @@ def faraday_density(ne: np.ndarray, Bpar: np.ndarray, C: float = 0.81) -> np.nda
     return C * ne * Bpar
 
 
+def linear_tracer(Bx: np.ndarray, By: np.ndarray) -> np.ndarray:
+    """
+    Create a linear tracer field for comparison with quadratic emissivity.
+    
+    This returns Bx + i*By (linear in the magnetic field components)
+    instead of (Bx + i*By)^2 (quadratic).
+    
+    This should show the expected -8/3 ≈ -2.67 slope for 2D PSD
+    of a linear field projected from 3D Kolmogorov turbulence.
+    
+    Args:
+        Bx, By: magnetic field components perpendicular to LOS
+    
+    Returns:
+        Linear tracer field (complex)
+    """
+    return Bx + 1j*By
+
+
 def _move_los(arr: np.ndarray, axis: int) -> np.ndarray:
     return np.moveaxis(arr, axis, 0)
 
@@ -95,7 +134,8 @@ def _move_los(arr: np.ndarray, axis: int) -> np.ndarray:
 def psa_of_map(P_map: np.ndarray, ring_bins: int = 48, pad: int = 1,
                apodize: bool = True, k_min: float = 6.0,
                min_counts_per_ring: int = 10,
-               beam_sigma_px: float = 0.0) -> Tuple[np.ndarray, np.ndarray]:
+               beam_sigma_px: float = 0.0,
+               return_energy_like: bool = False) -> Tuple[np.ndarray, np.ndarray]:
     """
     Compute azimuthally-averaged power spectrum (PSA) of a 2D polarization map.
     This is the spatial statistic discussed in LP16 §6.
@@ -112,10 +152,13 @@ def psa_of_map(P_map: np.ndarray, ring_bins: int = 48, pad: int = 1,
         pad: zero-padding factor (1=no padding, 2=double size)
         apodize: apply 2D Hann window
         k_min: minimum k to include (avoid undersampled modes)
+        min_counts_per_ring: minimum points per ring for valid bin
+        beam_sigma_px: Gaussian beam smoothing in pixels (0=no beam)
+        return_energy_like: if True, return E_2D(k) = 2πk P_2D(k) instead of P_2D(k)
     
     Returns:
         k_centers: wavenumber bins (geometric mean)
-        E_k: ring-averaged power spectrum
+        E_k: ring-averaged power spectrum (PSD or energy-like depending on return_energy_like)
     """
     # Detrend (always)
     Y = P_map - P_map.mean()
@@ -183,8 +226,12 @@ def psa_of_map(P_map: np.ndarray, ring_bins: int = 48, pad: int = 1,
         # drop very low-k and very high-k
         kvec = kvec[msk2]
         Ek_int = Ek_int[msk2]
+        if return_energy_like:
+            Ek_int = 2.0 * np.pi * kvec * Ek_int
         return kvec, Ek_int
 
+    if return_energy_like:
+        Ek = 2.0 * np.pi * kcen * Ek
     return kcen[msk], Ek[msk]
 
 
@@ -528,7 +575,7 @@ def fit_log_slope_window(k: np.ndarray, E: np.ndarray):
     for p in (35, 45, 55, 65):
         kmid = 10**np.percentile(lk, p)
         for span in (0.9, 1.0, 1.1):  # ~ one decade ±10%
-            lo, hi = kmid/10**(span/2), kmid*10**(span/2)
+            lo, hi = kmid/10**(span/2)*1.4, kmid*10**(span/2)*0.6
             s = (k>=lo)&(k<=hi)
             if s.sum()<10: 
                 continue
@@ -656,7 +703,7 @@ def plot_spatial_psa_comparison(k_P: np.ndarray, Ek_P: np.ndarray,
     
     # Use improved auto-fit window function with error estimates
     m_P, a_P, err_P, (k_min_fit, k_max_fit) = fit_log_slope_window(k_P, Ek_P)
-    
+
     # PSA of P
     ax1.loglog(k_P, Ek_P, 'o-', markersize=1, label=f'PSA of $P(\\lambda={lam:.1f})$')
     if np.isfinite(m_P):
@@ -674,6 +721,7 @@ def plot_spatial_psa_comparison(k_P: np.ndarray, Ek_P: np.ndarray,
     
     # PSA of dP/dλ²
     m_dP, a_dP, err_dP, (k_min_dP, k_max_dP) = fit_log_slope_window(k_dP, Ek_dP)
+
     ax2.loglog(k_dP, Ek_dP, 's-', markersize=1, color='darkorange',
               label=f'PSA of $dP/d\\lambda^2$ ($\\lambda={lam:.1f}$)')
     if np.isfinite(m_dP):
@@ -1063,6 +1111,7 @@ def plot_derivative_slope_analysis(lam2_sep: np.ndarray, dvar_sep: np.ndarray,
         print("    between separated (flat) and mixed (sloped) cases")
     
     return m_sep, m_mix
+
 
 # -----------------------------
 # Runner / demo
