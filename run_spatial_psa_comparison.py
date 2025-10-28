@@ -74,7 +74,7 @@ def load_real_data():
     phi = faraday_density(ne, Bpar, C=cfg.faraday_const)
     
     # Choose a specific lambda value for analysis
-    lam = 0.000000
+    lam = 1.000000
     
     print(f"Computing polarization maps for λ = {lam}...")
     
@@ -245,13 +245,14 @@ def lambda_zero_diagnostics(Pi, phi, Bx, By, cfg, case="Mixed"):
 
 def main():
     """
-    Main function to run the spatial PSA comparison plot.
+    Main function to run the spatial PSA comparison plot with λ² sweep
+    and create slope vs χ plot.
     """
     print("="*70)
-    print("SPATIAL PSA COMPARISON ANALYSIS")
+    print("SPATIAL PSA COMPARISON ANALYSIS - λ² SWEEP")
     print("="*70)
     
-    # Load data and run diagnostics
+    # Load data
     keys = FieldKeys()
     cfg = PFAConfig()
     
@@ -278,94 +279,153 @@ def main():
     Bx, By, Bz, ne = load_fields(h5_path, keys)
     print(f"Loaded fields with shape: Bx={Bx.shape}, By={By.shape}, Bz={Bz.shape}, ne={ne.shape}")
     
-    # Compute polarization emissivity
-    Pi = polarized_emissivity_simple(Bx, By, gamma=cfg.gamma)
+    # 0) Consistent LOS and regime
+    cfg.los_axis = 2
+    gamma = cfg.gamma = 2.0
+    Bpar = Bz if cfg.los_axis == 2 else (By if cfg.los_axis == 1 else Bx)
+    Bpar = Bpar - Bpar.mean()  # random-dominated
     
-    # Choose B_parallel based on cfg.los_axis (corrected mapping)
-    if cfg.los_axis == 0:
-        Bpar = Bx
-    elif cfg.los_axis == 1:
-        Bpar = By
-    else:
-        Bpar = Bz
+    # 1) Compute sigmaPhi0 with C=1
+    phi_unit = ne * Bpar
+    Phi_tot  = np.moveaxis(phi_unit, cfg.los_axis, 0).sum(axis=0) / phi_unit.shape[cfg.los_axis]
+    sigmaPhi0 = float(Phi_tot.std())
     
-    # Compute Faraday density
-    phi = faraday_density(ne, Bpar, C=cfg.faraday_const)
+    # 2) Set Faraday constant to reasonable value
+    cfg.faraday_const = 1.0  # Keep C=1 for simplicity
+    phi = cfg.faraday_const * phi_unit
     
-    # Run λ=0 diagnostics
-    lambda_zero_diagnostics(Pi, phi, Bx, By, cfg, case="Mixed")
+    print(f"Using C={cfg.faraday_const:.3g}; σΦ₀={sigmaPhi0:.3g}")
     
-    # Try to load real data first, fall back to synthetic if needed
-    k_P, Ek_P, k_dP, Ek_dP = load_real_data()
+    # 3) PSA settings (use the same everywhere)
+    psa_kwargs = dict(ring_bins=48, pad=1, apodize=True, k_min=6.0, min_counts_per_ring=10)
+    fit_bounds = dict(kmin=4, kmax=25)
     
-    # Set the lambda value for the plot
-    lam = 0.000000
+    # 4) Define λ² grid for sweep (uniform in λ², covering χ ∈ [0.1, 20])
+    lam2_min = 0.05 / (2.0 * sigmaPhi0)  # χ ≈ 0.1
+    lam2_max = 20.0 / (2.0 * sigmaPhi0)  # χ ≈ 20
+    n_points = 100
+    lam2_values = np.linspace(lam2_min, lam2_max, n_points)
     
-    print(f"\nCreating spatial PSA comparison plot for λ = {lam}...")
+    print(f"\nλ² sweep: {lam2_min:.3f} to {lam2_max:.3f} ({n_points} points)")
+    print(f"Corresponding χ range: {2*sigmaPhi0*lam2_min:.2f} to {2*sigmaPhi0*lam2_max:.2f}")
     
-    # Create the plot with unified settings (PSD)
-    m_P, m_dP, err_P, err_dP = plot_spatial_psa_comparison(
-        k_P=k_P, 
-        Ek_P=Ek_P, 
-        k_dP=k_dP, 
-        Ek_dP=Ek_dP, 
-        lam=lam, 
-        case="Mixed",
-        spectrum="psd",
-        kfit_bounds=(4, 25)
-    )
+    # 5) Initialize arrays to store results
+    chi_values = []
+    slopes_P = []
+    slopes_dP = []
+    errors_P = []
+    errors_dP = []
     
-    # Also test energy-like spectrum for comparison
-    print(f"\nTesting energy-like spectrum for consistency...")
+    # 6) Sweep over λ² values
+    print(f"\nComputing PSA slopes for each λ²...")
+    for i, lam2 in enumerate(lam2_values):
+        lam = np.sqrt(lam2)
+        chi = 2.0 * sigmaPhi0 * cfg.faraday_const * lam2
+        
+        print(f"  λ²={lam2:.3f}, χ={chi:.2f} ({i+1}/{n_points})")
+        
+        # Build maps for this λ
+        P_map = P_map_mixed(polarized_emissivity_simple(Bx, By, gamma=gamma), phi, lam, cfg)
+        dP_map = dP_map_mixed(polarized_emissivity_simple(Bx, By, gamma=gamma), phi, lam, cfg)
+        
+        # Compute PSA
+        k_P, Ek_P = psa_of_map(P_map, return_energy_like=False, **psa_kwargs)
+        k_dP, Ek_dP = psa_of_map(dP_map, return_energy_like=False, **psa_kwargs)
+        
+        # Fit slopes
+        mP, aP, eP, _ = fit_log_slope_with_bounds(k_P, Ek_P, **fit_bounds)
+        mD, aD, eD, _ = fit_log_slope_with_bounds(k_dP, Ek_dP, **fit_bounds)
+        
+        # Store results
+        chi_values.append(chi)
+        slopes_P.append(mP)
+        slopes_dP.append(mD)
+        errors_P.append(eP)
+        errors_dP.append(eD)
+        
+        print(f"    P slope: {mP:.2f}±{eP:.2f}, dP/dλ² slope: {mD:.2f}±{eD:.2f}")
     
-    # Recompute with energy-like spectrum
-    P_map = P_map_mixed(Pi, phi, lam, cfg)
-    dP_map = dP_map_mixed(Pi, phi, lam, cfg)
-    
-    k_P_E, Ek_P_E = psa_of_map(P_map, ring_bins=48, pad=1, apodize=True, 
-                               k_min=3.0, min_counts_per_ring=10, return_energy_like=True)
-    k_dP_E, Ek_dP_E = psa_of_map(dP_map, ring_bins=48, pad=1, apodize=True, 
-                                 k_min=3.0, min_counts_per_ring=10, return_energy_like=True)
-    
-    # Create energy-like plot
-    m_P_E, m_dP_E, err_P_E, err_dP_E = plot_spatial_psa_comparison(
-        k_P=k_P_E, 
-        Ek_P=Ek_P_E, 
-        k_dP=k_dP_E, 
-        Ek_dP=Ek_dP_E, 
-        lam=lam, 
-        case="Mixed",
-        spectrum="energy",
-        kfit_bounds=(4, 25)
-    )
-    
-    # Save the plot to the specified output path
-    output_path = r"D:\Рабочая папка\GitHub\AstroTurbulence\compare_measures\lp2016_outputs\derivative_slope_analysis_random.png"
-    
-    # Ensure the output directory exists
-    output_dir = os.path.dirname(output_path)
+    # 7) Save results to NPZ for later reproducibility
+    output_dir = r"D:\Рабочая папка\GitHub\AstroTurbulence\compare_measures\lp2016_outputs"
     os.makedirs(output_dir, exist_ok=True)
+    npz_path = os.path.join(output_dir, "psa_slopes_vs_chi_data.npz")
+    np.savez(
+        npz_path,
+        lam2_values=np.array(lam2_values),
+        chi_values=np.array(chi_values),
+        slopes_P=np.array(slopes_P),
+        slopes_dP=np.array(slopes_dP),
+        errors_P=np.array(errors_P),
+        errors_dP=np.array(errors_dP),
+        psa_kwargs=psa_kwargs,
+        fit_bounds=fit_bounds,
+        sigmaPhi0=np.array(sigmaPhi0),
+        faraday_const=np.array(cfg.faraday_const),
+        los_axis=np.array(cfg.los_axis),
+        gamma=np.array(gamma),
+    )
+    print(f"\nSaved sweep data to: {npz_path}")
+
+    # 8) Create slope vs χ plot
+    print(f"\nCreating slope vs χ plot...")
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 12))
+    # (plots already configured) 
+    # (plots already configured)
+    # (plots already configured)
+    # (plots already configured)
     
-    print(f"\nSaving plot to: {output_path}")
-    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    # Plot P slopes
+    ax1.errorbar(chi_values, slopes_P, yerr=errors_P, fmt='o-', capsize=3, 
+                 label='PSA of P', color='blue', alpha=0.7)
+    ax1.set_xlabel('χ = 2σΦλ²')
+    ax1.set_ylabel('PSA Slope of P')
+    ax1.set_title('PSA Slope of P vs χ (Mixed Geometry, Random-Dominated)')
+    ax1.grid(True, alpha=0.3)
+    ax1.legend()
     
-    print(f"\nPlot saved successfully!")
-    print(f"\nCONSISTENCY CHECK:")
-    print(f"PSD spectrum:")
-    print(f"  PSA of P slope: {m_P:.2f} ± {err_P:.2f}")
-    print(f"  PSA of dP/dλ² slope: {m_dP:.2f} ± {err_dP:.2f}")
-    print(f"  Difference: {abs(m_dP - m_P):.2f}")
+    # Plot dP/dλ² slopes
+    ax2.errorbar(chi_values, slopes_dP, yerr=errors_dP, fmt='s-', capsize=3, 
+                 label='PSA of dP/dλ²', color='red', alpha=0.7)
+    ax2.set_xlabel('χ = 2σΦλ²')
+    ax2.set_ylabel('PSA Slope of dP/dλ²')
+    ax2.set_title('PSA Slope of dP/dλ² vs χ (Mixed Geometry, Random-Dominated)')
+    ax2.grid(True, alpha=0.3)
+    ax2.legend()
     
-    print(f"\nEnergy-like spectrum:")
-    print(f"  PSA of P slope: {m_P_E:.2f} ± {err_P_E:.2f}")
-    print(f"  PSA of dP/dλ² slope: {m_dP_E:.2f} ± {err_dP_E:.2f}")
-    print(f"  Difference: {abs(m_dP_E - m_P_E):.2f}")
+    plt.tight_layout()
     
-    print(f"\nExpected relationship: Energy-like slope = PSD slope + 1")
-    print(f"  P: {m_P_E:.2f} vs {m_P + 1:.2f} (diff: {abs(m_P_E - (m_P + 1)):.2f})")
-    print(f"  dP: {m_dP_E:.2f} vs {m_dP + 1:.2f} (diff: {abs(m_dP_E - (m_dP + 1)):.2f})")
+    # Save the slope vs χ plot
+    slope_plot_path = os.path.join(output_dir, "psa_slopes_vs_chi.png")
     
-    # Show the plot
+    print(f"Saving slope vs χ plot to: {slope_plot_path}")
+    plt.savefig(slope_plot_path, dpi=300, bbox_inches='tight')
+    
+    # 8) Also create a combined plot
+    plt.figure(figsize=(10, 6))
+    plt.errorbar(chi_values, slopes_P, yerr=errors_P, fmt='o-', capsize=3, 
+                 label='PSA of P', color='blue', alpha=0.7)
+    plt.errorbar(chi_values, slopes_dP, yerr=errors_dP, fmt='s-', capsize=3, 
+                 label='PSA of dP/dλ²', color='red', alpha=0.7)
+    plt.xlabel('χ = 2σΦλ²')
+    plt.ylabel('PSA Slope')
+    plt.title('PSA Slopes vs χ (Mixed Geometry, Random-Dominated)')
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+    
+    combined_plot_path = os.path.join(output_dir, "psa_slopes_vs_chi_combined.png")
+    plt.savefig(combined_plot_path, dpi=300, bbox_inches='tight')
+    print(f"Saving combined plot to: {combined_plot_path}")
+    
+    # 9) Print summary
+    print(f"\n" + "="*70)
+    print(f"SUMMARY - PSA SLOPES vs χ")
+    print(f"="*70)
+    print(f"χ range: {min(chi_values):.2f} to {max(chi_values):.2f}")
+    print(f"P slopes range: {min(slopes_P):.2f} to {max(slopes_P):.2f}")
+    print(f"dP/dλ² slopes range: {min(slopes_dP):.2f} to {max(slopes_dP):.2f}")
+    print(f"Average slope difference: {np.mean(np.abs(np.array(slopes_dP) - np.array(slopes_P))):.2f}")
+    
+    # Show the plots
     plt.show()
 
 if __name__ == "__main__":
