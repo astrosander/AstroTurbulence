@@ -1,6 +1,6 @@
 import json, numpy as np, matplotlib.pyplot as plt
 
-def _slope_guide(k, E, exponent=-5/3, f1=0.07, f2=0.35, s=10):
+def _slope_guide(k, E, exponent=-5/3, f1=0.07, f2=0.35, s=3):
     klo, khi = int(len(k)*f1), int(len(k)*f2)
     kref = np.median(k[klo:khi]) if khi > klo else k[len(k)//3]
     Eref = np.interp(kref, k, E)
@@ -31,7 +31,10 @@ def replot(npz="M_A=2.0, 792^3, t=1.0.npz", meta="M_A=2.0, 792^3, t=1.0.json", o
     # Plot slope guide
     mask_main = kv_main <= 792/2
     for ax, g in [(ax1, gv[mask_main]), (ax2, gb[mask_main])]:
-        ax.loglog(kv_main[mask_main], g*50, "--", lw=1.4, label="slope: $-5/3$", c='k')
+        if ax == ax1:
+            ax.loglog(kv_main[mask_main], g*30, "--", lw=1.4, label="slope: $-5/3$", c='k')
+        else:
+            ax.loglog(kv_main[mask_main], g*70, "--", lw=1.4, label="slope: $-5/3$", c='k')
     
     # Plot kA lines and data curves
     for npz_file, meta_file, label, color, alpha in data_files:
