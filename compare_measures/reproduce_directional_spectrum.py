@@ -5,7 +5,7 @@ Reproduce plots from saved NPZ data files.
 This script loads NPZ files from various analysis scripts and recreates the plots:
 1. curve_mixed_chi.npz from compute_pfa_vs_chi_lp16.py
 2. dir_slopes_vs_lambda_separated_data.npz from run_directional_spectrum_vs_lambda.py  
-3. psa_slopes_vs_chi_data.npz from run_spatial_psa_comparison.py
+3. psa_slopes_vs_chi_data_separated.npz from run_spatial_psa_comparison.py
 """
 
 import os
@@ -155,6 +155,21 @@ def reproduce_directional_sweep_plot(npz_path: str, output_path: str = None):
     plt.xlabel('$\\chi = 2\\sigma_\\Phi \\lambda^2$')
     plt.ylabel('Directional Spectrum Slope')
     plt.title(f'Directional Spectrum Slope vs $\\chi$ ({geometry.capitalize()} Geometry, $\\chi \\in [0, 20]$)')
+    # Overlay reference lines proportional to chi^{-1} and chi^{-5/3},
+    # scaled to the first positive-chi data point to match magnitude/sign
+    try:
+        pos_mask = chi_values > 0
+        if np.any(pos_mask):
+            chi_pos = chi_values[pos_mask]
+            y_pos = slopes_dir[pos_mask]
+            chi_ref = chi_pos[0]
+            y_ref = y_pos[0]
+            ref1 = y_ref * (chi_ref / chi_pos)
+            ref53 = y_ref * (chi_ref / chi_pos)**(5/3)
+            plt.plot(chi_pos, ref1, '--', color='gray', linewidth=1.2, alpha=0.7, label=r'$\propto \chi^{-1}$')
+            plt.plot(chi_pos, ref53, '-.', color='dimgray', linewidth=1.2, alpha=0.7, label=r'$\propto \chi^{-5/3}$')
+    except Exception:
+        pass
     plt.grid(True, alpha=0.3)
     plt.legend()
     
@@ -311,7 +326,7 @@ def create_combined_panel_plot(npz_dir: str = None):
                 dir_npz_path = test_path
         
         if psa_npz_path is None:
-            test_path = os.path.join(npz_dir, "psa_slopes_vs_chi_data.npz")
+            test_path = os.path.join(npz_dir, "psa_slopes_vs_chi_data_separated.npz")
             if os.path.exists(test_path):
                 psa_npz_path = test_path
     
@@ -391,6 +406,20 @@ def create_combined_panel_plot(npz_dir: str = None):
             axes[1].set_xlabel('$\\chi = 2\\sigma_\\Phi \\lambda^2$')
             axes[1].set_ylabel('Directional Spectrum Slope')
             # axes[1].set_title('Directional Spectrum Slope vs $\\chi$')
+            # Overlay chi^{-1} and chi^{-5/3} reference curves scaled to first positive-chi point
+            try:
+                pos_mask = chi_values > 0
+                if np.any(pos_mask):
+                    chi_pos = chi_values[pos_mask]
+                    y_pos = slopes_dir[pos_mask]
+                    chi_ref = chi_pos[0]
+                    y_ref = y_pos[0]
+                    ref1 = y_ref * (chi_ref / chi_pos)
+                    ref53 = y_ref * (chi_ref / chi_pos)**(5/3)
+                    axes[1].plot(chi_pos, ref1, '--', color='gray', linewidth=1.2, alpha=0.7, label=r'$\propto \chi^{-1}$')
+                    axes[1].plot(chi_pos, ref53, '-.', color='dimgray', linewidth=1.2, alpha=0.7, label=r'$\propto \chi^{-5/3}$')
+            except Exception:
+                pass
             axes[1].grid(True, alpha=0.3)
             axes[1].legend()
             print(f"✓ Added directional spectrum plot from: {os.path.basename(dir_npz_path)}")
@@ -457,7 +486,7 @@ def create_combined_panel_plot(npz_dir: str = None):
         ("dir_slopes_vs_chi_mixed_data.npz", reproduce_directional_sweep_plot),
         ("dir_slopes_vs_chi_separated_data.npz", reproduce_directional_sweep_plot),
         # PSA slopes plot
-        ("psa_slopes_vs_chi_data.npz", reproduce_psa_slopes_plot),
+        ("psa_slopes_vs_chi_data_separated.npz", reproduce_psa_slopes_plot),
         # PFA variance plot
         ("curve_mixed_chi.npz", reproduce_pfa_variance_plot),
     ]
