@@ -283,7 +283,7 @@ def create_combined_panel_plot(npz_dir: str = None):
     
     for npz_dir in npz_dirs:
         if pfa_npz_path is None:
-            test_path = os.path.join(npz_dir, "curve_mixed_chi.npz")
+            test_path = os.path.join(npz_dir, "curve_mixed_chi_separated.npz")
             if os.path.exists(test_path):
                 pfa_npz_path = test_path
         
@@ -401,6 +401,7 @@ def create_combined_panel_plot(npz_dir: str = None):
     # Save the combined plot
     output_path = os.path.join(npz_dir, "combined_panel_plot.png")
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.show()
     print(f"\nSaved combined panel plot: {output_path}")
     
     return output_path
