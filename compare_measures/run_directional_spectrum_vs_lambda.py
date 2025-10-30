@@ -58,7 +58,7 @@ def main():
 
     parser = argparse.ArgumentParser(description="Directional spectrum slopes vs lambda")
     parser.add_argument("--h5", default=DEFAULT_H5_PATH, help="Path to HDF5 with fields")
-    parser.add_argument("--geometry", choices=["mixed", "separated"], default="mixed")
+    parser.add_argument("--geometry", choices=["mixed", "separated"], default="separated")
     parser.add_argument("--every", type=int, default=2, help="Use every Nth lambda for speed")
     parser.add_argument("--ring_bins", type=int, default=48)
     parser.add_argument("--pad", type=int, default=1)

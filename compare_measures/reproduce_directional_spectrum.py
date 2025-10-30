@@ -4,7 +4,7 @@ Reproduce plots from saved NPZ data files.
 
 This script loads NPZ files from various analysis scripts and recreates the plots:
 1. curve_mixed_chi.npz from compute_pfa_vs_chi_lp16.py
-2. dir_slopes_vs_lambda_mixed_data.npz from run_directional_spectrum_vs_lambda.py  
+2. dir_slopes_vs_lambda_separated_data.npz from run_directional_spectrum_vs_lambda.py  
 3. psa_slopes_vs_chi_data.npz from run_spatial_psa_comparison.py
 """
 
@@ -245,6 +245,24 @@ def reproduce_pfa_variance_plot(npz_path: str, output_path: str = None):
     plt.figure(figsize=(10, 6))
     plt.loglog(chi_values, pfa_var, 'o-', markersize=4, alpha=0.9, 
                label='PFA variance', color='#8E44AD', linewidth=2.5, markerfacecolor='#E67E22', markeredgecolor='#8E44AD', markeredgewidth=1.5)
+    # Overlay reference chi^{-1} and chi^{-5/3} lines scaled to the first positive-chi point
+    try:
+        positive_mask = chi_values > 0
+        if np.any(positive_mask):
+            chi_pos = chi_values[positive_mask]
+            pfa_pos = pfa_var[positive_mask]
+            chi_ref = chi_pos[0]
+            pfa_ref = pfa_pos[0]
+            # chi^{-1}
+            ref_line = (pfa_ref * chi_ref) / chi_pos  # A/chi with A chosen to match first point
+            plt.loglog(chi_pos, ref_line, '--', color='gray', linewidth=1.5, alpha=0.7, label=r'$\propto \chi^{-1}$')
+            # chi^{-5/3}
+            half_idx = len(chi_pos) // 2
+            chi_pos_right = chi_pos[half_idx:]
+            ref_line_53_right = pfa_ref * (chi_ref / chi_pos_right)**(5/3)
+            plt.loglog(chi_pos_right, ref_line_53_right, '-.', color='dimgray', linewidth=1.5, alpha=0.7, label=r'$\propto \chi^{-5/3}$')
+    except Exception:
+        pass
     plt.xlabel('$\\chi = 2\\sigma_\\Phi \\lambda^2$')
     plt.ylabel('$\\langle|P|^2\\rangle$ (PFA variance)')
     plt.title('PFA Variance vs $\\chi$')
@@ -283,12 +301,12 @@ def create_combined_panel_plot(npz_dir: str = None):
     
     for npz_dir in npz_dirs:
         if pfa_npz_path is None:
-            test_path = os.path.join(npz_dir, "curve_mixed_chi_separated.npz")
+            test_path = os.path.join(npz_dir, "curve_mixed_chi_mixed.npz")
             if os.path.exists(test_path):
                 pfa_npz_path = test_path
         
         if dir_npz_path is None:
-            test_path = os.path.join(npz_dir, "dir_slopes_vs_lambda_mixed_data.npz")
+            test_path = os.path.join(npz_dir, "dir_slopes_vs_lambda_separated_data.npz")
             if os.path.exists(test_path):
                 dir_npz_path = test_path
         
@@ -322,6 +340,26 @@ def create_combined_panel_plot(npz_dir: str = None):
             
             axes[0].loglog(chi_values, pfa_var, 'o-', markersize=4, alpha=0.9, 
                           label='PFA variance', color='#8E44AD', linewidth=2.5, markerfacecolor='#E67E22', markeredgecolor='#8E44AD', markeredgewidth=1.5)
+            # Overlay reference chi^{-1} and chi^{-5/3} lines scaled to the first positive-chi point
+            try:
+                positive_mask = chi_values > 0
+                if np.any(positive_mask):
+                    chi_pos = chi_values[positive_mask]
+                    pfa_pos = pfa_var[positive_mask]
+                    chi_ref = chi_pos[0]
+                    pfa_ref = pfa_pos[0]
+                    # chi^{-1}
+                    ref_line = (pfa_ref * chi_ref) / chi_pos *15
+                    axes[0].loglog(chi_pos, ref_line, '--', color='green', linewidth=1.5, alpha=0.7, label=r'$\propto \chi^{-1}$')
+                    # chi^{-5/3} with the same visibility factor, plotted on the right half only
+                    half_idx = len(chi_pos) // 2
+                    chi_pos_right = chi_pos[half_idx:]
+                    ref_line_53_right = pfa_ref * (chi_ref / chi_pos_right)**(5/3) *400
+                    axes[0].loglog(chi_pos_right, ref_line_53_right, '-.', color='red', linewidth=1.5, alpha=0.7, label=r'$\propto \chi^{-5/3}$')
+                    
+
+            except Exception:
+                pass
             axes[0].set_xlabel('$\\chi = 2\\sigma_\\Phi \\lambda^2$')
             axes[0].set_ylabel('$\\langle|P|^2\\rangle$ (PFA variance)')
             # axes[0].set_title('PFA Variance vs $\\chi$')
@@ -414,7 +452,7 @@ def create_combined_panel_plot(npz_dir: str = None):
     # Define all possible NPZ files and their corresponding plot functions
     plot_configs = [
         # Directional spectrum plots
-        ("dir_slopes_vs_lambda_mixed_data.npz", reproduce_directional_original_plot),
+        ("dir_slopes_vs_lambda_separated_data.npz", reproduce_directional_original_plot),
         ("dir_slopes_vs_lambda_separated_data.npz", reproduce_directional_original_plot),
         ("dir_slopes_vs_chi_mixed_data.npz", reproduce_directional_sweep_plot),
         ("dir_slopes_vs_chi_separated_data.npz", reproduce_directional_sweep_plot),
