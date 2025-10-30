@@ -67,7 +67,8 @@ def load_npz_data(npz_path: str):
         slopes_dP = data['slopes_dP']
         errors_P = data['errors_P']
         errors_dP = data['errors_dP']
-        sigmaPhi0 = float(data['sigmaPhi0'])
+        # Make sigma optional to support files that don't carry it
+        sigmaPhi0 = float(data['sigmaPhi0']) if 'sigmaPhi0' in data else float('nan')
         data_type = 'psa_slopes'
     elif 'chi_values' in data and 'pfa_var' in data:
         # PFA variance data
@@ -313,6 +314,10 @@ def create_combined_panel_plot(npz_dir: str = None):
     pfa_npz_path = None
     dir_npz_path = None
     psa_npz_path = None
+    # Prefer the user-specified absolute path for PSA and derivative data if it exists
+    preferred_psa_path = r"D:\Рабочая папка\GitHub\AstroTurbulence\compare_measures\lp2016_outputs\psa_slopes_vs_chi_data_separated.npz"
+    if os.path.exists(preferred_psa_path):
+        psa_npz_path = preferred_psa_path
     
     for npz_dir in npz_dirs:
         if pfa_npz_path is None:
@@ -329,6 +334,11 @@ def create_combined_panel_plot(npz_dir: str = None):
             test_path = os.path.join(npz_dir, "psa_slopes_vs_chi_data_separated.npz")
             if os.path.exists(test_path):
                 psa_npz_path = test_path
+            else:
+                # Fallback to non-"separated" filename variant
+                alt_path = os.path.join(npz_dir, "psa_slopes_vs_chi_data.npz")
+                if os.path.exists(alt_path):
+                    psa_npz_path = alt_path
     
     # Create the combined figure
     fig, axes = plt.subplots(1, 3, figsize=(18, 6))

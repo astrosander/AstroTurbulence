@@ -118,6 +118,56 @@ def fit_log_slope_with_bounds(k, E, kmin=None, kmax=None):
     return m, a, err, (k.min(), k.max())
 
 
+#
+# === NEW: external-screen (separated) geometry helpers ===
+#
+def P_map_separated(Pi, phi, lam, cfg,
+                    emit_bounds=None,
+                    screen_bounds=None):
+    """
+    External screen: P(X,λ) = [∫_emit Pi dz] * exp{ 2i λ^2 Φ_screen(X) }.
+    |P| does NOT depend on λ; all λ-dependence is in the phase.
+    """
+    Pi_los  = np.moveaxis(Pi,  cfg.los_axis, 0)
+    phi_los = np.moveaxis(phi, cfg.los_axis, 0)
+    Nz, Ny, Nx = Pi_los.shape
+
+    # default: take front 10% as screen, rest as emitter
+    if screen_bounds is None:
+        scr_N = max(1, int(0.10 * Nz))
+        screen_bounds = (0, scr_N)
+    if emit_bounds is None:
+        emit_bounds = (screen_bounds[1], Nz)
+
+    z0e, z1e = emit_bounds
+    z0s, z1s = screen_bounds
+
+    # emission (no internal rotation)
+    P_emit = Pi_los[z0e:z1e].sum(axis=0)
+    # screen RM
+    Phi_screen = phi_los[z0s:z1s].sum(axis=0)
+    return P_emit * np.exp(2j * (lam**2) * Phi_screen)
+
+def dP_map_separated(Pi, phi, lam, cfg,
+                     emit_bounds=None,
+                     screen_bounds=None):
+    """
+    dP/d(λ²) for external screen: 2i Φ_screen * P(X,λ).
+    """
+    Pi_los  = np.moveaxis(Pi,  cfg.los_axis, 0)
+    phi_los = np.moveaxis(phi, cfg.los_axis, 0)
+    Nz, Ny, Nx = Pi_los.shape
+    if screen_bounds is None:
+        scr_N = max(1, int(0.10 * Nz))
+        screen_bounds = (0, scr_N)
+    if emit_bounds is None:
+        emit_bounds = (screen_bounds[1], Nz)
+    z0e, z1e = emit_bounds
+    z0s, z1s = screen_bounds
+    P = P_map_separated(Pi, phi, lam, cfg, emit_bounds, screen_bounds)
+    Phi_screen = phi_los[z0s:z1s].sum(axis=0)
+    return 2j * Phi_screen * P
+
 def P_map_thin_slice(Bx, By, z0=0, dz=8):
     """Create a linear tracer thin slice for comparison with column integration."""
     # Returns a linear tracer slice: Q+iU ≈ Bx + i By integrated over dz
@@ -132,11 +182,12 @@ def lambda_zero_diagnostics(Pi, phi, Bx, By, cfg, case="Mixed"):
     print(f"{'='*60}")
     
     # Create λ=0 polarization maps
-    P0 = P_map_mixed(Pi, phi, lam=0.0, cfg=cfg)
+    # (for external screen, λ=0 just returns the emitter sum)
+    P0 = P_map_separated(Pi, phi, lam=0.0, cfg=cfg)
     Pi_linear = linear_tracer(Bx, By)
-    P0_linear = P_map_mixed(Pi_linear, phi, lam=0.0, cfg=cfg)
+    P0_linear = P_map_separated(Pi_linear, phi, lam=0.0, cfg=cfg)
     Pi_lp16 = polarized_emissivity_lp16(Bx, By, gamma=2.0)
-    P0_lp16 = P_map_mixed(Pi_lp16, phi, lam=0.0, cfg=cfg)
+    P0_lp16 = P_map_separated(Pi_lp16, phi, lam=0.0, cfg=cfg)
     
     # Add thin slice comparison
     P0_linear_thin = P_map_thin_slice(Bx, By, z0=Bx.shape[2]//2, dz=8)
@@ -160,7 +211,7 @@ def lambda_zero_diagnostics(Pi, phi, Bx, By, cfg, case="Mixed"):
     
     # Create single 4x3 figure (4 emissivity types, 3 test cases)
     fig, axes = plt.subplots(4, 3, figsize=(18, 16))
-    fig.suptitle('λ=0 PSA Analysis: All Emissivity Types and Test Cases', fontsize=16)
+    fig.suptitle('λ=0 PSA Analysis (Separated Screen): All Emissivity Types and Test Cases', fontsize=16)
     
     for emissivity_idx, (emissivity_name, P_map, description) in enumerate(emissivity_cases):
         print(f"\n{description}:")
@@ -249,7 +300,7 @@ def main():
     and create slope vs χ plot.
     """
     print("="*70)
-    print("SPATIAL PSA COMPARISON ANALYSIS - λ² SWEEP")
+    print("SPATIAL PSA COMPARISON ANALYSIS - λ² SWEEP (Separated Screen)")
     print("="*70)
     
     # Load data
@@ -285,29 +336,36 @@ def main():
     Bpar = Bz if cfg.los_axis == 2 else (By if cfg.los_axis == 1 else Bx)
     Bpar = Bpar - Bpar.mean()  # random-dominated
     
-    # 1) Compute sigmaPhi0 with C=1
+    # 1) Build φ with chosen C, and choose separated bounds
     phi_unit = ne * Bpar
-    Phi_tot  = np.moveaxis(phi_unit, cfg.los_axis, 0).sum(axis=0) / phi_unit.shape[cfg.los_axis]
-    sigmaPhi0 = float(Phi_tot.std())
+    Nz = phi_unit.shape[cfg.los_axis]
+    scr_N = max(1, int(0.10 * Nz))          # 10% of depth as screen
+    screen_bounds = (0, scr_N)               # front slab → screen
+    emit_bounds   = (scr_N, Nz)              # rest → emitter
     
     # 2) Set Faraday constant to reasonable value
-    cfg.faraday_const = 1.0  # Keep C=1 for simplicity
+    cfg.faraday_const = 1.0  # Keep C=1 for simplicity (can be CLI’d)
     phi = cfg.faraday_const * phi_unit
     
-    print(f"Using C={cfg.faraday_const:.3g}; σΦ₀={sigmaPhi0:.3g}")
+    # 1b) σΦ from the SCREEN ONLY (for χ = 2 σΦ λ² in separated case)
+    phi_los = np.moveaxis(phi, cfg.los_axis, 0)
+    Phi_screen = phi_los[screen_bounds[0]:screen_bounds[1]].sum(axis=0)
+    sigmaPhi_screen = float(Phi_screen.std())
+    
+    print(f"Using C={cfg.faraday_const:.3g}; σΦ(screen)={sigmaPhi_screen:.3g} (bounds={screen_bounds})")
     
     # 3) PSA settings (use the same everywhere)
     psa_kwargs = dict(ring_bins=48, pad=1, apodize=True, k_min=6.0, min_counts_per_ring=10)
     fit_bounds = dict(kmin=4, kmax=25)
     
-    # 4) Define λ² grid for sweep (uniform in λ², covering χ ∈ [0.1, 20])
-    lam2_min = 0.05 / (2.0 * sigmaPhi0)  # χ ≈ 0.1
-    lam2_max = 20.0 / (2.0 * sigmaPhi0)  # χ ≈ 20
+    # 4) Define λ² grid for sweep (uniform in λ², covering χ ∈ [0.05, 20])
+    lam2_min = 0.05 / (2.0 * sigmaPhi_screen)
+    lam2_max = 20.0 / (2.0 * sigmaPhi_screen)
     n_points = 100
     lam2_values = np.linspace(lam2_min, lam2_max, n_points)
     
     print(f"\nλ² sweep: {lam2_min:.3f} to {lam2_max:.3f} ({n_points} points)")
-    print(f"Corresponding χ range: {2*sigmaPhi0*lam2_min:.2f} to {2*sigmaPhi0*lam2_max:.2f}")
+    print(f"Corresponding χ range: {2*sigmaPhi_screen*lam2_min:.2f} to {2*sigmaPhi_screen*lam2_max:.2f}")
     
     # 5) Initialize arrays to store results
     chi_values = []
@@ -320,13 +378,16 @@ def main():
     print(f"\nComputing PSA slopes for each λ²...")
     for i, lam2 in enumerate(lam2_values):
         lam = np.sqrt(lam2)
-        chi = 2.0 * sigmaPhi0 * cfg.faraday_const * lam2
+        chi = 2.0 * sigmaPhi_screen * cfg.faraday_const * lam2
         
         print(f"  λ²={lam2:.3f}, χ={chi:.2f} ({i+1}/{n_points})")
         
-        # Build maps for this λ
-        P_map = P_map_mixed(polarized_emissivity_simple(Bx, By, gamma=gamma), phi, lam, cfg)
-        dP_map = dP_map_mixed(polarized_emissivity_simple(Bx, By, gamma=gamma), phi, lam, cfg)
+        # Build maps for this λ (SEPARATED SCREEN)
+        Pi_now = polarized_emissivity_simple(Bx, By, gamma=gamma)
+        P_map  = P_map_separated(Pi_now, phi, lam, cfg,
+                                 emit_bounds=emit_bounds, screen_bounds=screen_bounds)
+        dP_map = dP_map_separated(Pi_now, phi, lam, cfg,
+                                  emit_bounds=emit_bounds, screen_bounds=screen_bounds)
         
         # Compute PSA
         k_P, Ek_P = psa_of_map(P_map, return_energy_like=False, **psa_kwargs)
@@ -359,10 +420,13 @@ def main():
         errors_dP=np.array(errors_dP),
         psa_kwargs=psa_kwargs,
         fit_bounds=fit_bounds,
-        sigmaPhi0=np.array(sigmaPhi0),
+        sigmaPhi_screen=np.array(sigmaPhi_screen),
         faraday_const=np.array(cfg.faraday_const),
         los_axis=np.array(cfg.los_axis),
         gamma=np.array(gamma),
+        geometry=np.array("separated"),
+        screen_bounds=np.array(screen_bounds),
+        emit_bounds=np.array(emit_bounds),
     )
     print(f"\nSaved sweep data to: {npz_path}")
 
@@ -379,7 +443,7 @@ def main():
                  label='PSA of P', color='blue', alpha=0.7)
     ax1.set_xlabel('χ = 2σΦλ²')
     ax1.set_ylabel('PSA Slope of P')
-    ax1.set_title('PSA Slope of P vs χ (Mixed Geometry, Random-Dominated)')
+    ax1.set_title('PSA Slope of P vs χ (Separated Screen)')
     ax1.grid(True, alpha=0.3)
     ax1.legend()
     
@@ -388,7 +452,7 @@ def main():
                  label='PSA of dP/dλ²', color='red', alpha=0.7)
     ax2.set_xlabel('χ = 2σΦλ²')
     ax2.set_ylabel('PSA Slope of dP/dλ²')
-    ax2.set_title('PSA Slope of dP/dλ² vs χ (Mixed Geometry, Random-Dominated)')
+    ax2.set_title('PSA Slope of dP/dλ² vs χ (Separated Screen)')
     ax2.grid(True, alpha=0.3)
     ax2.legend()
     
@@ -408,7 +472,7 @@ def main():
                  label='PSA of dP/dλ²', color='red', alpha=0.7)
     plt.xlabel('χ = 2σΦλ²')
     plt.ylabel('PSA Slope')
-    plt.title('PSA Slopes vs χ (Mixed Geometry, Random-Dominated)')
+    plt.title('PSA Slopes vs χ (Separated Screen)')
     plt.grid(True, alpha=0.3)
     plt.legend()
     
