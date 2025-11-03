@@ -6,6 +6,6 @@
   "png": "spectrum_both.png",
   "units": "k*Lbox/(2\u03c0)",
   "Lbox": 1.0012626262626263,
-  "vtk_w": "../vtk/ms1ma2_256.mhd_w.00007.vtk",
-  "vtk_bcc": "../vtk/ms1ma2_256.mhd_bcc.00007.vtk"
+  "vtk_w": "../vtk/ms1ma2_256.mhd_w.00008.vtk",
+  "vtk_bcc": "../vtk/ms1ma2_256.mhd_bcc.00008.vtk"
 }
