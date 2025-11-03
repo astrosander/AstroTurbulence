@@ -321,7 +321,7 @@ def create_combined_panel_plot(npz_dir: str = None):
     
     for npz_dir in npz_dirs:
         if pfa_npz_path is None:
-            test_path = os.path.join(npz_dir, "curve_mixed_chi_mixed.npz")
+            test_path = os.path.join(npz_dir, "curve_mixed_chi_separated.npz")
             if os.path.exists(test_path):
                 pfa_npz_path = test_path
         
@@ -375,16 +375,37 @@ def create_combined_panel_plot(npz_dir: str = None):
                     pfa_ref = pfa_pos[0]
                     # chi^{-1}
                     ref_line = (pfa_ref * chi_ref) / chi_pos *15
-                    axes[0].loglog(chi_pos, ref_line, '--', color='green', linewidth=1.5, alpha=0.7, label=r'$\propto \chi^{-1}$')
+                    
+                    # mask53 = chi_values > 1.0
+                    
+                    # chi_pos53 = chi_values[positive_mask]
+                    # pfa_pos53 = pfa_var[positive_mask]
+                    # chi_ref53 = chi_pos53[0]
+                    # pfa_ref53 = pfa_pos53[0]
+                    # ref_line53 = (pfa_ref53 * chi_ref53) / chi_pos53 *15
+ 
+                    # idx_1 = len(chi_pos) // 2
+                    idx_l = int(len(chi_pos) *0.2)
+                    idx_r = int(len(chi_pos)*0.8)
+                    chi_pos_1 = chi_pos[idx_l:idx_r]
+                    ref_line_53_right = pfa_ref * (chi_ref / chi_pos_1)**(0)#*20
+
+                    axes[0].loglog(chi_pos_1, ref_line_53_right, '--', color='#00FF11', linewidth=1.5, alpha=1.0, label=r'$\propto \chi^{0}$')
                     # chi^{-5/3} with the same visibility factor, plotted on the right half only
-                    half_idx = len(chi_pos) // 2
-                    chi_pos_right = chi_pos[half_idx:]
-                    ref_line_53_right = pfa_ref * (chi_ref / chi_pos_right)**(5/3) *400
-                    axes[0].loglog(chi_pos_right, ref_line_53_right, '-.', color='red', linewidth=1.5, alpha=0.7, label=r'$\propto \chi^{-5/3}$')
                     
 
-            except Exception:
-                pass
+                    idx_l = int(len(chi_pos) *0.8)
+                    idx_r = int(len(chi_pos))
+
+                    chi_pos_right = chi_pos[idx_l:idx_r]
+                    ref_line_53_right = pfa_ref * (chi_ref / chi_pos_right)**(5/3) *500
+                    # axes[0].loglog(chi_pos_right, ref_line_53_right, '-.', color='red', linewidth=1.5, alpha=0.7, label=r'$\propto \chi^{-5/3}$')
+                    
+            except Exception as e:
+                print(e)
+            # except Exception:
+            #     print("lol")
+            #     pass
             axes[0].set_xlabel('$\\chi = 2\\sigma_\\Phi \\lambda^2$')
             axes[0].set_ylabel('$\\langle|P|^2\\rangle$ (PFA variance)')
             # axes[0].set_title('PFA Variance vs $\\chi$')
@@ -426,8 +447,8 @@ def create_combined_panel_plot(npz_dir: str = None):
                     y_ref = y_pos[0]
                     ref1 = y_ref * (chi_ref / chi_pos)
                     ref53 = y_ref * (chi_ref / chi_pos)**(5/3)
-                    axes[1].plot(chi_pos, ref1, '--', color='gray', linewidth=1.2, alpha=0.7, label=r'$\propto \chi^{-1}$')
-                    axes[1].plot(chi_pos, ref53, '-.', color='dimgray', linewidth=1.2, alpha=0.7, label=r'$\propto \chi^{-5/3}$')
+                    # axes[1].plot(chi_pos, ref1, '--', color='gray', linewidth=1.2, alpha=0.7, label=r'$\propto \chi^{-1}$')
+                    # axes[1].plot(chi_pos, ref53, '-.', color='dimgray', linewidth=1.2, alpha=0.7, label=r'$\propto \chi^{-5/3}$')
             except Exception:
                 pass
             axes[1].grid(True, alpha=0.3)
