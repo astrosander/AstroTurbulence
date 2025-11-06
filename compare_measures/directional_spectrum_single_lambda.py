@@ -10,6 +10,8 @@ screen_frac = (0.00, 0.10)
 ring_bins = 48*2
 kfit_bounds = (4,25)
 
+# kfit_bounds = (75,96)
+
 def load_fields(p):
     with h5py.File(p,"r") as f:
         Bx = f["i_mag_field"][()]
@@ -163,7 +165,7 @@ ax2 = plt.subplot(1,2,2)
 ax2.loglog(kc, Pdir, '-', color='black', ms=4, lw=1, label='Data')
 
 # plot_fit(ax2, kc, Pdir, 0.0, 0.4)
-# plot_fit(ax2, kc, Pdir, 0.2, 0.6)
+plot_fit(ax2, kc, Pdir, 0.0, 1.0)
 # plot_fit(ax2, kc, Pdir, 0.6, 0.8)
 # # plot_fit(ax2, kc, Pdir, 0.6, 0.8)
 # plot_fit(ax2, kc, Pdir, 0.4, 1.0)
@@ -184,4 +186,4 @@ plt.ylabel(r"$S(R)=\langle \sin^2[2(\chi(X)-\chi(X+R))]\rangle$")
 plt.title("PADC from one map")
 plt.grid(True, alpha=0.3)
 plt.tight_layout()
-plt.show()
+# plt.show()
