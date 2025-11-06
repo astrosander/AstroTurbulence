@@ -4,7 +4,7 @@ import h5py, matplotlib.pyplot as plt
 h5_path = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\ms01ma08.mhd_w.00300.vtk.h5"
 los_axis = 2
 C = 1.0
-lam = 0.0#2.1
+lam = 1.6#2.1
 emit_frac = (0.15, 1.00)
 screen_frac = (0.00, 0.10)
 ring_bins = 48*2
@@ -45,6 +45,7 @@ def faraday_density(ne,Bpar,C=1.0):
 
 def move_los(a,axis):
     return np.moveaxis(a,axis,0)
+sigma_RM = 0
 
 def separated_P_map(Pi,phi,lam,los_axis,emit_frac,screen_frac):
     Pi_l = move_los(Pi,los_axis)
@@ -55,6 +56,9 @@ def separated_P_map(Pi,phi,lam,los_axis,emit_frac,screen_frac):
     P_emit = Pi_l[e0:e1].sum(0)
     P_emit = P_emit - P_emit.mean()
     Phi = ph_l[s0:s1].sum(0)
+    global sigma_RM
+    sigma_RM = Phi.std()              
+    print(sigma_RM)
     return P_emit*np.exp(2j*(lam**2)*Phi)
 
 def hann2d(ny,nx):
@@ -252,7 +256,7 @@ ax2.set_ylabel("$P_{dir}(k)$")
 ax2.grid(True, which='both', alpha=0.3)
 plt.tight_layout()
 plt.savefig("directional.png", dpi=300)
-plt.show()
+# plt.show()
 
 plt.figure(figsize=(5.5,4.5))
 plt.plot(r, S_padc, '-', color="blue", ms=4)
@@ -262,3 +266,9 @@ plt.title("PADC from one map")
 plt.grid(True, alpha=0.3)
 plt.tight_layout()
 # plt.show()
+
+mean_val = np.mean(S_padc)
+std_val = np.std(S_padc)
+chi = 2*lam**2*sigma_RM
+# Print in console
+print(f"lambda={lam}, chi = {chi:.2f}, <S_padc> = {mean_val:.5f}; sigma_S_padc = {std_val:.5f}")
