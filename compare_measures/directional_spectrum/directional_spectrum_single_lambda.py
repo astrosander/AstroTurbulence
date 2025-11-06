@@ -4,7 +4,7 @@ import h5py, matplotlib.pyplot as plt
 h5_path = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\ms01ma08.mhd_w.00300.vtk.h5"
 los_axis = 2
 C = 1.0
-lam = 2.2
+lam = 2.4
 emit_frac = (0.15, 1.00)
 screen_frac = (0.00, 0.10)
 ring_bins = 48*2
@@ -166,9 +166,12 @@ ax2.loglog(kc, Pdir, '-', color='black', ms=4, lw=1.5, label='Data')
 
 
 # print(np.sqrt(min(kc)*max(kc))/max(kc))
-plot_fit(ax2, kc, Pdir, 0, 0.1, "red")
-plot_fit(ax2, kc, Pdir, 0.1, 0.3, "blue")
-plot_fit(ax2, kc, Pdir, 0.35, 1.0, "green")
+
+x1=0.15
+x2=0.33
+plot_fit(ax2, kc, Pdir, 0, x1, "red")
+plot_fit(ax2, kc, Pdir, 0.14, 0.34, "blue")
+plot_fit(ax2, kc, Pdir, 0.33, 1.0, "green")
 
 # plot_fit(ax2, kc, Pdir, 0, 0.1, "red")
 # plot_fit(ax2, kc, Pdir, 0.1, 0.3, "blue")
