@@ -4,7 +4,7 @@ import h5py, matplotlib.pyplot as plt
 h5_path = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\ms01ma08.mhd_w.00300.vtk.h5"
 los_axis = 2
 C = 1.0
-lam = 2.4
+lam = 2.1
 emit_frac = (0.15, 1.00)
 screen_frac = (0.00, 0.10)
 ring_bins = 48*2
@@ -159,35 +159,72 @@ def plot_fit(ax, kc, Pdir, frac_min, frac_max, color, isPlot=True, linestyle='-'
         if isPlot:
             ax.loglog(k_fit_line, P_fit_line, linestyle=linestyle, lw=2, color=color,
                        label=f'{label_prefix} [{frac_min:.1f}-{frac_max:.1f}] (slope = {slope:.2f})')
-        return slope
+        return intercept, slope
     return None
 
 ax2 = plt.subplot(1,2,2)
 ax2.loglog(kc, Pdir, '-', color='black', ms=4, lw=1.5, label='Data')
 
 
+alphas = []
+slopes  = []
 
-lo, hi = 0.01, 1.00
+for i in np.linspace(0.01, 1.00, 1000):
+    result = plot_fit(ax2, kc, Pdir, 0, i, "red", isPlot=False)
+    alphas.append(i)
+    if result is not None and isinstance(result, tuple) and len(result) == 2:
+        intercept, slope = result
+        slopes.append(slope)
+    else:
+        slopes.append(None)
 
-def safe_slope(a):
-    s = plot_fit(ax2, kc, Pdir, 0, a, "red", isPlot=False)
-    return s if s is not None and np.isfinite(s) else np.nan
+# Find slope closest to zero from the right (coarse search)
+best_coarse = None
+min_abs_slope = float('inf')
+for i, slope in reversed(list(zip(alphas, slopes))):
+    if slope is not None:
+        abs_slope = abs(slope)
+        if abs_slope <= min_abs_slope:
+            min_abs_slope = abs_slope
+            best_coarse = i
 
-for _ in range(5):
-    xs = np.linspace(lo, hi, 10)
-    ys = np.array([safe_slope(a) for a in xs])
-    if np.all(np.isnan(ys)):
-        raise RuntimeError("No valid slope values found")
-    best = xs[np.nanargmin(np.abs(ys))]
-    lo, hi = max(0.01, best - (hi - lo) * 0.25), min(1.00, best + (hi - lo) * 0.25)
+# Refined search around the candidate for higher accuracy
+best = best_coarse
+if best_coarse is not None:
+    # Determine search range around candidate (adaptive based on coarse grid spacing)
+    coarse_spacing = (alphas[-1] - alphas[0]) / (len(alphas) - 1) if len(alphas) > 1 else 0.01
+    search_range = max(0.01, 2 * coarse_spacing)  # Search ±2 grid spacings around candidate
+    i_min = max(0.01, best_coarse - search_range)
+    i_max = min(1.00, best_coarse + search_range)
+    
+    # Fine search with 1000 points in the refined range
+    fine_alphas = np.linspace(i_min, i_max, 1000)
+    min_abs_slope_fine = float('inf')
+    for i_fine in reversed(fine_alphas):
+        result = plot_fit(ax2, kc, Pdir, 0, i_fine, "red", isPlot=False)
+        if result is not None and isinstance(result, tuple) and len(result) == 2:
+            intercept_fine, slope_fine = result
+            abs_slope_fine = abs(slope_fine)
+            if abs_slope_fine <= min_abs_slope_fine:
+                min_abs_slope_fine = abs_slope_fine
+                best = i_fine
 
-print(best)
+print("best:", best)
 
-plot_fit(ax2, kc, Pdir, 0, best, "blue")
-# plot_fit(ax2, kc, Pdir, 0.33, 1.0, "green")
+# Plot slope vs i
+# fig, ax = plt.subplots()
+# ax.plot(alphas, slopes, lw=1)
+# ax.set_xlabel("i")
+# ax.set_ylabel("slope")
+# ax.set_title("Slope vs i")
+# ax.grid(True)
+# plt.show()
 
-# plot_fit(ax2, kc, Pdir, 0, 0.1, "red")
-# plot_fit(ax2, kc, Pdir, 0.1, 0.3, "blue")
+
+x1=0.3
+plot_fit(ax2, kc, Pdir, 0, best, "green")
+plot_fit(ax2, kc, Pdir, best, x1, "red")
+plot_fit(ax2, kc, Pdir, x1, 1.0, "blue")
 # plot_fit(ax2, kc, Pdir, 0.3, 1.0, "green")
 # plot_fit(ax2, kc, Pdir, 0.17, 1.0)
 # plot_fit(ax2, kc, Pdir, 0.6, 0.8)
