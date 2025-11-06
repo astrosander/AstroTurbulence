@@ -133,12 +133,12 @@ def plot_fit(ax, kc, Pdir, frac_min, frac_max, color, isPlot=True, linestyle='-'
         P_fit_line = np.exp(intercept) * k_fit_line**slope
         
         if isPlot:
-            ax.loglog(k_fit_line, P_fit_line, linestyle=linestyle, lw=2, color=color,
+            ax.loglog(k_fit_line, P_fit_line, linestyle=linestyle, lw=3, color=color,
                        label=f'slope = {slope:.2f}')
         return intercept, slope
     return None
 
-def main(lam):
+def main(lam, save_path=None, show_plots=True):
     Bx,By,Bz,ne = load_fields(h5_path)
     Pi = polarized_emissivity_simple(Bx,By,2.0)
     Bpar = Bz
@@ -166,7 +166,7 @@ def main(lam):
 
     plt.figure(figsize=(10,4.8))
     ax1 = plt.subplot(1,2,1)
-    im = ax1.imshow(np.log10(np.abs(np.fft.fftshift(np.fft.fft2(c2)))**2 + np.abs(np.fft.fftshift(np.fft.fft2(s2)))**2 + 1e-30), origin="lower", cmap="magma")
+    im = ax1.imshow(np.log10(np.abs(np.fft.fftshift(np.fft.fft2(c2)))**2 + np.abs(np.fft.fftshift(np.fft.fft2(s2)))**2 + 1e-30), origin="lower", cmap="magma", vmin=-0.5, vmax=8.5)
     theta = np.linspace(0,2*np.pi,512)
     for r0 in edges:
         ax1.plot(r0*np.cos(theta), r0*np.sin(theta), color='w', alpha=0.15, lw=0.7)
@@ -223,8 +223,6 @@ def main(lam):
                     min_abs_slope_fine = abs_slope_fine
                     best = i_fine
 
-    print("best:", best)
-
     # Plot slope vs i
     # fig, ax = plt.subplots()
     # ax.plot(alphas, slopes, lw=1)
@@ -264,8 +262,15 @@ def main(lam):
     x1=xs[j]
     # plot_fit(ax2, kc, Pdir, 0, best, "green")
 
+
+    chi = 2*lam**2*sigma_RM
+    if chi < 4:
+        best = 0.0
+    print("best:", best)
+
+
+    plot_fit(ax2, kc, Pdir, 0, best, "green")
     plot_fit(ax2, kc, Pdir, best, x1, "red")
-    # plot_fit(ax2, kc, Pdir, 0, x1, "red")
     plot_fit(ax2, kc, Pdir, x1, 1.0, "blue")
 
     # plt.figure(figsize=(6,4))
@@ -289,8 +294,16 @@ def main(lam):
     ax2.set_ylabel("$P_{dir}(k)$")
     ax2.grid(True, which='both', alpha=0.3)
     plt.tight_layout()
-    plt.savefig("directional.png", dpi=300)
-    plt.show()
+    
+    if save_path is not None:
+        plt.savefig(save_path, dpi=300)
+    else:
+        plt.savefig("directional.png", dpi=300)
+    
+    if show_plots:
+        plt.show()
+    else:
+        plt.close()
 
     plt.figure(figsize=(5.5,4.5))
     plt.plot(r, S_padc, '-', color="blue", ms=4)
@@ -299,13 +312,17 @@ def main(lam):
     plt.title("PADC from one map")
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    # plt.show()
+    
+    if not show_plots:
+        plt.close()
 
     mean_val = np.mean(S_padc)
     std_val = np.std(S_padc)
-    chi = 2*lam**2*sigma_RM
+
     # Print in console
     print(f"lambda={lam}, chi = {chi:.2f}, <S_padc> = {mean_val:.5f}; sigma_S_padc = {std_val:.5f}")
+    
+    return sigma_RM
 
 if __name__ == "__main__":
     lam = 2.9  # 2.1
