@@ -156,7 +156,7 @@ def plot_fit(ax, kc, Pdir, frac_min, frac_max, linestyle='-', label_prefix='Fit'
         k_fit_line = np.logspace(np.log10(kc_fit.min()), np.log10(kc_fit.max()), 100)
         P_fit_line = np.exp(intercept) * k_fit_line**slope
         
-        ax.loglog(k_fit_line, P_fit_line, linestyle=linestyle, lw=4, 
+        ax.loglog(k_fit_line, P_fit_line, linestyle=linestyle, lw=1, color="blue",
                    label=f'{label_prefix} [{frac_min:.1f}-{frac_max:.1f}] (slope = {slope:.2f})')
         return slope
     return None
@@ -177,6 +177,7 @@ ax2.set_xlabel("$k$")
 ax2.set_ylabel("$P_{dir}(k)$")
 ax2.grid(True, which='both', alpha=0.3)
 plt.tight_layout()
+plt.savefig("directional.png", dpi=300)
 plt.show()
 
 plt.figure(figsize=(5.5,4.5))
