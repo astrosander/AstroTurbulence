@@ -12,13 +12,17 @@ kfit_bounds = (4,25)
 
 import matplotlib as mpl
 
-# --- unified TeX-style appearance (MathText, no system LaTeX needed) ---
 mpl.rcParams.update({
-    "text.usetex": False,          # use MathText (portable)
-    "font.family": "STIXGeneral",  # match math fonts
-    "font.size": 16,
+    "text.usetex": False,
+    "font.family": "STIXGeneral",
+    "font.size": 20,
+    "axes.titlesize": 24,
+    "axes.labelsize": 22,
+    "xtick.labelsize": 18,
+    "ytick.labelsize": 18,
+    "legend.fontsize": 18,
     "mathtext.fontset": "stix",
-    "axes.unicode_minus": False,   # proper minus sign
+    "axes.unicode_minus": False,
 })
 
 
@@ -133,8 +137,8 @@ def plot_fit(ax, kc, Pdir, frac_min, frac_max, color, isPlot=True, linestyle='-'
         P_fit_line = np.exp(intercept) * k_fit_line**slope
         
         if isPlot:
-            ax.loglog(k_fit_line, P_fit_line, linestyle=linestyle, lw=3, color=color,
-                       label=f'slope = {slope:.2f}')
+            ax.loglog(k_fit_line, P_fit_line, linestyle=linestyle, lw=3.5, color=color,
+                       label=f'slope = {slope:.2f}', alpha=0.9)
         return intercept, slope
     return None
 
@@ -164,21 +168,22 @@ def main(lam, save_path=None, show_plots=True):
     r, Csum = ring_average_realspace(corr, ring_bins=64, r_min=0.5)
     S_padc = 0.5 - 0.5*Csum
 
-    plt.figure(figsize=(10,4.8))
+    plt.figure(figsize=(12,5.5))
     ax1 = plt.subplot(1,2,1)
-    im = ax1.imshow(np.log10(np.abs(np.fft.fftshift(np.fft.fft2(c2)))**2 + np.abs(np.fft.fftshift(np.fft.fft2(s2)))**2 + 1e-30), origin="lower", cmap="magma", vmin=-0.5, vmax=8.5)
+    im = ax1.imshow(np.log10(np.abs(np.fft.fftshift(np.fft.fft2(c2)))**2 + np.abs(np.fft.fftshift(np.fft.fft2(s2)))**2 + 1e-30), origin="lower", cmap="plasma", vmin=-0.5, vmax=8.5)
     theta = np.linspace(0,2*np.pi,512)
     for r0 in edges:
-        ax1.plot(r0*np.cos(theta), r0*np.sin(theta), color='w', alpha=0.15, lw=0.7)
-    plt.colorbar(im, ax=ax1)
-    ax1.set_title("Directional spectrum 2D")
-    ax1.set_xlabel("$k_x$")
-    ax1.set_ylabel("$k_y$")
+        ax1.plot(r0*np.cos(theta), r0*np.sin(theta), color='w', alpha=0.2, lw=0.8)
+    cbar = plt.colorbar(im, ax=ax1)
+    cbar.ax.tick_params(labelsize=16)
+    ax1.set_title("Directional Spectrum 2D", fontsize=24, fontweight='bold', pad=15)
+    ax1.set_xlabel("$k_x$", fontsize=22)
+    ax1.set_ylabel("$k_y$", fontsize=22)
     plt.xlim(left=0)
     plt.ylim(bottom=0)
 
     ax2 = plt.subplot(1,2,2)
-    ax2.loglog(kc, Pdir, '-', color='black', ms=4, lw=2, label='Data')
+    ax2.loglog(kc, Pdir, '-', color='#2C3E50', ms=5, lw=2.5, label='Data', alpha=0.8)
 
     alphas = []
     slopes  = []
@@ -269,9 +274,9 @@ def main(lam, save_path=None, show_plots=True):
     print("best:", best)
 
 
-    plot_fit(ax2, kc, Pdir, 0, best, "green")
-    plot_fit(ax2, kc, Pdir, best, x1, "red")
-    plot_fit(ax2, kc, Pdir, x1, 1.0, "blue")
+    plot_fit(ax2, kc, Pdir, 0, best, "#27AE60")
+    plot_fit(ax2, kc, Pdir, best, x1, "#E74C3C")
+    plot_fit(ax2, kc, Pdir, x1, 1.0, "#3498DB")
 
     # plt.figure(figsize=(6,4))
     # plt.loglog(xv, yl, 'r-', label='left-end')
@@ -288,15 +293,22 @@ def main(lam, save_path=None, show_plots=True):
     # # plot_fit(ax2, kc, Pdir, 0.6, 0.8)
     # plot_fit(ax2, kc, Pdir, 0.4, 1.0)
 
-    ax2.legend()
+    ax2.legend(frameon=True, fancybox=True, shadow=True, framealpha=0.9)
 
-    ax2.set_xlabel("$k$")
-    ax2.set_ylabel("$P_{dir}(k)$")
-    ax2.grid(True, which='both', alpha=0.3)
+    ax2.set_xlabel("$k$", fontsize=22)
+    ax2.set_ylabel("$P_{dir}(k)$", fontsize=22)
+    ax2.set_title("Directional Power Spectrum", fontsize=24, fontweight='bold', pad=15)
+    ax2.grid(True, which='both', alpha=0.25, linestyle='--', linewidth=0.8)
+    
+    fig = plt.gcf()
+    fig.text(0.5, 0.02, f'$\\chi = {chi:.2f}$', ha='center', fontsize=20, fontweight='bold',
+             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+    
     plt.tight_layout()
+    plt.subplots_adjust(bottom=0.08)
     
     if save_path is not None:
-        plt.savefig(save_path, dpi=300)
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
     else:
         plt.savefig("directional.png", dpi=300)
     

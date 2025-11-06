@@ -14,11 +14,11 @@ def compute_sigma_RM():
     _, sigma_RM = separated_P_map(Pi, phi, 1.0, los_axis, emit_frac, screen_frac)
     return sigma_RM
 
-def generate_animation_frames(chi_min=0.0, chi_max=20.0, n_frames=250, 
+def generate_animation_frames(chi_min=0.0, chi_max=20.0, n_frames=50, 
                                frames_dir=None, show_progress=True):
     if frames_dir is None:
         script_dir = Path(__file__).parent
-        frames_dir = "animation_frames_chi"
+        frames_dir = script_dir / "frames"
     frames_dir = Path(frames_dir)
     frames_dir.mkdir(parents=True, exist_ok=True)
     
@@ -43,7 +43,7 @@ def generate_animation_frames(chi_min=0.0, chi_max=20.0, n_frames=250,
         else:
             lam = np.sqrt(chi_target / (2.0 * sigma_RM))
         
-        frame_filename = frames_dir / f"frame_{i:04d}_chi_{chi_target:.3f}.png"
+        frame_filename = frames_dir / f"{i:04d}.png"
         
         if show_progress:
             print(f"  Frame {i+1}/{n_frames}: chi={chi_target:.3f}, lam={lam:.6f}")
@@ -57,7 +57,7 @@ def generate_animation_frames(chi_min=0.0, chi_max=20.0, n_frames=250,
     
     if show_progress:
         print(f"\n✅ Animation frames saved to: {frames_dir}")
-        print(f"   Total frames: {len(list(frames_dir.glob('frame_*.png')))}")
+        print(f"   Total frames: {len(list(frames_dir.glob('*.png')))}")
 
 if __name__ == "__main__":
     generate_animation_frames()
