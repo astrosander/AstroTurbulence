@@ -4,7 +4,7 @@ import h5py, matplotlib.pyplot as plt
 h5_path = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\ms01ma08.mhd_w.00300.vtk.h5"
 los_axis = 2
 C = 1.0
-lam = 1.6#2.1
+lam = 1#2.1
 emit_frac = (0.15, 1.00)
 screen_frac = (0.00, 0.10)
 ring_bins = 48*2
@@ -175,12 +175,12 @@ def plot_fit(ax, kc, Pdir, frac_min, frac_max, color, isPlot=True, linestyle='-'
         
         if isPlot:
             ax.loglog(k_fit_line, P_fit_line, linestyle=linestyle, lw=2, color=color,
-                       label=f'{label_prefix} [{frac_min:.1f}-{frac_max:.1f}] (slope = {slope:.2f})')
+                       label=f'slope = {slope:.2f}')
         return intercept, slope
     return None
 
 ax2 = plt.subplot(1,2,2)
-ax2.loglog(kc, Pdir, '-', color='black', ms=4, lw=1.5, label='Data')
+ax2.loglog(kc, Pdir, '-', color='black', ms=4, lw=2, label='Data')
 
 
 alphas = []
@@ -238,10 +238,48 @@ print("best:", best)
 # plt.show()
 
 
-x1=0.3
-# plot_fit(ax2, kc, Pdir, 0, best, "green")
-# plot_fit(ax2, kc, Pdir, best, x1, "red")
-plot_fit(ax2, kc, Pdir, 0, 1.0, "blue")
+xv = np.linspace(0.05, 0.95, 200)
+k0, k1 = kc.min(), kc.max()
+yl, yr = [], []
+for x in xv:
+    a = plot_fit(ax2, kc, Pdir, 0, x, "r", isPlot=False)
+    b = plot_fit(ax2, kc, Pdir, x, 1.0, "b", isPlot=False)
+    if a and b:
+        kx = k0 + x*(k1-k0)
+        yl.append(np.exp(a[0]) * kx**a[1])
+        yr.append(np.exp(b[0]) * kx**b[1])
+    else:
+        yl.append(np.nan); yr.append(np.nan)
+
+xv = np.asarray(xv); yl = np.asarray(yl); yr = np.asarray(yr)
+m = np.isfinite(yl)&np.isfinite(yr)&(yl>0)&(yr>0)
+xv, yl, yr = xv[m], yl[m], yr[m]
+d = np.log(yl) - np.log(yr)
+idx = np.where(d[:-1]*d[1:]<=0)[0]
+xs, ys = [], []
+for i in idx:
+    x0,x1 = xv[i],xv[i+1]; d0,d1 = d[i],d[i+1]
+    t = 0 if d1==d0 else -d0/(d1-d0)
+    xs.append(x0 + (x1-x0)*t)
+    ys.append(np.exp(np.interp(xs[-1], [x0,x1], [np.log(yl[i]), np.log(yl[i+1])])))
+j = np.argmin(np.abs(np.array(xs)-0.18))
+print(f"x={xs[j]:.6f}, y={ys[j]:.6e}")
+
+
+
+x1=xs[j]
+plot_fit(ax2, kc, Pdir, 0, x1, "red")
+plot_fit(ax2, kc, Pdir, x1, 1.0, "blue")
+
+# plt.figure(figsize=(6,4))
+# plt.loglog(xv, yl, 'r-', label='left-end')
+# plt.loglog(xv, yr, 'b-', label='right-start')
+# plt.loglog([xs[j]], [ys[j]], 'ko', ms=6, label='intersection')
+# plt.xlabel("x1"); plt.ylabel("Y at junction k")
+# plt.xlim(0,1)
+# plt.legend(); plt.grid(True, which='both', alpha=0.3)
+# plt.tight_layout(); #plt.show()
+
 # plot_fit(ax2, kc, Pdir, 0.3, 1.0, "green")
 # plot_fit(ax2, kc, Pdir, 0.17, 1.0)
 # plot_fit(ax2, kc, Pdir, 0.6, 0.8)
@@ -256,7 +294,7 @@ ax2.set_ylabel("$P_{dir}(k)$")
 ax2.grid(True, which='both', alpha=0.3)
 plt.tight_layout()
 plt.savefig("directional.png", dpi=300)
-# plt.show()
+plt.show()
 
 plt.figure(figsize=(5.5,4.5))
 plt.plot(r, S_padc, '-', color="blue", ms=4)
