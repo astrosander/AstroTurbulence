@@ -275,8 +275,11 @@ def main(lam, save_path=None, show_plots=True):
 
 
     plot_fit(ax2, kc, Pdir, 0, best, "#27AE60")
-    plot_fit(ax2, kc, Pdir, best, x1, "#E74C3C")
-    plot_fit(ax2, kc, Pdir, x1, 1.0, "#3498DB")
+    if chi < 0.3:
+        plot_fit(ax2, kc, Pdir, 0, 1.0, "#3498DB")
+    else:
+        plot_fit(ax2, kc, Pdir, best, x1, "#E74C3C")
+        plot_fit(ax2, kc, Pdir, x1, 1.0, "#3498DB")
 
     # plt.figure(figsize=(6,4))
     # plt.loglog(xv, yl, 'r-', label='left-end')
@@ -301,9 +304,18 @@ def main(lam, save_path=None, show_plots=True):
     ax2.grid(True, which='both', alpha=0.25, linestyle='--', linewidth=0.8)
     
     fig = plt.gcf()
-    fig.text(0.5, 0.02, f'$\\chi = {chi:.2f}$', ha='center', fontsize=20, fontweight='bold',
-             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
-    
+
+    if chi < 0.2999 and chi > -0.001:
+        fig.text(0.5, 1.0, f'Synchrotron-dominated $\chi = {chi:.2f}$', ha='center', fontsize=20, fontweight='bold',
+                bbox=dict(boxstyle='round', facecolor='#FF6B6B', alpha=0.8))
+    elif chi > 0.2999 and chi < 3.0:
+        fig.text(0.5, 1.0, f'Transitional $\chi = {chi:.2f}$', ha='center', fontsize=20, fontweight='bold',
+                bbox=dict(boxstyle='round', facecolor='#FFD93D', alpha=0.8))
+    else:
+        fig.text(0.5, 1.0, f'Faraday-dominated $\chi = {chi:.2f}$', ha='center', fontsize=20, fontweight='bold',
+                bbox=dict(boxstyle='round', facecolor='#6BCB77', alpha=0.8))
+
+    plt.ylim(10**-8, 10**-2)
     plt.tight_layout()
     plt.subplots_adjust(bottom=0.08)
     

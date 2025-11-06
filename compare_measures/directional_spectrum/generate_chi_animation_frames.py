@@ -14,7 +14,7 @@ def compute_sigma_RM():
     _, sigma_RM = separated_P_map(Pi, phi, 1.0, los_axis, emit_frac, screen_frac)
     return sigma_RM
 
-def generate_animation_frames(chi_min=0.0, chi_max=20.0, n_frames=50, 
+def generate_animation_frames(chi_min=3.0, chi_max=20.0, n_frames=104, 
                                frames_dir=None, show_progress=True):
     if frames_dir is None:
         script_dir = Path(__file__).parent
@@ -37,7 +37,8 @@ def generate_animation_frames(chi_min=0.0, chi_max=20.0, n_frames=50,
     if show_progress:
         print(f"\nGenerating frames...")
     
-    for i, chi_target in enumerate(chi_values):
+    for i1, chi_target in enumerate(chi_values):
+        i=i1+47
         if chi_target <= 0:
             lam = 0.0
         else:
