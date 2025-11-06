@@ -4,11 +4,24 @@ import h5py, matplotlib.pyplot as plt
 h5_path = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\ms01ma08.mhd_w.00300.vtk.h5"
 los_axis = 2
 C = 1.0
-lam = 2.1
+lam = 0.0#2.1
 emit_frac = (0.15, 1.00)
 screen_frac = (0.00, 0.10)
 ring_bins = 48*2
 kfit_bounds = (4,25)
+
+
+import matplotlib as mpl
+
+# --- unified TeX-style appearance (MathText, no system LaTeX needed) ---
+mpl.rcParams.update({
+    "text.usetex": False,          # use MathText (portable)
+    "font.family": "STIXGeneral",  # match math fonts
+    "font.size": 16,
+    "mathtext.fontset": "stix",
+    "axes.unicode_minus": False,   # proper minus sign
+})
+
 
 # kfit_bounds = (75,96)
 
@@ -222,9 +235,9 @@ print("best:", best)
 
 
 x1=0.3
-plot_fit(ax2, kc, Pdir, 0, best, "green")
-plot_fit(ax2, kc, Pdir, best, x1, "red")
-plot_fit(ax2, kc, Pdir, x1, 1.0, "blue")
+# plot_fit(ax2, kc, Pdir, 0, best, "green")
+# plot_fit(ax2, kc, Pdir, best, x1, "red")
+plot_fit(ax2, kc, Pdir, 0, 1.0, "blue")
 # plot_fit(ax2, kc, Pdir, 0.3, 1.0, "green")
 # plot_fit(ax2, kc, Pdir, 0.17, 1.0)
 # plot_fit(ax2, kc, Pdir, 0.6, 0.8)
