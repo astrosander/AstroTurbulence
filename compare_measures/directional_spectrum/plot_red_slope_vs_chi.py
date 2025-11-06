@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from directional_spectrum_single_lambda import (
     load_fields, polarized_emissivity_simple, faraday_density,
-    separated_P_map, ring_average, plot_fit,
+    separated_P_map, ring_average, _two_segment_candidates, _select_break_stable, _ema, _whole_slope, BREAK_STATE,
     los_axis, emit_frac, screen_frac, C, h5_path, ring_bins
 )
 
@@ -31,94 +31,36 @@ def compute_red_slope(lam, sigma_RM):
     _, Pk2, _, _, _, _ = ring_average(s2, ring_bins, 3.0, None, True, False)
     Pdir = Pk + Pk2
     
+    order_key = ("increasing", float(lam))
+    if BREAK_STATE.get("last_order_key") is None:
+        BREAK_STATE["last_order_key"] = order_key
+    elif BREAK_STATE["last_order_key"][0] != "increasing":
+        BREAK_STATE.update({"prev_frac": None, "prev_slope": None, "active": False, "prev_out": None, "last_order_key": order_key})
+
+    cands, whole = _two_segment_candidates(kc, Pdir, min_pts=6, cont_eps=0.08)
+    if whole is None:
+        s_whole, _ = _whole_slope(kc, Pdir)
+    else:
+        s_whole = whole[0]
+    if not cands:
+        return _ema(s_whole, BREAK_STATE)
+
+    sL, _ = _select_break_stable(cands, s_whole, state=BREAK_STATE, tau_on=6.0, tau_off=3.0, lam_frac=3.0, lam_s=1.2, monotonic=True)
     chi = 2*lam**2*sigma_RM
-    if chi < 0.3:
-        return None
-    
-    alphas = []
-    slopes = []
-    
-    for i in np.linspace(0.01, 1.00, 1000):
-        result = plot_fit(None, kc, Pdir, 0, i, "red", isPlot=False)
-        alphas.append(i)
-        if result is not None and isinstance(result, tuple) and len(result) == 2:
-            intercept, slope = result
-            slopes.append(slope)
-        else:
-            slopes.append(None)
-    
-    best_coarse = None
-    min_abs_slope = float('inf')
-    for i, slope in reversed(list(zip(alphas, slopes))):
-        if slope is not None:
-            abs_slope = abs(slope)
-            if abs_slope <= min_abs_slope:
-                min_abs_slope = abs_slope
-                best_coarse = i
-    
-    best = best_coarse
-    if best_coarse is not None:
-        coarse_spacing = (alphas[-1] - alphas[0]) / (len(alphas) - 1) if len(alphas) > 1 else 0.01
-        search_range = max(0.01, 2 * coarse_spacing)
-        i_min = max(0.01, best_coarse - search_range)
-        i_max = min(1.00, best_coarse + search_range)
-        
-        fine_alphas = np.linspace(i_min, i_max, 1000)
-        min_abs_slope_fine = float('inf')
-        for i_fine in reversed(fine_alphas):
-            result = plot_fit(None, kc, Pdir, 0, i_fine, "red", isPlot=False)
-            if result is not None and isinstance(result, tuple) and len(result) == 2:
-                intercept_fine, slope_fine = result
-                abs_slope_fine = abs(slope_fine)
-                if abs_slope_fine <= min_abs_slope_fine:
-                    min_abs_slope_fine = abs_slope_fine
-                    best = i_fine
-    
-    if chi < 4:
-        best = 0.0
-    
-    xv = np.linspace(0.05, 0.95, 200)
-    k0, k1 = kc.min(), kc.max()
-    yl, yr = [], []
-    for x in xv:
-        a = plot_fit(None, kc, Pdir, 0, x, "r", isPlot=False)
-        b = plot_fit(None, kc, Pdir, x, 1.0, "b", isPlot=False)
-        if a and b:
-            kx = k0 + x*(k1-k0)
-            yl.append(np.exp(a[0]) * kx**a[1])
-            yr.append(np.exp(b[0]) * kx**b[1])
-        else:
-            yl.append(np.nan)
-            yr.append(np.nan)
-    
-    xv = np.asarray(xv)
-    yl = np.asarray(yl)
-    yr = np.asarray(yr)
-    m = np.isfinite(yl)&np.isfinite(yr)&(yl>0)&(yr>0)
-    xv, yl, yr = xv[m], yl[m], yr[m]
-    d = np.log(yl) - np.log(yr)
-    idx = np.where(d[:-1]*d[1:]<=0)[0]
-    xs, ys = [], []
-    for i in idx:
-        x0, x1 = xv[i], xv[i+1]
-        d0, d1 = d[i], d[i+1]
-        t = 0 if d1==d0 else -d0/(d1-d0)
-        xs.append(x0 + (x1-x0)*t)
-        ys.append(np.exp(np.interp(xs[-1], [x0,x1], [np.log(yl[i]), np.log(yl[i+1])])))
-    j = np.argmin(np.abs(np.array(xs)-0.18))
-    x1 = xs[j]
-    
-    result = plot_fit(None, kc, Pdir, best, x1, "#E74C3C", isPlot=False)
-    if result is not None:
-        return result[1]
-    return None
+    if chi <= 0.3:
+        BREAK_STATE.update(active=False, prev_frac=None, prev_slope=s_whole)
+        return _ema(s_whole, BREAK_STATE)
+    return _ema(sL, BREAK_STATE)
 
 sigma_RM = compute_sigma_RM()
-chi_values = np.linspace(0.3, 20.0, 100)
+chi_values = np.linspace(0, 20, 50)
 slopes = []
 
 for chi in chi_values:
-    lam = np.sqrt(chi / (2.0 * sigma_RM))
+    if chi <= 0:
+        lam = 0.0
+    else:
+        lam = np.sqrt(chi / (2.0 * sigma_RM))
     slope = compute_red_slope(lam, sigma_RM)
     slopes.append(slope)
     print(f"chi={chi:.2f}, slope={slope}")
