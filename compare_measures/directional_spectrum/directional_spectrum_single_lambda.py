@@ -136,7 +136,7 @@ ax1.set_ylabel("$k_y$")
 plt.xlim(left=0)
 plt.ylim(bottom=0)
 
-def plot_fit(ax, kc, Pdir, frac_min, frac_max, color, linestyle='-', label_prefix='Fit'):
+def plot_fit(ax, kc, Pdir, frac_min, frac_max, color, isPlot=True, linestyle='-', label_prefix='Fit'):
     k_min = kc.min()
     k_max = kc.max()
     k_range = k_max - k_min
@@ -156,8 +156,9 @@ def plot_fit(ax, kc, Pdir, frac_min, frac_max, color, linestyle='-', label_prefi
         k_fit_line = np.logspace(np.log10(kc_fit.min()), np.log10(kc_fit.max()), 100)
         P_fit_line = np.exp(intercept) * k_fit_line**slope
         
-        ax.loglog(k_fit_line, P_fit_line, linestyle=linestyle, lw=2, color=color,
-                   label=f'{label_prefix} [{frac_min:.1f}-{frac_max:.1f}] (slope = {slope:.2f})')
+        if isPlot:
+            ax.loglog(k_fit_line, P_fit_line, linestyle=linestyle, lw=2, color=color,
+                       label=f'{label_prefix} [{frac_min:.1f}-{frac_max:.1f}] (slope = {slope:.2f})')
         return slope
     return None
 
@@ -165,13 +166,25 @@ ax2 = plt.subplot(1,2,2)
 ax2.loglog(kc, Pdir, '-', color='black', ms=4, lw=1.5, label='Data')
 
 
-# print(np.sqrt(min(kc)*max(kc))/max(kc))
 
-x1=0.15
-x2=0.33
-plot_fit(ax2, kc, Pdir, 0, x1, "red")
-plot_fit(ax2, kc, Pdir, 0.14, 0.34, "blue")
-plot_fit(ax2, kc, Pdir, 0.33, 1.0, "green")
+lo, hi = 0.01, 1.00
+
+def safe_slope(a):
+    s = plot_fit(ax2, kc, Pdir, 0, a, "red", isPlot=False)
+    return s if s is not None and np.isfinite(s) else np.nan
+
+for _ in range(5):
+    xs = np.linspace(lo, hi, 10)
+    ys = np.array([safe_slope(a) for a in xs])
+    if np.all(np.isnan(ys)):
+        raise RuntimeError("No valid slope values found")
+    best = xs[np.nanargmin(np.abs(ys))]
+    lo, hi = max(0.01, best - (hi - lo) * 0.25), min(1.00, best + (hi - lo) * 0.25)
+
+print(best)
+
+plot_fit(ax2, kc, Pdir, 0, best, "blue")
+# plot_fit(ax2, kc, Pdir, 0.33, 1.0, "green")
 
 # plot_fit(ax2, kc, Pdir, 0, 0.1, "red")
 # plot_fit(ax2, kc, Pdir, 0.1, 0.3, "blue")
