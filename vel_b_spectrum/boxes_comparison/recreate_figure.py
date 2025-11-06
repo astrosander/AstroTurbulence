@@ -15,8 +15,9 @@ def replot(npz="M_A=2.0, 792^3, t=1.0.npz", meta="M_A=2.0, 792^3, t=1.0.json", o
         ("M_A=2.0, 792^3, t=1.2.npz", "M_A=2.0, 792^3, t=1.2.json", r"$M_A=2.0, 792^3, t=1.2$", "#4169E1", 0.5),  # Royal Blue
         ("M_A=2.0, 792^3, t=1.3.npz", "M_A=2.0, 792^3, t=1.3.json", r"$M_A=2.0, 792^3, t=1.3$", "#4169E1", 0.6),  # Royal Blue
         ("M_A=2.0, 792^3, t=1.4.npz", "M_A=2.0, 792^3, t=1.4.json", r"$M_A=2.0, 792^3, t=1.4$", "#4169E1", 1.0),  # Royal Blue
-        ("M_A=2.0, 792^3, t=1.5.npz", "M_A=2.0, 792^3, t=1.5.json", r"$M_A=2.0, 792^3, t=1.5$", "purple", 0.6),  # Royal Blue
-        ("M_A=2.0, 792^3, t=1.6.npz", "M_A=2.0, 792^3, t=1.6.json", r"$M_A=2.0, 792^3, t=1.6$", "purple", 1.0),  # Royal Blue
+        ("M_A=2.0, 792^3, t=1.5.npz", "M_A=2.0, 792^3, t=1.5.json", r"$M_A^\star=2.0, 792^3, t=1.5$", "purple", 0.4),  # Royal Blue
+        ("M_A=2.0, 792^3, t=1.6.npz", "M_A=2.0, 792^3, t=1.6.json", r"$M_A^\star=2.0, 792^3, t=1.6$", "purple", 0.6),  # Royal Blue
+        ("M_A=2.0, 792^3, t=1.7.npz", "M_A=2.0, 792^3, t=1.7.json", r"$M_A^\star=2.0, 792^3, t=1.7$", "purple", 1.0),  # Royal Blue
         ("M_A=2.0, 512^3, t=0.5.npz", "M_A=2.0, 512^3, t=0.5.json", r"$M_A=2.0, 512^3, t=0.5$", "#FF6B6B", 0.4),  # Coral Red
         ("M_A=2.0, 512^3, t=1.0.npz", "M_A=2.0, 512^3, t=1.0.json", r"$M_A=2.0, 512^3, t=1.0$", "#FFB347", 0.7),  # Peach
         ("M_A=2.0, 512^3, t=1.5.npz", "M_A=2.0, 512^3, t=1.5.json", r"$M_A=2.0, 512^3, t=1.5$", "#FF8C00", 1.0)   # Dark Orange
@@ -85,7 +86,7 @@ def replot(npz="M_A=2.0, 792^3, t=1.0.npz", meta="M_A=2.0, 792^3, t=1.0.json", o
     for ax, lab in [(ax1, r"$E_v(k)$"), (ax2, r"$E_B(k)$")]:
         ax.set_xlabel(r"$k\frac{L_{\rm box}}{2\pi}$")
         ax.set_ylabel(lab)
-        ax.set_ylim(1e-8,1)
+        ax.set_ylim(1e-8,10)
         ax.set_xlim(1, 792/2)
         ax.legend(loc="lower left", fontsize=8)
     

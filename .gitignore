@@ -13,3 +13,4 @@ faradays_angles_stats/lp_structure_tests/synthetic_kolmogorov_bz.h5
 *.vtk
 frame_*.npz
 frame_*.png
+[0-9][0-9][0-9][0-9].png
