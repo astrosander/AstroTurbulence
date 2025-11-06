@@ -4,7 +4,7 @@ import h5py, matplotlib.pyplot as plt
 h5_path = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\ms01ma08.mhd_w.00300.vtk.h5"
 los_axis = 2
 C = 1.0
-lam = 1#2.1
+lam = 2.9#2.1
 emit_frac = (0.15, 1.00)
 screen_frac = (0.00, 0.10)
 ring_bins = 48*2
@@ -268,7 +268,10 @@ print(f"x={xs[j]:.6f}, y={ys[j]:.6e}")
 
 
 x1=xs[j]
-plot_fit(ax2, kc, Pdir, 0, x1, "red")
+# plot_fit(ax2, kc, Pdir, 0, best, "green")
+
+plot_fit(ax2, kc, Pdir, best, x1, "red")
+# plot_fit(ax2, kc, Pdir, 0, x1, "red")
 plot_fit(ax2, kc, Pdir, x1, 1.0, "blue")
 
 # plt.figure(figsize=(6,4))
