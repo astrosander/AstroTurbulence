@@ -4,7 +4,7 @@ import h5py, matplotlib.pyplot as plt
 h5_path = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\ms01ma08.mhd_w.00300.vtk.h5"
 los_axis = 2
 C = 1.0
-lam = 0.00
+lam = 2.2
 emit_frac = (0.15, 1.00)
 screen_frac = (0.00, 0.10)
 ring_bins = 48*2
@@ -136,7 +136,7 @@ ax1.set_ylabel("$k_y$")
 plt.xlim(left=0)
 plt.ylim(bottom=0)
 
-def plot_fit(ax, kc, Pdir, frac_min, frac_max, linestyle='-', label_prefix='Fit'):
+def plot_fit(ax, kc, Pdir, frac_min, frac_max, color, linestyle='-', label_prefix='Fit'):
     k_min = kc.min()
     k_max = kc.max()
     k_range = k_max - k_min
@@ -156,16 +156,20 @@ def plot_fit(ax, kc, Pdir, frac_min, frac_max, linestyle='-', label_prefix='Fit'
         k_fit_line = np.logspace(np.log10(kc_fit.min()), np.log10(kc_fit.max()), 100)
         P_fit_line = np.exp(intercept) * k_fit_line**slope
         
-        ax.loglog(k_fit_line, P_fit_line, linestyle=linestyle, lw=1, color="blue",
+        ax.loglog(k_fit_line, P_fit_line, linestyle=linestyle, lw=2, color=color,
                    label=f'{label_prefix} [{frac_min:.1f}-{frac_max:.1f}] (slope = {slope:.2f})')
         return slope
     return None
 
 ax2 = plt.subplot(1,2,2)
-ax2.loglog(kc, Pdir, '-', color='black', ms=4, lw=1, label='Data')
+ax2.loglog(kc, Pdir, '-', color='black', ms=4, lw=1.5, label='Data')
 
-# plot_fit(ax2, kc, Pdir, 0.0, 0.4)
-plot_fit(ax2, kc, Pdir, 0.0, 1.0)
+
+# print(np.sqrt(min(kc)*max(kc))/max(kc))
+plot_fit(ax2, kc, Pdir, 0, 0.1, "red")
+plot_fit(ax2, kc, Pdir, 0.15, 0.4, "blue")
+plot_fit(ax2, kc, Pdir, 0.45, 1.0, "green")
+# plot_fit(ax2, kc, Pdir, 0.17, 1.0)
 # plot_fit(ax2, kc, Pdir, 0.6, 0.8)
 # # plot_fit(ax2, kc, Pdir, 0.6, 0.8)
 # plot_fit(ax2, kc, Pdir, 0.4, 1.0)
