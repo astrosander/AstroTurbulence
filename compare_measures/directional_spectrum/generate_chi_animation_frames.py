@@ -14,11 +14,11 @@ def compute_sigma_RM():
     _, sigma_RM = separated_P_map(Pi, phi, 1.0, los_axis, emit_frac, screen_frac)
     return sigma_RM
 
-def generate_animation_frames(chi_min=3.0, chi_max=20.0, n_frames=104, 
-                               frames_dir=None, show_progress=True):
+def generate_animation_frames(chi_min=0, chi_max=0.5, n_frames=20, 
+                               frames_dir=None, show_progress=False):
     if frames_dir is None:
         script_dir = Path(__file__).parent
-        frames_dir = script_dir / "frames"
+        frames_dir = script_dir / "frames1"
     frames_dir = Path(frames_dir)
     frames_dir.mkdir(parents=True, exist_ok=True)
     
@@ -39,7 +39,7 @@ def generate_animation_frames(chi_min=3.0, chi_max=20.0, n_frames=104,
     
     for i1, chi_target in enumerate(chi_values):
         i=i1+47
-        if chi_target <= 0:
+        if chi_target <= 0: 
             lam = 0.0
         else:
             lam = np.sqrt(chi_target / (2.0 * sigma_RM))

@@ -59,7 +59,7 @@ def separated_P_map(Pi,phi,lam,los_axis,emit_frac,screen_frac):
     P_emit = P_emit - P_emit.mean()
     Phi = ph_l[s0:s1].sum(0)
     sigma_RM = Phi.std()              
-    print(sigma_RM)
+    # print(sigma_RM)
     return P_emit*np.exp(2j*(lam**2)*Phi), sigma_RM
 
 def hann2d(ny,nx):
@@ -262,7 +262,7 @@ def main(lam, save_path=None, show_plots=True):
         xs.append(x0 + (x1-x0)*t)
         ys.append(np.exp(np.interp(xs[-1], [x0,x1], [np.log(yl[i]), np.log(yl[i+1])])))
     j = np.argmin(np.abs(np.array(xs)-0.18))
-    print(f"x={xs[j]:.6f}, y={ys[j]:.6e}")
+    # print(f"x={xs[j]:.6f}, y={ys[j]:.6e}")
 
     x1=xs[j]
     # plot_fit(ax2, kc, Pdir, 0, best, "green")
@@ -271,16 +271,17 @@ def main(lam, save_path=None, show_plots=True):
     chi = 2*lam**2*sigma_RM
     if chi < 4:
         best = 0.0
-    print("best:", best)
+
+    # print("best:", best)
 
 
     plot_fit(ax2, kc, Pdir, 0, best, "#27AE60")
-    if chi < 0.3:
-        plot_fit(ax2, kc, Pdir, 0, 1.0, "#3498DB")
+    if chi > -300:
+        main_slope=plot_fit(ax2, kc, Pdir, 0, 1.0, "#3498DB")
     else:
-        plot_fit(ax2, kc, Pdir, best, x1, "#E74C3C")
+        main_slope=plot_fit(ax2, kc, Pdir, best, x1, "#E74C3C")
         plot_fit(ax2, kc, Pdir, x1, 1.0, "#3498DB")
-
+    print(chi, '\t', main_slope[1])
     # plt.figure(figsize=(6,4))
     # plt.loglog(xv, yl, 'r-', label='left-end')
     # plt.loglog(xv, yr, 'b-', label='right-start')
@@ -344,10 +345,10 @@ def main(lam, save_path=None, show_plots=True):
     std_val = np.std(S_padc)
 
     # Print in console
-    print(f"lambda={lam}, chi = {chi:.2f}, <S_padc> = {mean_val:.5f}; sigma_S_padc = {std_val:.5f}")
+    # print(f"lambda={lam}, chi = {chi:.2f}, <S_padc> = {mean_val:.5f}; sigma_S_padc = {std_val:.5f}")
     
     return sigma_RM
 
 if __name__ == "__main__":
-    lam = 2.9  # 2.1
+    lam = 2.0  # 2.1
     main(lam)
