@@ -20,7 +20,9 @@ mpl.rcParams.update({
 
 def plot_slopes_vs_lambda(csv_path=None, save_path="slopes_vs_lambda.png", show_plot=True, 
                           plot_slopes=['k_lt_K_phi', 'K_phi_lt_k_lt_K_i', 'k_gt_K_i']):
-    """Plot slopes as a function of lambda from the CSV file.
+    """Plot slopes as a function of chi from the CSV file.
+    
+    chi = 2 * sigma_RM * lambda^2
     
     Parameters:
     -----------
@@ -49,11 +51,11 @@ def plot_slopes_vs_lambda(csv_path=None, save_path="slopes_vs_lambda.png", show_
     # Replace empty strings with NaN
     df = df.replace('', np.nan)
     
-    # Sort by lambda
-    df = df.sort_values('lambda')
+    # Sort by chi
+    df = df.sort_values('chi')
     
     # Extract data - handle each slope separately to filter out NaN values
-    lambda_vals_all = df['lambda'].values
+    chi_vals_all = df['chi'].values
     
     # Create figure
     fig, ax = plt.subplots(figsize=(12, 7))
@@ -71,16 +73,18 @@ def plot_slopes_vs_lambda(csv_path=None, save_path="slopes_vs_lambda.png", show_
             # Filter out rows where this specific slope is NaN/empty
             mask = df[col_name].notna()
             if mask.sum() > 0:  # Only plot if there's at least one valid data point
-                lambda_vals = df.loc[mask, 'lambda'].values
+                chi_vals = df.loc[mask, 'chi'].values
                 data = df.loc[mask, col_name].values
-                ax.plot(lambda_vals, data, marker_style, color=color, lw=2.5, 
+                ax.plot(chi_vals, data, marker_style, color=color, lw=2.5, 
                        markersize=6, alpha=0.8, label=label)
     
-    ax.set_xlabel(r'$\lambda$', fontsize=22)
+    ax.set_xlabel(r'$\chi = 2\sigma_\Phi\lambda^2$', fontsize=22)
     ax.set_ylabel('Slope', fontsize=22)
-    ax.set_title('Slopes vs Wavelength ($\lambda$)', fontsize=24, pad=15)
+    ax.set_title('Slopes vs $\chi$', fontsize=24, pad=15)
     ax.grid(True, which='both', alpha=0.25, linestyle='--', linewidth=0.8)
     ax.legend(frameon=True, fancybox=True, shadow=True, framealpha=0.9, loc='best')
+    plt.xlim(0, 5)
+    plt.ylim(-5, 0)
     
     plt.tight_layout()
     

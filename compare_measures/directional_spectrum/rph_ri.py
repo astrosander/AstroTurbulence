@@ -316,8 +316,11 @@ def fit_segment(ax, kc, Pdir, kmin, kmax, color, label):
     ax.loglog(kk, np.exp(b)*kk**a, lw=3.5, color=color, alpha=0.95, label=f"{label} {a:.2f}")
     return a
 
-def save_slopes_to_csv(lam, sP, sM, sH, csv_path=None):
-    """Save slope values to CSV file, appending for different lambda values."""
+def save_slopes_to_csv(lam, sigma_RM, sP, sM, sH, csv_path=None):
+    """Save slope values to CSV file, appending for different chi values.
+    
+    chi = 2 * sigma_RM * lambda^2
+    """
     if csv_path is None:
         script_dir = Path(__file__).parent
         csv_path = script_dir / "slopes_vs_lambda.csv"
@@ -325,15 +328,18 @@ def save_slopes_to_csv(lam, sP, sM, sH, csv_path=None):
     csv_path = Path(csv_path)
     file_exists = csv_path.exists()
     
+    # Calculate chi = 2 * sigma_RM * lambda^2
+    chi = 2.0 * sigma_RM * (lam ** 2)
+    
     # Write or append to CSV
     with open(csv_path, 'a', newline='') as f:
         writer = csv.writer(f)
         # Write header if file is new
         if not file_exists:
-            writer.writerow(['lambda', 'slope_k_lt_K_phi', 'slope_K_phi_lt_k_lt_K_i', 'slope_k_gt_K_i'])
+            writer.writerow(['chi', 'slope_k_lt_K_phi', 'slope_K_phi_lt_k_lt_K_i', 'slope_k_gt_K_i'])
         # Write data row
         writer.writerow([
-            lam,
+            chi,
             sP if sP is not None else '',
             sM if sM is not None else '',
             sH if sH is not None else ''
@@ -459,8 +465,8 @@ def plot_spectrum(lam, save_path=None, show_plots=True,
     plt.tight_layout()
     plt.subplots_adjust(top=0.88)
     
-    # Save slopes to CSV
-    save_slopes_to_csv(lam, sP, sM, sH, csv_path)
+    # Save slopes to CSV (using chi = 2*sigma_RM*lambda^2)
+    save_slopes_to_csv(lam, sigma_RM, sP, sM, sH, csv_path)
     
     if save_path is not None:
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
@@ -549,4 +555,4 @@ if __name__ == "__main__":
     print("=" * 70)
     print()
     
-    generate_chi_animation(chi_min=0.0, chi_max=8.0, n_frames=50, show_progress=True)
+    generate_chi_animation(chi_min=0.0, chi_max=5.0, n_frames=100, show_progress=True)
