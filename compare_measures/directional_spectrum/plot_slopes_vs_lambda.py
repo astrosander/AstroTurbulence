@@ -19,7 +19,7 @@ mpl.rcParams.update({
 })
 
 def plot_slopes_vs_lambda(csv_path=None, save_path="slopes_vs_lambda.png", show_plot=True, 
-                          plot_slopes=['k_lt_K_phi', 'K_phi_lt_k_lt_K_i', 'k_gt_K_i']):
+                          plot_slopes=['k_lt_K_i', 'K_i_lt_k_lt_K_phi', 'k_gt_K_phi']):
     """Plot slopes as a function of chi from the CSV file.
     
     chi = 2 * sigma_RM * lambda^2
@@ -32,8 +32,8 @@ def plot_slopes_vs_lambda(csv_path=None, save_path="slopes_vs_lambda.png", show_
         Path to save the plot. If None, plot is not saved.
     show_plot : bool, default True
         Whether to display the plot.
-    plot_slopes : list, default ['k_lt_K_phi', 'K_phi_lt_k_lt_K_i', 'k_gt_K_i']
-        Which slopes to plot. Options: 'k_lt_K_phi', 'K_phi_lt_k_lt_K_i', 'k_gt_K_i'
+    plot_slopes : list, default ['k_lt_K_i', 'K_i_lt_k_lt_K_phi', 'k_gt_K_phi']
+        Which slopes to plot. Options: 'k_lt_K_i', 'K_i_lt_k_lt_K_phi', 'k_gt_K_phi'
     """
     
     if csv_path is None:
@@ -62,9 +62,9 @@ def plot_slopes_vs_lambda(csv_path=None, save_path="slopes_vs_lambda.png", show_
     
     # Plot selected slopes - filter out NaN values for each slope individually
     slope_configs = {
-        'k_lt_K_phi': ('slope_k_lt_K_phi', 'o-', '#7F8C8D', r'$k < K_\phi$'),
-        'K_phi_lt_k_lt_K_i': ('slope_K_phi_lt_k_lt_K_i', 's-', '#E67E22', r'$K_\phi < k < K_i$'),
-        'k_gt_K_i': ('slope_k_gt_K_i', '^-', '#E74C3C', r'$k > K_i$')
+        'k_lt_K_i': ('slope_k_lt_K_i', 'o-', '#7F8C8D', r'$k < K_i$'),
+        'K_i_lt_k_lt_K_phi': ('slope_K_i_lt_k_lt_K_phi', 's-', '#E67E22', r'$K_i < k < K_\phi$'),
+        'k_gt_K_phi': ('slope_k_gt_K_phi', '^-', '#E74C3C', r'$k > K_\phi$')
     }
     
     for slope_key in plot_slopes:
@@ -84,7 +84,7 @@ def plot_slopes_vs_lambda(csv_path=None, save_path="slopes_vs_lambda.png", show_
     ax.grid(True, which='both', alpha=0.25, linestyle='--', linewidth=0.8)
     ax.legend(frameon=True, fancybox=True, shadow=True, framealpha=0.9, loc='best')
     plt.xlim(0, 5)
-    plt.ylim(-5, 0)
+    plt.ylim(-5,1)
     
     plt.tight_layout()
     

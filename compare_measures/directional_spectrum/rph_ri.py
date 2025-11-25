@@ -14,7 +14,7 @@ C = 1.0
 # screen_frac = (0.00, 0.10)
 
 emit_frac   = (0.00, 1.00)   # thicker emitter -> larger r_i
-screen_frac = (0.00, 0.03)   # thinner screen -> smaller r_phi
+screen_frac = (0.66, 0.67)   # thinner screen -> smaller r_phi
 
 if REGIME == "r_phi_lt_ri":
     screen_frac = (0.5, 0.504)
@@ -38,9 +38,8 @@ else:
     auto_los = False
     los_perpendicular = True
 
-emit_frac   = (0.7, 0.75)   # thicker emitter -> larger r_i
-screen_frac = (0.00, 0.05)   # thinner screen -> smaller r_phi
-
+emit_frac   = (0.00, 1.00)   # thicker emitter -> larger r_i
+screen_frac = (0.66, 0.67)   # thinner screen -> smaller r_phi
 
 import matplotlib as mpl
 mpl.rcParams.update({
@@ -336,7 +335,7 @@ def save_slopes_to_csv(lam, sigma_RM, sP, sM, sH, csv_path=None):
         writer = csv.writer(f)
         # Write header if file is new
         if not file_exists:
-            writer.writerow(['chi', 'slope_k_lt_K_phi', 'slope_K_phi_lt_k_lt_K_i', 'slope_k_gt_K_i'])
+            writer.writerow(['chi', 'slope_k_lt_K_i', 'slope_K_i_lt_k_lt_K_phi', 'slope_k_gt_K_phi'])
         # Write data row
         writer.writerow([
             chi,
@@ -398,31 +397,31 @@ def plot_spectrum(lam, save_path=None, show_plots=True,
     sM = None
     sH = None
     
-    # 1. k < K_phi (low/plateau range) - fit to the same binned data that's plotted
-    if Kphi_idx is not None:
-        # Clamp Kphi_idx to valid range, but use original for comparison
-        k_phi_upper = min(max(Kphi_idx, kmin), kmax)  # Clamp between kmin and kmax
-        if k_phi_upper > kmin and Kphi_idx > kmin:  # Only if Kphi_idx is above kmin
-            sP = fit_segment(ax, kc, Pdir, kmin, k_phi_upper, "#7F8C8D", "$k<K_\phi$")
-    
-    # 2. K_phi < k < K_i (mid range) - fit to the same binned data that's plotted
-    if (Kphi_idx is not None) and (Ki_idx is not None) and (Ki_idx > Kphi_idx):
-        # Clamp both to valid range
-        k_phi_lower = max(Kphi_idx, kmin)
-        k_i_upper = min(Ki_idx, kmax)
-        if k_i_upper > k_phi_lower:
-            sM = fit_segment(ax, kc, Pdir, k_phi_lower, k_i_upper, "#E67E22", "$K_\phi<k<K_i$")
-    
-    # 3. k > K_i (high range)
+    # 1. k < K_i (low range) - fit to the same binned data that's plotted
     if Ki_idx is not None:
-        # Clamp Ki_idx to valid range
+        # Clamp Ki_idx to valid range, but use original for comparison
+        k_i_upper = min(max(Ki_idx, kmin), kmax)  # Clamp between kmin and kmax
+        if k_i_upper > kmin and Ki_idx > kmin:  # Only if Ki_idx is above kmin
+            sP = fit_segment(ax, kc, Pdir, kmin, k_i_upper, "#7F8C8D", "$k<K_i$")
+    
+    # 2. K_i < k < K_phi (mid range) - fit to the same binned data that's plotted
+    if (Ki_idx is not None) and (Kphi_idx is not None) and (Kphi_idx > Ki_idx):
+        # Clamp both to valid range
         k_i_lower = max(Ki_idx, kmin)
-        if k_i_lower < kmax:  # Only if Ki_idx is below kmax
+        k_phi_upper = min(Kphi_idx, kmax)
+        if k_phi_upper > k_i_lower:
+            sM = fit_segment(ax, kc, Pdir, k_i_lower, k_phi_upper, "#E67E22", "$K_i<k<K_\phi$")
+    
+    # 3. k > K_phi (high range)
+    if Kphi_idx is not None:
+        # Clamp Kphi_idx to valid range
+        k_phi_lower = max(Kphi_idx, kmin)
+        if k_phi_lower < kmax:  # Only if Kphi_idx is below kmax
             if lam==0.0:
                 # Use small tolerance to handle floating point errors at boundaries
-                eps = max(np.finfo(kc.dtype).eps * max(abs(k_i_lower), abs(kmax)), 1e-10)
+                eps = max(np.finfo(kc.dtype).eps * max(abs(k_phi_lower), abs(kmax)), 1e-10)
                 # Include points on the border (accounting for floating point errors)
-                m = (kc >= k_i_lower - eps)&(kc <= kmax + eps)&np.isfinite(Pdir)&(Pdir>0)
+                m = (kc >= k_phi_lower - eps)&(kc <= kmax + eps)&np.isfinite(Pdir)&(Pdir>0)
                 if m.sum() > 0:
                     k_actual = kc[m]
                     k_actual_min = k_actual.min()
@@ -434,10 +433,10 @@ def plot_spectrum(lam, save_path=None, show_plots=True,
                     # Plot only over the range where points exist
                     kk = np.logspace(np.log10(k_actual_min), np.log10(k_actual_max), 160)
                     ax.loglog(kk, np.exp(b_fixed)*kk**s_fixed, lw=3.5, color="#E74C3C", 
-                             alpha=0.95, label=f"$k>K_i$ {s_fixed:.2f}")
+                             alpha=0.95, label=f"$k>K_\phi$ {s_fixed:.2f}")
                     sH = s_fixed
             else:
-                sH = fit_segment(ax, kc, Pdir, k_i_lower, kmax, "#E74C3C", "$k>K_i$")
+                sH = fit_segment(ax, kc, Pdir, k_phi_lower, kmax, "#E74C3C", "$k>K_\phi$")
 
     chi = 2*(lam**2)*sigma_RM
     
