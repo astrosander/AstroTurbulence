@@ -38,7 +38,8 @@ def load_npz_data(npz_path: str):
     if not os.path.exists(npz_path):
         raise FileNotFoundError(f"NPZ file not found: {npz_path}")
     
-    data = np.load(npz_path)
+    # Load with allow_pickle=True to handle dict objects like fit_bounds and psa_kwargs
+    data = np.load(npz_path, allow_pickle=True)
     
     # Determine data type based on available keys
     if 'lam_arr' in data and 'slopes_dir' in data:
@@ -197,25 +198,75 @@ def reproduce_psa_slopes_plot(npz_path: str, output_path: str = None):
     slopes_dP = data['slopes_dP']
     errors_P = data['errors_P']
     errors_dP = data['errors_dP']
-    sigmaPhi0 = float(data['sigmaPhi0'])
+    sigmaPhi0 = float(data['sigmaPhi0']) if 'sigmaPhi0' in data else float('nan')
+    
+    # Get geometry and baseline slopes if available
+    geometry = str(data['geometry']) if 'geometry' in data else 'mixed'
+    m0 = float(data['emitter_baseline_slope']) if 'emitter_baseline_slope' in data else None
+    A = float(data['structure_function_A']) if 'structure_function_A' in data else None
+    m = float(data['structure_function_m']) if 'structure_function_m' in data else None
+    # Handle fit_bounds - it may be a dict (object array) or saved as separate values
+    if 'fit_bounds' in data:
+        fit_bounds_raw = data['fit_bounds']
+        if fit_bounds_raw.dtype == object:
+            # Object array (dict) - use item() to extract
+            fit_bounds = dict(fit_bounds_raw.item())
+        else:
+            # Already a dict-like structure
+            fit_bounds = dict(fit_bounds_raw)
+    else:
+        fit_bounds = {'kmin': 4, 'kmax': 25}
     
     print(f"Reproducing PSA slopes plot from: {npz_path}")
     print(f"Data points: {len(chi_values)}")
     print(f"Chi range: {chi_values.min():.2f} to {chi_values.max():.2f}")
     print(f"P slopes range: {slopes_P.min():.2f} to {slopes_P.max():.2f}")
     print(f"dP slopes range: {slopes_dP.min():.2f} to {slopes_dP.max():.2f}")
+    if m0 is not None:
+        print(f"Emitter baseline slope (small-χ asymptote): {m0:.2f}")
+        print(f"Large-χ asymptote: m → 0")
+    if A is not None and m is not None:
+        print(f"Structure function: D_Φ(r) ≈ {A:.3e} r^{m:.2f}")
     
     # Create combined plot (same as run_spatial_psa_comparison.py)
-    plt.figure(figsize=(10, 6))
-    plt.errorbar(chi_values, slopes_P, yerr=errors_P, fmt='o-', capsize=3, 
+    ax = plt.gca() if plt.gcf().get_axes() else None
+    if ax is None:
+        plt.figure(figsize=(10, 6))
+        ax = plt.gca()
+    
+    ax.errorbar(chi_values, slopes_P, yerr=errors_P, fmt='o-', capsize=3, 
                  label='PSA of $P$', color='blue', alpha=0.7)
-    plt.errorbar(chi_values, slopes_dP, yerr=errors_dP, fmt='s-', capsize=3, 
+    ax.errorbar(chi_values, slopes_dP, yerr=errors_dP, fmt='s-', capsize=3, 
                  label='PSA of $dP/d\\lambda^2$', color='red', alpha=0.7)
-    plt.xlabel('$\\chi = 2\\sigma_\\Phi \\lambda^2$')
-    plt.ylabel('PSA Slope')
-    plt.title('PSA Slopes vs $\\chi$ (Mixed Geometry, Random-Dominated)')
-    plt.grid(True, alpha=0.3)
-    plt.legend()
+    
+    # Add horizontal reference lines for separated geometry (two asymptotes)
+    if geometry == 'separated' or geometry.startswith('separated'):
+        if m0 is not None:
+            ax.axhline(m0, ls='--', lw=1.0, color='k', alpha=0.6, 
+                       label='separated baseline (small-χ)')
+        ax.axhline(0.0, ls=':', lw=1.0, color='k', alpha=0.7, 
+                   label='large-χ limit (flat)')
+        # Add transitional prediction curve if structure function parameters are available
+        if A is not None and m is not None and m0 is not None:
+            k1, k2 = fit_bounds.get('kmin', 4), fit_bounds.get('kmax', 25)
+            kstar = np.sqrt(k1 * k2)
+            kphi = (A ** (1.0 / m)) * (np.array(chi_values) ** (2.0 / m))
+            q = 1.0  # default soft-edge parameter
+            s = 1.0 / (1.0 + (kphi / kstar) ** q)
+            mfit = m0 * s
+            ax.plot(chi_values, mfit, 'k-', lw=1.5, label=f"separated-screen prediction (m≈{m:.2f})")
+        # Set y-axis limits for better visualization
+        ymin, ymax = -3.8, 0.5
+        ax.set_ylim(ymin, ymax)
+    
+    ax.set_xlabel('$\\chi = 2\\sigma_\\Phi \\lambda^2$')
+    ax.set_ylabel('PSA Slope')
+    if geometry == 'separated' or geometry.startswith('separated'):
+        ax.set_title('PSA Slopes vs $\\chi$ (Separated Screen)')
+    else:
+        ax.set_title('PSA Slopes vs $\\chi$ (Mixed Geometry, Random-Dominated)')
+    ax.grid(True, alpha=0.3)
+    ax.legend()
     
     # Save the plot
     if output_path is None:
@@ -474,10 +525,48 @@ def create_combined_panel_plot(npz_dir: str = None):
             errors_P = data['errors_P']
             errors_dP = data['errors_dP']
             
+            # Get geometry and baseline slopes if available
+            geometry = str(data['geometry']) if 'geometry' in data else 'mixed'
+            m0 = float(data['emitter_baseline_slope']) if 'emitter_baseline_slope' in data else None
+            A = float(data['structure_function_A']) if 'structure_function_A' in data else None
+            m = float(data['structure_function_m']) if 'structure_function_m' in data else None
+            # Handle fit_bounds - it may be a dict (object array) or saved as separate values
+            if 'fit_bounds' in data:
+                fit_bounds_raw = data['fit_bounds']
+                if fit_bounds_raw.dtype == object:
+                    # Object array (dict) - use item() to extract
+                    fit_bounds = dict(fit_bounds_raw.item())
+                else:
+                    # Already a dict-like structure
+                    fit_bounds = dict(fit_bounds_raw)
+            else:
+                fit_bounds = {'kmin': 4, 'kmax': 25}
+            
             axes[2].errorbar(chi_values, slopes_P, yerr=errors_P, fmt='o-', capsize=3, 
                             label='PSA of $P$', color='#4A90E2', linewidth=2, alpha=0.8)
             axes[2].errorbar(chi_values, slopes_dP, yerr=errors_dP, fmt='s-', capsize=3, 
                             label='PSA of $dP/d\\lambda^2$', color='#F5A623', linewidth=2, alpha=0.8)
+            
+            # Add horizontal reference lines for separated geometry (two asymptotes)
+            if geometry == 'separated' or geometry.startswith('separated'):
+                if m0 is not None:
+                    axes[2].axhline(m0, ls='--', lw=1.0, color='k', alpha=0.6, 
+                                   label='separated baseline (small-χ)')
+                axes[2].axhline(0.0, ls=':', lw=1.0, color='k', alpha=0.7, 
+                               label='large-χ limit (flat)')
+                # Add transitional prediction curve if structure function parameters are available
+                if A is not None and m is not None and m0 is not None:
+                    k1, k2 = fit_bounds.get('kmin', 4), fit_bounds.get('kmax', 25)
+                    kstar = np.sqrt(k1 * k2)
+                    kphi = (A ** (1.0 / m)) * (np.array(chi_values) ** (2.0 / m))
+                    q = 1.0  # default soft-edge parameter
+                    s = 1.0 / (1.0 + (kphi / kstar) ** q)
+                    mfit = m0 * s
+                    axes[2].plot(chi_values, mfit, 'k-', lw=1.5, label=f"separated-screen prediction (m≈{m:.2f})")
+                # Set y-axis limits for better visualization
+                ymin, ymax = -3.8, 0.5
+                axes[2].set_ylim(ymin, ymax)
+            
             axes[2].set_xlabel('$\\chi = 2\\sigma_\\Phi \\lambda^2$')
             axes[2].set_ylabel('PSA Slope')
             # axes[2].set_title('PSA Slopes vs $\\chi$')
