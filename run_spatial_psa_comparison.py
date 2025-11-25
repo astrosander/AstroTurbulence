@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import h5py
 import sys
 import os
+from scipy import ndimage
 
 # Add the compare_measures directory to the path to import the function
 sys.path.append(os.path.join(os.path.dirname(__file__), 'compare_measures'))
@@ -116,6 +117,77 @@ def fit_log_slope_with_bounds(k, E, kmin=None, kmax=None):
     m, a = np.polyfit(lk, lE, 1)
     err = np.sqrt(np.mean((lE-(m*lk+a))**2) / np.sum((lk-lk.mean())**2))
     return m, a, err, (k.min(), k.max())
+
+
+# === Separated screen transitional prediction ===
+def radial_structure_function(phi2d, nbins=40, rmin=1, rmax=None):
+    """Estimate D_phi(r) ≈ ⟨[Φ(x+r)-Φ(x)]^2⟩, radially averaged."""
+    ny, nx = phi2d.shape
+    if rmax is None:
+        rmax = min(nx, ny) // 4
+    # FFT-based autocovariance
+    f = np.fft.rfftn(phi2d - phi2d.mean())
+    S = (f * np.conj(f)).real
+    C = np.fft.irfftn(S, s=phi2d.shape) / (nx * ny)  # autocorrelation
+    var = C[0, 0]
+    D = 2 * (var - C)  # structure function on grid
+    # radial binning
+    yy, xx = np.indices(phi2d.shape)
+    rr = np.hypot(xx - nx//2, yy - ny//2)
+    r = np.linspace(rmin, rmax, nbins)
+    Dr = []
+    for i in range(nbins-1):
+        m = (rr >= r[i]) & (rr < r[i+1])
+        if m.any():
+            Dr.append(D[m].mean())
+        else:
+            Dr.append(np.nan)
+    r_mid = 0.5 * (r[:-1] + r[1:])
+    Dr = np.array(Dr)
+    sel = np.isfinite(Dr)
+    return r_mid[sel], Dr[sel]
+
+
+def fit_small_r_powerlaw(r, D, rmax_fit=None):
+    """Fit D(r) ≈ A r^m on small r."""
+    if rmax_fit is None:
+        rmax_fit = np.percentile(r, 30)  # use inner 30% radii
+    sel = (r > 0) & (r <= rmax_fit) & np.isfinite(D) & (D > 0)
+    rfit, Dfit = r[sel], D[sel]
+    if len(rfit) < 5:
+        return None, None
+    m, a = np.polyfit(np.log(rfit), np.log(Dfit), 1)
+    A = np.exp(a)
+    return A, m  # D ≈ A r^m
+
+
+def predict_psa_slope_curve(chi, m0, k1=4.0, k2=25.0, A=None, m=None, q=1.0):
+    """m_fit(chi) = m0 / (1 + (k_phi(chi)/k_*)^q),  k_phi = (A)^{1/m} chi^{2/m}."""
+    if A is None or m is None:
+        return None
+    kstar = np.sqrt(k1 * k2)
+    kphi = (A ** (1.0 / m)) * (np.array(chi) ** (2.0 / m))
+    s = 1.0 / (1.0 + (kphi / kstar) ** q)
+    return m0 * s
+
+
+def predict_and_overlay_transitional_curve(Phi_scr, chi_values, slopes_P, ax, 
+                                           m0=None, k1=4, k2=25, q=1.0, label="prediction"):
+    """Compute A,m from Φ_screen, build m_fit(χ), and overlay."""
+    # 1) D_phi(r) fit
+    r, D = radial_structure_function(Phi_scr, nbins=48)
+    A, m = fit_small_r_powerlaw(r, D)
+    if A is None or m is None:
+        print(f"Warning: Could not fit structure function power law")
+        return None, None, None
+    # 2) emitter-only slope if not provided
+    if m0 is None:
+        m0 = slopes_P[0] if len(slopes_P) > 0 else -3.5  # use first point as proxy
+    # 3) prediction
+    mfit = predict_psa_slope_curve(np.array(chi_values), m0, k1=k1, k2=k2, A=A, m=m, q=q)
+    if mfit is not None:
+        ax.plot(chi_values, mfit, 'k-', lw=1.5, label=label + f" (m≈{m:.2f})")
+    return A, m, mfit
 
 
 #
@@ -406,7 +478,35 @@ def main():
         
         print(f"    P slope: {mP:.2f}±{eP:.2f}, dP/dλ² slope: {mD:.2f}±{eD:.2f}")
     
-    # 7) Save results to NPZ for later reproducibility
+    # 7) Compute emitter-only baseline slope for separated geometry
+    print(f"\nComputing emitter-only baseline slope (separated prediction)...")
+    Pi_los = np.moveaxis(polarized_emissivity_simple(Bx, By, gamma=gamma), cfg.los_axis, 0)
+    P_emit = Pi_los[emit_bounds[0]:emit_bounds[1]].sum(axis=0)
+    # Detrend emitter map so PSA isn't DC dominated
+    P_emit = P_emit - P_emit.mean()
+    
+    k0, S0 = psa_of_map(P_emit, return_energy_like=False, **psa_kwargs)
+    m0, a0, e0, _ = fit_log_slope_with_bounds(k0, S0, **fit_bounds)
+    
+    print(f"[Separated prediction] emitter PSA slope m0 = {m0:.2f} ± {e0:.2f} (fit k=[{fit_bounds['kmin']},{fit_bounds['kmax']}])")
+    print(f"[Separated prediction] small-χ asymptote: m ≈ {m0:.2f}")
+    print(f"[Separated prediction] large-χ asymptote: m → 0")
+    
+    # Compute transitional prediction curve from screen structure function
+    print(f"\nComputing transitional prediction from screen structure function...")
+    phi_los = np.moveaxis(phi, cfg.los_axis, 0)
+    Phi_scr = phi_los[screen_bounds[0]:screen_bounds[1]].sum(axis=0)
+    
+    # Fit structure function to get A, m
+    r, D = radial_structure_function(Phi_scr, nbins=48)
+    A, m = fit_small_r_powerlaw(r, D)
+    if A is not None and m is not None:
+        print(f"[Separated prediction] D_Φ(r) ≈ {A:.3e} r^{m:.2f}")
+    else:
+        print(f"[Separated prediction] Warning: Could not fit structure function")
+        A, m = None, None
+
+    # 7b) Save results to NPZ for later reproducibility
     output_dir = r"D:\Рабочая папка\GitHub\AstroTurbulence\compare_measures\lp2016_outputs"
     os.makedirs(output_dir, exist_ok=True)
     npz_path = os.path.join(output_dir, "psa_slopes_vs_chi_data.npz")
@@ -427,32 +527,61 @@ def main():
         geometry=np.array("separated"),
         screen_bounds=np.array(screen_bounds),
         emit_bounds=np.array(emit_bounds),
+        emitter_baseline_slope=np.array(m0),
+        emitter_baseline_error=np.array(e0),
+        structure_function_A=np.array(A) if A is not None else np.array(np.nan),
+        structure_function_m=np.array(m) if m is not None else np.array(np.nan),
     )
     print(f"\nSaved sweep data to: {npz_path}")
 
     # 8) Create slope vs χ plot
     print(f"\nCreating slope vs χ plot...")
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 12))
-    # (plots already configured) 
-    # (plots already configured)
-    # (plots already configured)
-    # (plots already configured)
+    
+    # Set y-axis limits for better visualization
+    ymin, ymax = -3.8, 0.5
     
     # Plot P slopes
     ax1.errorbar(chi_values, slopes_P, yerr=errors_P, fmt='o-', capsize=3, 
-                 label='PSA of P', color='blue', alpha=0.7)
-    ax1.set_xlabel('χ = 2σΦλ²')
-    ax1.set_ylabel('PSA Slope of P')
-    ax1.set_title('PSA Slope of P vs χ (Separated Screen)')
+                 label='PSA of $P$', color='blue', alpha=0.7)
+    # Add horizontal reference lines for separated geometry (two asymptotes)
+    ax1.axhline(m0, ls='--', lw=1.0, color='k', alpha=0.6, 
+                label='separated (emitter baseline, small-χ)')
+    ax1.axhline(0.0, ls=':', lw=1.0, color='k', alpha=0.7, 
+                label='large-χ limit (flat)')
+    # Add transitional prediction curve
+    if A is not None and m is not None:
+        predict_and_overlay_transitional_curve(
+            Phi_scr, chi_values, slopes_P, ax1, m0=m0, 
+            k1=fit_bounds['kmin'], k2=fit_bounds['kmax'], q=1.0,
+            label="separated-screen prediction"
+        )
+    ax1.set_xlabel('$\\chi = 2\\sigma_\\Phi \\lambda^2$')
+    ax1.set_ylabel('PSA Slope of $P$')
+    ax1.set_title('PSA Slope of $P$ vs $\\chi$ (Separated Screen)')
+    ax1.set_ylim(ymin, ymax)
     ax1.grid(True, alpha=0.3)
     ax1.legend()
     
     # Plot dP/dλ² slopes
     ax2.errorbar(chi_values, slopes_dP, yerr=errors_dP, fmt='s-', capsize=3, 
-                 label='PSA of dP/dλ²', color='red', alpha=0.7)
-    ax2.set_xlabel('χ = 2σΦλ²')
-    ax2.set_ylabel('PSA Slope of dP/dλ²')
-    ax2.set_title('PSA Slope of dP/dλ² vs χ (Separated Screen)')
+                 label='PSA of $dP/d\\lambda^2$', color='red', alpha=0.7)
+    # Add horizontal reference lines (same asymptotes for separated geometry)
+    ax2.axhline(m0, ls='--', lw=1.0, color='k', alpha=0.6, 
+                label='separated (emitter baseline, small-χ)')
+    ax2.axhline(0.0, ls=':', lw=1.0, color='k', alpha=0.7, 
+                label='large-χ limit (flat)')
+    # Add transitional prediction curve (same A, m as for P)
+    if A is not None and m is not None:
+        predict_and_overlay_transitional_curve(
+            Phi_scr, chi_values, slopes_dP, ax2, m0=m0, 
+            k1=fit_bounds['kmin'], k2=fit_bounds['kmax'], q=1.0,
+            label="separated-screen prediction"
+        )
+    ax2.set_xlabel('$\\chi = 2\\sigma_\\Phi \\lambda^2$')
+    ax2.set_ylabel('PSA Slope of $dP/d\\lambda^2$')
+    ax2.set_title('PSA Slope of $dP/d\\lambda^2$ vs $\\chi$ (Separated Screen)')
+    ax2.set_ylim(ymin, ymax)
     ax2.grid(True, alpha=0.3)
     ax2.legend()
     
@@ -466,15 +595,29 @@ def main():
     
     # 8) Also create a combined plot
     plt.figure(figsize=(10, 6))
-    plt.errorbar(chi_values, slopes_P, yerr=errors_P, fmt='o-', capsize=3, 
-                 label='PSA of P', color='blue', alpha=0.7)
-    plt.errorbar(chi_values, slopes_dP, yerr=errors_dP, fmt='s-', capsize=3, 
-                 label='PSA of dP/dλ²', color='red', alpha=0.7)
-    plt.xlabel('χ = 2σΦλ²')
-    plt.ylabel('PSA Slope')
-    plt.title('PSA Slopes vs χ (Separated Screen)')
-    plt.grid(True, alpha=0.3)
-    plt.legend()
+    ax_combined = plt.gca()
+    ax_combined.errorbar(chi_values, slopes_P, yerr=errors_P, fmt='o-', capsize=3, 
+                         label='PSA of $P$', color='blue', alpha=0.7)
+    ax_combined.errorbar(chi_values, slopes_dP, yerr=errors_dP, fmt='s-', capsize=3, 
+                         label='PSA of $dP/d\\lambda^2$', color='red', alpha=0.7)
+    # Add horizontal reference lines for separated geometry (two asymptotes)
+    ax_combined.axhline(m0, ls='--', lw=1.0, color='k', alpha=0.6, 
+                       label='separated baseline (small-χ)')
+    ax_combined.axhline(0.0, ls=':', lw=1.0, color='k', alpha=0.7, 
+                       label='large-χ limit (flat)')
+    # Add transitional prediction curve
+    if A is not None and m is not None:
+        predict_and_overlay_transitional_curve(
+            Phi_scr, chi_values, slopes_P, ax_combined, m0=m0, 
+            k1=fit_bounds['kmin'], k2=fit_bounds['kmax'], q=1.0,
+            label="separated-screen prediction"
+        )
+    ax_combined.set_xlabel('$\\chi = 2\\sigma_\\Phi \\lambda^2$')
+    ax_combined.set_ylabel('PSA Slope')
+    ax_combined.set_title('PSA Slopes vs $\\chi$ (Separated Screen)')
+    ax_combined.set_ylim(ymin, ymax)
+    ax_combined.grid(True, alpha=0.3)
+    ax_combined.legend()
     
     combined_plot_path = os.path.join(output_dir, "psa_slopes_vs_chi_combined.png")
     plt.savefig(combined_plot_path, dpi=300, bbox_inches='tight')
