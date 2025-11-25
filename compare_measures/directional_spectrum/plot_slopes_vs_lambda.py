@@ -75,15 +75,15 @@ def plot_slopes_vs_lambda(csv_path=None, save_path="slopes_vs_lambda.png", show_
             if mask.sum() > 0:  # Only plot if there's at least one valid data point
                 chi_vals = df.loc[mask, 'chi'].values
                 data = df.loc[mask, col_name].values
-                ax.plot(chi_vals, data, marker_style, color=color, lw=2.5, 
-                       markersize=6, alpha=0.8, label=label)
+                ax.plot(chi_vals, data, color=color, lw=2.5, 
+                       markersize=6, label=label)
     
     ax.set_xlabel(r'$\chi = 2\sigma_\Phi\lambda^2$', fontsize=22)
     ax.set_ylabel('Slope', fontsize=22)
     ax.set_title('Slopes vs $\chi$', fontsize=24, pad=15)
     ax.grid(True, which='both', alpha=0.25, linestyle='--', linewidth=0.8)
     ax.legend(frameon=True, fancybox=True, shadow=True, framealpha=0.9, loc='best')
-    plt.xlim(0, 5)
+    plt.xlim(0, 10)
     plt.ylim(-5,1)
     
     plt.tight_layout()

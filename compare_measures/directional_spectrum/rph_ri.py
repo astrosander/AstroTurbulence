@@ -554,4 +554,4 @@ if __name__ == "__main__":
     print("=" * 70)
     print()
     
-    generate_chi_animation(chi_min=0.0, chi_max=5.0, n_frames=100, show_progress=True)
+    generate_chi_animation(chi_min=5.0, chi_max=10.0, n_frames=100, show_progress=True)
