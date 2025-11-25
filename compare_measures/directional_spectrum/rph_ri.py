@@ -1,6 +1,8 @@
 import numpy as np
 import h5py, matplotlib.pyplot as plt
 from pathlib import Path
+import csv
+import os
 
 h5_path = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\ms01ma08.mhd_w.00300.vtk.h5"
 lam = 0.0
@@ -314,9 +316,32 @@ def fit_segment(ax, kc, Pdir, kmin, kmax, color, label):
     ax.loglog(kk, np.exp(b)*kk**a, lw=3.5, color=color, alpha=0.95, label=f"{label} {a:.2f}")
     return a
 
+def save_slopes_to_csv(lam, sP, sM, sH, csv_path=None):
+    """Save slope values to CSV file, appending for different lambda values."""
+    if csv_path is None:
+        script_dir = Path(__file__).parent
+        csv_path = script_dir / "slopes_vs_lambda.csv"
+    
+    csv_path = Path(csv_path)
+    file_exists = csv_path.exists()
+    
+    # Write or append to CSV
+    with open(csv_path, 'a', newline='') as f:
+        writer = csv.writer(f)
+        # Write header if file is new
+        if not file_exists:
+            writer.writerow(['lambda', 'slope_k_lt_K_phi', 'slope_K_phi_lt_k_lt_K_i', 'slope_k_gt_K_i'])
+        # Write data row
+        writer.writerow([
+            lam,
+            sP if sP is not None else '',
+            sM if sM is not None else '',
+            sH if sH is not None else ''
+        ])
+
 def plot_spectrum(lam, save_path=None, show_plots=True, 
                   los_axis_override=None, emit_frac_override=None, 
-                  screen_frac_override=None, gamma_override=None):
+                  screen_frac_override=None, gamma_override=None, csv_path=None):
     use_los_axis = los_axis_override if los_axis_override is not None else los_axis
     use_emit_frac = emit_frac_override if emit_frac_override is not None else emit_frac
     use_screen_frac = screen_frac_override if screen_frac_override is not None else screen_frac
@@ -434,15 +459,17 @@ def plot_spectrum(lam, save_path=None, show_plots=True,
     plt.tight_layout()
     plt.subplots_adjust(top=0.88)
     
-    # if save_path is not None:
-    #     plt.savefig(save_path, dpi=300, bbox_inches='tight')
-    plt.show()
+    # Save slopes to CSV
+    save_slopes_to_csv(lam, sP, sM, sH, csv_path)
+    
+    if save_path is not None:
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
     if show_plots:
         plt.show()
     else:
         plt.close()
     
-    return sigma_RM
+    return sigma_RM, sP, sM, sH
 
 def generate_chi_animation(chi_min=0.0, chi_max=5.0, n_frames=50, 
                           frames_dir=None, show_progress=True):
