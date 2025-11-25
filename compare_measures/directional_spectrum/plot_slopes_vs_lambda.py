@@ -58,7 +58,7 @@ def plot_slopes_vs_lambda(csv_path=None, save_path="slopes_vs_lambda.png", show_
     chi_vals_all = df['chi'].values
     
     # Create figure
-    fig, ax = plt.subplots(figsize=(12, 7))
+    fig, ax = plt.subplots(figsize=(8, 6))
     
     # Plot selected slopes - filter out NaN values for each slope individually
     slope_configs = {

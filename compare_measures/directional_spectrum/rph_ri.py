@@ -13,8 +13,8 @@ C = 1.0
 # emit_frac = (0.15, 1.00)
 # screen_frac = (0.00, 0.10)
 
-emit_frac   = (0.00, 1.00)   # thicker emitter -> larger r_i
-screen_frac = (0.66, 0.67)   # thinner screen -> smaller r_phi
+emit_frac   = (0.00, 0.46)
+screen_frac = (0.69, 0.70)
 
 if REGIME == "r_phi_lt_ri":
     screen_frac = (0.5, 0.504)
@@ -38,8 +38,10 @@ else:
     auto_los = False
     los_perpendicular = True
 
-emit_frac   = (0.00, 1.00)   # thicker emitter -> larger r_i
-screen_frac = (0.66, 0.67)   # thinner screen -> smaller r_phi
+
+emit_frac   = (0.00, 0.46)   # thicker emitter -> larger r_i
+screen_frac = (0.69, 0.70)   # thinner screen -> smaller r_phi
+
 
 import matplotlib as mpl
 mpl.rcParams.update({
@@ -554,4 +556,4 @@ if __name__ == "__main__":
     print("=" * 70)
     print()
     
-    generate_chi_animation(chi_min=5.0, chi_max=10.0, n_frames=100, show_progress=True)
+    generate_chi_animation(chi_min=0.0, chi_max=10.0, n_frames=50, show_progress=True)

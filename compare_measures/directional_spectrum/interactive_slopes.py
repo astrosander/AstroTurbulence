@@ -28,14 +28,12 @@ mpl.rcParams.update({
     "axes.unicode_minus": False,
 })
 
-# Fixed chi value
-CHI_TARGET = 1.0
-
 # Initial values
-INIT_EMIT_START = 0.7
-INIT_EMIT_END = 0.75
-INIT_SCREEN_START = 0.00
-INIT_SCREEN_END = 0.05
+INIT_CHI = 1.0
+INIT_EMIT_START = 0.00
+INIT_EMIT_END = 0.46
+INIT_SCREEN_START = 0.69
+INIT_SCREEN_END = 0.7
 
 # Load data once
 print("Loading data...")
@@ -58,7 +56,7 @@ _, sigma_RM_init, _, _ = separated_P_map(
     (INIT_EMIT_START, INIT_EMIT_END), 
     (INIT_SCREEN_START, INIT_SCREEN_END)
 )
-lam_init = np.sqrt(CHI_TARGET / (2.0 * sigma_RM_init)) if sigma_RM_init > 0 else 0.0
+lam_init = np.sqrt(INIT_CHI / (2.0 * sigma_RM_init)) if sigma_RM_init > 0 else 0.0
 
 print(f"Initial sigma_RM = {sigma_RM_init:.6f}")
 print(f"Initial lambda = {lam_init:.6f}")
@@ -66,7 +64,7 @@ print(f"Initial lambda = {lam_init:.6f}")
 # Create figure and axis
 fig = plt.figure(figsize=(14, 9))
 ax = plt.subplot(2, 1, 1)
-plt.subplots_adjust(bottom=0.25)
+# plt.subplots_adjust(bottom=0.3)
 
 # Initial plot
 ring_bins = 96
@@ -133,20 +131,23 @@ if Kphi_idx is not None:
 
 ax.set_xlabel("$k$", fontsize=18)
 ax.set_ylabel("$P_{dir}(k)$", fontsize=18)
-ax.set_title(rf"$\chi = {CHI_TARGET:.1f}$, $r_\phi={r_phi:.2f}$, $r_i={r_i:.2f}$", fontsize=20, fontweight='bold', pad=10)
+ax.set_title(rf"$\chi = {INIT_CHI:.1f}$, $r_\phi={r_phi:.2f}$, $r_i={r_i:.2f}$", fontsize=20, fontweight='bold', pad=10)
+ax.set_ylim(1e-8, 1e-2)
 ax.grid(True, which='both', alpha=0.25, linestyle='--', linewidth=0.8)
 ax.legend(frameon=True, fancybox=True, shadow=True, framealpha=0.9)
 
 # Create sliders
-ax_emit_start = plt.axes([0.15, 0.15, 0.3, 0.03])
-ax_emit_end = plt.axes([0.15, 0.10, 0.3, 0.03])
-ax_screen_start = plt.axes([0.55, 0.15, 0.3, 0.03])
-ax_screen_end = plt.axes([0.55, 0.10, 0.3, 0.03])
+ax_emit_start = plt.axes([0.15, 0.12, 0.3, 0.025])
+ax_emit_end = plt.axes([0.15, 0.08, 0.3, 0.025])
+ax_screen_start = plt.axes([0.55, 0.12, 0.3, 0.025])
+ax_screen_end = plt.axes([0.55, 0.08, 0.3, 0.025])
+ax_chi = plt.axes([0.15, 0.01, 0.7, 0.025])
 
 slider_emit_start = Slider(ax_emit_start, 'emit_start', 0.0, 1.0, valinit=INIT_EMIT_START, valstep=0.01)
 slider_emit_end = Slider(ax_emit_end, 'emit_end', 0.0, 1.0, valinit=INIT_EMIT_END, valstep=0.01)
 slider_screen_start = Slider(ax_screen_start, 'screen_start', 0.0, 1.0, valinit=INIT_SCREEN_START, valstep=0.01)
 slider_screen_end = Slider(ax_screen_end, 'screen_end', 0.0, 1.0, valinit=INIT_SCREEN_END, valstep=0.01)
+slider_chi = Slider(ax_chi, 'chi', 0.1, 100.0, valinit=INIT_CHI, valstep=0.1)
 
 def update(val):
     """Update plot when sliders change."""
@@ -154,6 +155,7 @@ def update(val):
     emit_end = slider_emit_end.val
     screen_start = slider_screen_start.val
     screen_end = slider_screen_end.val
+    chi_val = slider_chi.val
     
     # Ensure emit_end > emit_start and screen_end > screen_start
     if emit_end <= emit_start:
@@ -172,8 +174,8 @@ def update(val):
         Pi, phi, 0.0, use_los_axis, emit_frac, screen_frac
     )
     
-    # Calculate lambda to maintain chi = 1.0
-    lam = np.sqrt(CHI_TARGET / (2.0 * sigma_RM)) if sigma_RM > 0 else 0.0
+    # Calculate lambda to maintain chi value from slider
+    lam = np.sqrt(chi_val / (2.0 * sigma_RM)) if sigma_RM > 0 else 0.0
     
     # Recompute with correct lambda
     P, sigma_RM, P_emit_map, Phi_map = separated_P_map(
@@ -247,11 +249,12 @@ def update(val):
                 fit_lines.append(ax.lines[-1])
     
     # Update title
-    ax.set_title(rf"$\chi = {CHI_TARGET:.1f}$, $r_\phi={r_phi:.2f}$, $r_i={r_i:.2f}$", fontsize=20, fontweight='bold', pad=10)
+    ax.set_title(rf"$\chi = {chi_val:.1f}$, $r_\phi={r_phi:.2f}$, $r_i={r_i:.2f}$", fontsize=20, fontweight='bold', pad=10)
     
     # Update axis limits
     ax.relim()
     ax.autoscale()
+    ax.set_ylim(1e-8, 1e-2)
     
     # Update legend
     ax.legend(frameon=True, fancybox=True, shadow=True, framealpha=0.9)
@@ -263,6 +266,7 @@ slider_emit_start.on_changed(update)
 slider_emit_end.on_changed(update)
 slider_screen_start.on_changed(update)
 slider_screen_end.on_changed(update)
+slider_chi.on_changed(update)
 
 plt.show()
 
