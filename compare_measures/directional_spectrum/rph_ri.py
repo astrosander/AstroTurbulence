@@ -4,18 +4,15 @@ from pathlib import Path
 
 h5_path = r"D:\Рабочая папка\GitHub\AstroTurbulence\faradays_angles_stats\lp_structure_tests\ms01ma08.mhd_w.00300.vtk.h5"
 lam = 0.0
-C = 1.0
 ring_bins = 96
-
 REGIME = "r_phi_lt_ri"
-
 los_axis = 2
-emit_frac = (0.10, 0.5)
-screen_frac = (0.10, 0.10)
-gamma = 2.0
+C = 1.0
+# emit_frac = (0.15, 1.00)
+# screen_frac = (0.00, 0.10)
 
-
-# r_i > r_phi
+emit_frac   = (0.00, 1.00)   # thicker emitter -> larger r_i
+screen_frac = (0.00, 0.03)   # thinner screen -> smaller r_phi
 
 if REGIME == "r_phi_lt_ri":
     screen_frac = (0.5, 0.504)
@@ -38,6 +35,10 @@ elif REGIME == "auto_los":
 else:
     auto_los = False
     los_perpendicular = True
+
+emit_frac   = (0.7, 0.75)   # thicker emitter -> larger r_i
+screen_frac = (0.00, 0.05)   # thinner screen -> smaller r_phi
+
 
 import matplotlib as mpl
 mpl.rcParams.update({
@@ -295,11 +296,21 @@ def find_params_swap(target="rphi<ri", h5_path_override=None):
     return result
 
 def fit_segment(ax, kc, Pdir, kmin, kmax, color, label):
-    m = (kc>=kmin)&(kc<=kmax)&np.isfinite(Pdir)&(Pdir>0)
-    if m.sum()<6: return None
-    x, y = np.log(kc[m]), np.log(Pdir[m])
+    # Use small tolerance to handle floating point errors at boundaries
+    # Use relative tolerance based on the range
+    eps = max(np.finfo(kc.dtype).eps * max(abs(kmin), abs(kmax)), 1e-10)
+    # Include points on the border (accounting for floating point errors)
+    m = (kc >= kmin - eps)&(kc <= kmax + eps)&np.isfinite(Pdir)&(Pdir>0)
+    if m.sum() == 0: return None
+    # Use only the actual range where points exist
+    k_actual = kc[m]
+    k_actual_min = k_actual.min()
+    k_actual_max = k_actual.max()
+    # Least squares fit using only points in the range
+    x, y = np.log(k_actual), np.log(Pdir[m])
     a, b = np.polyfit(x, y, 1)
-    kk = np.logspace(np.log10(kmin), np.log10(kmax), 160)
+    # Plot only over the range where points exist
+    kk = np.logspace(np.log10(k_actual_min), np.log10(k_actual_max), 160)
     ax.loglog(kk, np.exp(b)*kk**a, lw=3.5, color=color, alpha=0.95, label=f"{label} {a:.2f}")
     return a
 
@@ -332,15 +343,6 @@ def plot_spectrum(lam, save_path=None, show_plots=True,
 
     r_i,  _, _ = radial_corr_length_unbiased(P_emit_map, bins=256, method="efold")
     r_phi, _, _ = radial_corr_length_unbiased(Phi_map,      bins=256, method="efold")
-    
-    import time 
-    print("emit_frac=", use_emit_frac)
-    print("screen_frac=", use_screen_frac)
-    print("r_i=", r_i)
-    print("r_phi=", r_phi)
-
-    print("================================================")
-    time.sleep(1)
     Ny, Nx = P_emit_map.shape
     Kphi_idx = (1.0/r_phi)*Nx if (np.isfinite(r_phi) and r_phi>0) else None
     Ki_idx   = (1.0/r_i)*Nx   if (np.isfinite(r_i)   and r_i>0)   else None
@@ -348,7 +350,8 @@ def plot_spectrum(lam, save_path=None, show_plots=True,
     fig = plt.figure(figsize=(12, 5.5))
     ax = plt.subplot(1,1,1)
     
-    ax.loglog(kc, Pdir, '-', color='#2C3E50', lw=2.5, alpha=0.8, label='Data', ms=5)
+    # Modern color scheme matching previous simulation
+    ax.loglog(kc, Pdir, 'o-', color='#2C3E50', lw=2.5, alpha=0.8, label='Data', ms=5)
     
     if Kphi_idx is not None: 
         ax.axvline(Kphi_idx, color="#9B59B6", lw=2.0, ls="--", alpha=0.9,
@@ -358,34 +361,65 @@ def plot_spectrum(lam, save_path=None, show_plots=True,
                    label=fr"$K_i=1/r_i$ = {Ki_idx:.3f}")
 
     kmin, kmax = kc.min(), kc.max()
-    if (Kphi_idx is not None) and (Kphi_idx>kmin):
-        sP = fit_segment(ax, kc, Pdir, kmin, Kphi_idx, "#7F8C8D", "plateau")
-    if (Kphi_idx is not None) and (Ki_idx is not None) and (Ki_idx>Kphi_idx):
-        sM = fit_segment(ax, kc, Pdir, Kphi_idx, Ki_idx, "#E67E22", "mid")
-    if (Ki_idx is not None) and (Ki_idx<kmax):
-        m = (kc>=Ki_idx)&(kc<=kmax)&np.isfinite(Pdir)&(Pdir>0)
-        if m.sum()>=6:
+    
+    # Three separate, non-overlapping slope measurements:
+    sP = None
+    sM = None
+    sH = None
+    
+    # 1. k < K_phi (low/plateau range) - fit to the same binned data that's plotted
+    if Kphi_idx is not None:
+        # Clamp Kphi_idx to valid range, but use original for comparison
+        k_phi_upper = min(max(Kphi_idx, kmin), kmax)  # Clamp between kmin and kmax
+        if k_phi_upper > kmin and Kphi_idx > kmin:  # Only if Kphi_idx is above kmin
+            sP = fit_segment(ax, kc, Pdir, kmin, k_phi_upper, "#7F8C8D", "$k<K_\phi$")
+    
+    # 2. K_phi < k < K_i (mid range) - fit to the same binned data that's plotted
+    if (Kphi_idx is not None) and (Ki_idx is not None) and (Ki_idx > Kphi_idx):
+        # Clamp both to valid range
+        k_phi_lower = max(Kphi_idx, kmin)
+        k_i_upper = min(Ki_idx, kmax)
+        if k_i_upper > k_phi_lower:
+            sM = fit_segment(ax, kc, Pdir, k_phi_lower, k_i_upper, "#E67E22", "$K_\phi<k<K_i$")
+    
+    # 3. k > K_i (high range)
+    if Ki_idx is not None:
+        # Clamp Ki_idx to valid range
+        k_i_lower = max(Ki_idx, kmin)
+        if k_i_lower < kmax:  # Only if Ki_idx is below kmax
             if lam==0.0:
-                xh, yh = np.log(kc[m]), np.log(Pdir[m])
-                s_fixed = -11.0/3.0
-                b_fixed = np.mean(yh - s_fixed*xh)
-                kk = np.logspace(np.log10(Ki_idx), np.log10(kmax), 160)
-                ax.loglog(kk, np.exp(b_fixed)*kk**s_fixed, lw=3.5, color="#E74C3C", 
-                         alpha=0.95, label=f"high {s_fixed:.2f}")
+                # Use small tolerance to handle floating point errors at boundaries
+                eps = max(np.finfo(kc.dtype).eps * max(abs(k_i_lower), abs(kmax)), 1e-10)
+                # Include points on the border (accounting for floating point errors)
+                m = (kc >= k_i_lower - eps)&(kc <= kmax + eps)&np.isfinite(Pdir)&(Pdir>0)
+                if m.sum() > 0:
+                    k_actual = kc[m]
+                    k_actual_min = k_actual.min()
+                    k_actual_max = k_actual.max()
+                    # Least squares fit using only points in the range
+                    xh, yh = np.log(k_actual), np.log(Pdir[m])
+                    s_fixed = -11.0/3.0
+                    b_fixed = np.mean(yh - s_fixed*xh)
+                    # Plot only over the range where points exist
+                    kk = np.logspace(np.log10(k_actual_min), np.log10(k_actual_max), 160)
+                    ax.loglog(kk, np.exp(b_fixed)*kk**s_fixed, lw=3.5, color="#E74C3C", 
+                             alpha=0.95, label=f"$k>K_i$ {s_fixed:.2f}")
+                    sH = s_fixed
             else:
-                sH = fit_segment(ax, kc, Pdir, Ki_idx, kmax, "#E74C3C", "high")
+                sH = fit_segment(ax, kc, Pdir, k_i_lower, kmax, "#E74C3C", "$k>K_i$")
 
     chi = 2*(lam**2)*sigma_RM
     
+    # Add regime indicator with modern colors (matching previous simulation)
     if chi < 1.0:
         regime = "Synchrotron-dominated"
-        regime_color = '#FF6B6B'
+        regime_color = '#FF6B6B'  # Red
     elif chi < 3.0:
         regime = "Transitional"
-        regime_color = '#FFD93D'
+        regime_color = '#FFD93D'  # Yellow/Gold
     else:
         regime = "Faraday-dominated"
-        regime_color = '#6BCB77'
+        regime_color = '#6BCB77'  # Green
     
     fig.text(0.5, 1.0, f'{regime} $\\chi = {chi:.3f}$', ha='center', 
              fontsize=20, fontweight='bold',
@@ -400,9 +434,9 @@ def plot_spectrum(lam, save_path=None, show_plots=True,
     plt.tight_layout()
     plt.subplots_adjust(top=0.88)
     
-    if save_path is not None:
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
-    
+    # if save_path is not None:
+    #     plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    plt.show()
     if show_plots:
         plt.show()
     else:
@@ -412,6 +446,7 @@ def plot_spectrum(lam, save_path=None, show_plots=True,
 
 def generate_chi_animation(chi_min=0.0, chi_max=5.0, n_frames=50, 
                           frames_dir=None, show_progress=True):
+    """Generate animation frames for varying chi values."""
     if frames_dir is None:
         script_dir = Path(__file__).parent
         frames_dir = script_dir / "rph_ri_animation_frames1"
@@ -422,6 +457,7 @@ def generate_chi_animation(chi_min=0.0, chi_max=5.0, n_frames=50,
         print(f"Frames will be saved to: {frames_dir}")
         print(f"Generating {n_frames} frames for chi from {chi_min:.2f} to {chi_max:.2f}")
     
+    # Compute sigma_RM once
     if show_progress:
         print("\nComputing sigma_RM from data...")
     Bx, By, Bz, ne = load_fields(h5_path)
@@ -441,7 +477,6 @@ def generate_chi_animation(chi_min=0.0, chi_max=5.0, n_frames=50,
     _, sigma_RM, _, _ = separated_P_map(Pi, phi, 1.0, use_los_axis, emit_frac, screen_frac)
     if show_progress:
         print(f"sigma_RM = {sigma_RM:.6f}")
-        print(f"Using: emit_frac={emit_frac}, screen_frac={screen_frac}, gamma={gamma}")
     
     chi_values = np.linspace(chi_min, chi_max, n_frames)
     
