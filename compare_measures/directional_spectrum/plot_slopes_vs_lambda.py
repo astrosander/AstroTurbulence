@@ -18,7 +18,7 @@ mpl.rcParams.update({
     "axes.unicode_minus": False,
 })
 
-def plot_slopes_vs_lambda(csv_path=None, save_path="slopes_vs_lambda.png", show_plot=True, 
+def plot_slopes_vs_lambda(csv_path=None, save_path="slopes_vs_lambda.pdf", show_plot=True, 
                           plot_slopes=['k_lt_K_i', 'K_i_lt_k_lt_K_phi', 'k_gt_K_phi']):
     """Plot slopes as a function of chi from the CSV file.
     

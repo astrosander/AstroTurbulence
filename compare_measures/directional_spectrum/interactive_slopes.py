@@ -99,6 +99,14 @@ fit_lines = []
 
 kmin, kmax = kc.min(), kc.max()
 
+# Add theoretical prediction slopes
+k_ref = np.logspace(np.log10(kmin), np.log10(kmax), 100)
+# Normalize to fit in the plot range
+P_ref_norm = Pdir[0] * (k_ref / kc[0])**(-11/3)
+line_pred_11_3, = ax.loglog(k_ref, P_ref_norm, ':', color='#95A5A6', lw=2.0, alpha=0.7, label=r'$-11/3$ prediction')
+P_ref_norm_8_3 = Pdir[0] * (k_ref / kc[0])**(-8/3)
+line_pred_8_3, = ax.loglog(k_ref, P_ref_norm_8_3, ':', color='#BDC3C7', lw=2.0, alpha=0.7, label=r'$-8/3$ prediction')
+
 # Fit slopes
 sP = None
 sM = None
@@ -191,6 +199,14 @@ def update(val):
     
     # Update data line
     line_data.set_data(kc, Pdir)
+    
+    # Update theoretical prediction slopes
+    kmin, kmax = kc.min(), kc.max()
+    k_ref = np.logspace(np.log10(kmin), np.log10(kmax), 100)
+    P_ref_norm = Pdir[0] * (k_ref / kc[0])**(-11/3)
+    line_pred_11_3.set_data(k_ref, P_ref_norm)
+    P_ref_norm_8_3 = Pdir[0] * (k_ref / kc[0])**(-8/3)
+    line_pred_8_3.set_data(k_ref, P_ref_norm_8_3)
     
     # Compute r_i and r_phi
     r_i, _, _ = radial_corr_length_unbiased(P_emit_map, bins=256, method="efold")

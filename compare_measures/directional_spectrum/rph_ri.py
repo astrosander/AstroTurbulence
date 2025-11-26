@@ -394,6 +394,36 @@ def plot_spectrum(lam, save_path=None, show_plots=True,
 
     kmin, kmax = kc.min(), kc.max()
     
+    # Add theoretical prediction slopes: -11/3 and -8/3
+    # Normalize to data range for visibility
+    k_ref = np.logspace(np.log10(kmin), np.log10(kmax), 200)
+    # Find a reference point in the middle of the data range for normalization
+    mid_idx = len(Pdir) // 2
+    if mid_idx < len(Pdir) and np.isfinite(Pdir[mid_idx]) and Pdir[mid_idx] > 0:
+        P_ref = Pdir[mid_idx]
+        k_ref_mid = kc[mid_idx]
+    else:
+        # Fallback: use median of valid data
+        valid_mask = np.isfinite(Pdir) & (Pdir > 0)
+        if valid_mask.sum() > 0:
+            P_ref = np.median(Pdir[valid_mask])
+            k_ref_mid = np.median(kc[valid_mask])
+        else:
+            P_ref = Pdir[0] if len(Pdir) > 0 and Pdir[0] > 0 else 1.0
+            k_ref_mid = kc[0] if len(kc) > 0 else kmin
+    
+    # -11/3 prediction slope
+    slope_11_3 = -11.0/3.0
+    P_pred_11_3 = P_ref * (k_ref / k_ref_mid)**slope_11_3
+    ax.loglog(k_ref, P_pred_11_3, color='blue', lw=2.0, alpha=0.7, 
+              label=fr'$-11/3$')
+    
+    # -8/3 prediction slope
+    slope_8_3 = -8.0/3.0
+    P_pred_8_3 = P_ref * (k_ref / k_ref_mid)**slope_8_3
+    ax.loglog(k_ref, P_pred_8_3,  color='red', lw=2.0, alpha=0.7, 
+              label=fr'$-8/3$')
+    
     # Three separate, non-overlapping slope measurements:
     sP = None
     sM = None
