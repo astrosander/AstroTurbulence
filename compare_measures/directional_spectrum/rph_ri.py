@@ -394,35 +394,80 @@ def plot_spectrum(lam, save_path=None, show_plots=True,
 
     kmin, kmax = kc.min(), kc.max()
     
-    # Add theoretical prediction slopes: -11/3 and -8/3
-    # Normalize to data range for visibility
+    # Add piecewise theoretical prediction: zero slope for k < K_i, -11/3 for K_i < k < K_phi, -8/3 for k > K_phi
     k_ref = np.logspace(np.log10(kmin), np.log10(kmax), 200)
-    # Find a reference point in the middle of the data range for normalization
-    mid_idx = len(Pdir) // 2
-    if mid_idx < len(Pdir) and np.isfinite(Pdir[mid_idx]) and Pdir[mid_idx] > 0:
-        P_ref = Pdir[mid_idx]
-        k_ref_mid = kc[mid_idx]
+    
+    # Find a reference point for normalization (use a point near K_i if available, otherwise middle)
+    if Ki_idx is not None and Ki_idx >= kmin and Ki_idx <= kmax:
+        # Use value at K_i as reference
+        k_ref_norm = Ki_idx
+        # Find closest data point to K_i for normalization
+        idx_norm = np.argmin(np.abs(kc - Ki_idx))
+        if idx_norm < len(Pdir) and np.isfinite(Pdir[idx_norm]) and Pdir[idx_norm] > 0:
+            P_ref = Pdir[idx_norm]
+        else:
+            # Fallback to median
+            valid_mask = np.isfinite(Pdir) & (Pdir > 0)
+            P_ref = np.median(Pdir[valid_mask]) if valid_mask.sum() > 0 else Pdir[0] if len(Pdir) > 0 else 1.0
     else:
         # Fallback: use median of valid data
-        valid_mask = np.isfinite(Pdir) & (Pdir > 0)
-        if valid_mask.sum() > 0:
-            P_ref = np.median(Pdir[valid_mask])
-            k_ref_mid = np.median(kc[valid_mask])
+        mid_idx = len(Pdir) // 2
+        if mid_idx < len(Pdir) and np.isfinite(Pdir[mid_idx]) and Pdir[mid_idx] > 0:
+            P_ref = Pdir[mid_idx]
+            k_ref_norm = kc[mid_idx]
         else:
-            P_ref = Pdir[0] if len(Pdir) > 0 and Pdir[0] > 0 else 1.0
-            k_ref_mid = kc[0] if len(kc) > 0 else kmin
+            valid_mask = np.isfinite(Pdir) & (Pdir > 0)
+            if valid_mask.sum() > 0:
+                P_ref = np.median(Pdir[valid_mask])
+                k_ref_norm = np.median(kc[valid_mask])
+            else:
+                P_ref = Pdir[0] if len(Pdir) > 0 and Pdir[0] > 0 else 1.0
+                k_ref_norm = kc[0] if len(kc) > 0 else kmin
     
-    # -11/3 prediction slope
-    slope_11_3 = -11.0/3.0
-    P_pred_11_3 = P_ref * (k_ref / k_ref_mid)**slope_11_3
-    ax.loglog(k_ref, P_pred_11_3, color='blue', lw=2.0, alpha=0.7, 
-              label=fr'$-11/3$')
+    # Create piecewise prediction
+    P_pred_piecewise = np.zeros_like(k_ref)
+    slope_11_3 = -8.0/3.0
+    slope_8_3 = -11.0/3.0
     
-    # -8/3 prediction slope
-    slope_8_3 = -8.0/3.0
-    P_pred_8_3 = P_ref * (k_ref / k_ref_mid)**slope_8_3
-    ax.loglog(k_ref, P_pred_8_3,  color='red', lw=2.0, alpha=0.7, 
-              label=fr'$-8/3$')
+    if Ki_idx is not None and Kphi_idx is not None:
+        # Segment 1: k < K_i (zero slope - constant)
+        mask1 = k_ref < Ki_idx
+        if mask1.sum() > 0:
+            # Constant value at K_i
+            P_at_Ki = P_ref * (Ki_idx / k_ref_norm)**0.0  # Zero slope
+            P_pred_piecewise[mask1] = P_at_Ki
+        
+        # Segment 2: K_i <= k < K_phi (-11/3 slope)
+        mask2 = (k_ref >= Ki_idx) & (k_ref < Kphi_idx)
+        if mask2.sum() > 0:
+            # Start from value at K_i
+            P_at_Ki = P_ref * (Ki_idx / k_ref_norm)**0.0
+            P_pred_piecewise[mask2] = P_at_Ki * (k_ref[mask2] / Ki_idx)**slope_11_3
+        
+        # Segment 3: k >= K_phi (-8/3 slope)
+        mask3 = k_ref >= Kphi_idx
+        if mask3.sum() > 0:
+            # Start from value at K_phi (from segment 2)
+            P_at_Ki = P_ref * (Ki_idx / k_ref_norm)**0.0
+            P_at_Kphi = P_at_Ki * (Kphi_idx / Ki_idx)**slope_11_3
+            P_pred_piecewise[mask3] = P_at_Kphi * (k_ref[mask3] / Kphi_idx)**slope_8_3
+    elif Ki_idx is not None:
+        # Only K_i available: zero slope for k < K_i, -11/3 for k >= K_i
+        mask1 = k_ref < Ki_idx
+        if mask1.sum() > 0:
+            P_at_Ki = P_ref * (Ki_idx / k_ref_norm)**0.0
+            P_pred_piecewise[mask1] = P_at_Ki
+        mask2 = k_ref >= Ki_idx
+        if mask2.sum() > 0:
+            P_at_Ki = P_ref * (Ki_idx / k_ref_norm)**0.0
+            P_pred_piecewise[mask2] = P_at_Ki * (k_ref[mask2] / Ki_idx)**slope_11_3
+    else:
+        # No boundaries available: use -11/3 for all
+        P_pred_piecewise = P_ref * (k_ref / k_ref_norm)**slope_11_3
+    
+    # Plot piecewise prediction
+    ax.loglog(k_ref, P_pred_piecewise, color='blue', lw=2.0, alpha=0.7, 
+              label=r'Pediction')
     
     # Three separate, non-overlapping slope measurements:
     sP = None
@@ -586,4 +631,4 @@ if __name__ == "__main__":
     print("=" * 70)
     print()
     
-    generate_chi_animation(chi_min=0.0, chi_max=10.0, n_frames=50, show_progress=True)
+    generate_chi_animation(chi_min=0.0, chi_max=5.0, n_frames=50, show_progress=True)
