@@ -93,15 +93,20 @@ def build_separated_sefr_cubes(
 
 def compute_P_emit_and_RM_layers(emitter, far,
                                  L_emit=None, L_far=None,
-                                 C_phi=1.0):
+                                 C_phi=1.0,
+                                 A_phi=1.0):
     """
     Construct intrinsic polarization map P_emit(X) and Faraday depth Φ(X)
     for given LOS thicknesses L_emit and L_far.
     LOS axis is the first index (z).
 
-    P_i(z,y,x) = (B_x + i B_y)^2
-    P_emit(y,x) = sum_{z=0}^{L_emit-1} P_i(z,y,x)
-    Φ(y,x)      = sum_{z=0}^{L_far-1}   [C_phi * ne(z,y,x) * Bz(z,y,x)]
+    P_i(z,y,x)   = (Bx_e + i By_e)^2
+    P_emit(y,x)  = sum_{z=0}^{L_emit-1} P_i(z,y,x)
+    Φ(y,x)       = sum_{z=0}^{L_far-1}   [C_phi * A_phi * ne_f * Bz_f]
+
+    A_phi is an overall amplitude factor for the Faraday density, so you
+    can "turn up/down" the RM fluctuations without changing their
+    correlation length or scaling exponent.
     """
     Bx_e, By_e, Bz_e, ne_e = emitter
     Bx_f, By_f, Bz_f, ne_f = far
@@ -112,12 +117,12 @@ def compute_P_emit_and_RM_layers(emitter, far,
     if L_far is None:
         L_far = n
 
-    # Intrinsic emissivity
+    # Intrinsic emissivity density
     P_i = (Bx_e + 1j * By_e)**2
     P_emit = np.sum(P_i[:L_emit, :, :], axis=0)
 
-    # Faraday density and RM
-    phi3d = C_phi * ne_f * Bz_f
+    # Faraday density and RM with amplitude factor A_phi
+    phi3d = C_phi * A_phi * ne_f * Bz_f
     Phi   = np.sum(phi3d[:L_far, :, :], axis=0)
 
     return P_emit, Phi
@@ -711,6 +716,240 @@ def validate_lp16_appendixC_multislopes(
     plt.show()
 
 
+def validate_lp16_appendixC_theory_overlay(
+    n=256,
+    beta_B_emit=11.0/3.0,
+    beta_ne_emit=11.0/3.0,
+    beta_B_far=11.0/3.0,
+    beta_ne_far=11.0/3.0,
+    C_phi=1.0,
+    A_phi=1.0,
+    seed=1,
+):
+    """
+    Validate LP16 Appendix C (Eqs. 162–164) by overlaying *theoretical*
+    structure functions (not fitted straight lines) on top of the measured
+    D_{dP}(R), using your current SEFR setup.
+
+    - Uses dP/dλ^2 at λ^2 → 0: dP/dλ^2 = 2 i Φ P_emit.
+    - Extracts M_i, tilde m_phi, R_i, r_phi, L_thin, L_thick from data.
+    - Builds theory curves exactly from LP16, with a single amplitude
+      normalization per regime.
+    """
+
+    print("Building cubes...")
+    emitter, far = build_separated_sefr_cubes(
+        n=n,
+        beta_B_emit=beta_B_emit,
+        beta_ne_emit=beta_ne_emit,
+        beta_B_far=beta_B_far,
+        beta_ne_far=beta_ne_far,
+        seed=seed,
+    )
+
+    # ---------- Step 1: choose geometry: thick and thin ----------
+    print("\nEstimating global r_phi for geometry...")
+    # Full RM for r_phi_global
+    _, Phi_full = compute_P_emit_and_RM_layers(
+        emitter, far, L_emit=n, L_far=n, C_phi=C_phi, A_phi=A_phi
+    )
+    r_phi_global = correlation_length_2d(Phi_full, nbins=64, method="efold")
+    print(f"  r_phi_global ≈ {r_phi_global:.2f} pixels")
+
+    L_thick = n
+    L_thin  = max(4, int(0.5 * r_phi_global))  # enforce L_thin < r_phi
+    print(f"  L_thick = {L_thick}, L_thin = {L_thin}")
+
+    # ---------- Step 2: construct maps ----------
+    print("\nConstructing thick and thin screens...")
+
+    # Thick
+    P_emit_thick, Phi_thick = compute_P_emit_and_RM_layers(
+        emitter, far, L_emit=L_thick, L_far=L_thick, C_phi=C_phi, A_phi=A_phi
+    )
+    dP_thick = dP_dlambda2_at_zero(P_emit_thick, Phi_thick)
+
+    # Thin
+    P_emit_thin, Phi_thin = compute_P_emit_and_RM_layers(
+        emitter, far, L_emit=L_thick, L_far=L_thin, C_phi=C_phi, A_phi=A_phi
+    )
+    dP_thin = dP_dlambda2_at_zero(P_emit_thin, Phi_thin)
+
+    # ---------- Step 3: correlation lengths ----------
+    R_i         = correlation_length_2d(P_emit_thick, nbins=64, method="efold")
+    r_phi_thick = correlation_length_2d(Phi_thick,   nbins=64, method="efold")
+    r_phi_thin  = correlation_length_2d(Phi_thin,    nbins=64, method="efold")
+
+    print("\nEstimated correlation lengths (pixels):")
+    print(f"  R_i           ≈ {R_i:.2f}")
+    print(f"  r_phi_thick   ≈ {r_phi_thick:.2f}")
+    print(f"  r_phi_thin    ≈ {r_phi_thin:.2f}")
+    print(f"  L_thin        =  {L_thin}")
+    print(f"  L_thick       =  {L_thick}")
+
+    print("\nRegime checks:")
+    print(f"  Thick screen: L_thick / r_phi_thick ≈ {L_thick / r_phi_thick:.2f}  (should be > 1)")
+    print(f"  Thin  screen: L_thin  / r_phi_thin  ≈ {L_thin  / r_phi_thin:.2f}  (should be < 1)")
+
+    # ---------- Step 4: structure functions ----------
+    print("\nComputing structure functions...")
+
+    r_P,   D_P   = structure_function_2d_complex(P_emit_thick, nbins=64, rmin=1.0, rmax=n/3)
+    r_Phi, D_Phi = structure_function_2d_complex(Phi_thick,    nbins=64, rmin=1.0, rmax=n/3)
+    r_dP_th, D_dP_th = structure_function_2d_complex(dP_thick, nbins=64, rmin=1.0, rmax=n/3)
+    r_dP_tn, D_dP_tn = structure_function_2d_complex(dP_thin,  nbins=64, rmin=1.0, rmax=n/3)
+
+    # ---------- Step 5: extract M_i and tilde m_phi ----------
+    Rmin_global = 4.0
+    Rmax_global = n / 5.0
+
+    M_i       = fit_powerlaw_slope(r_P,   D_P,   Rmin_global, Rmax_global)
+    alpha_phi = fit_powerlaw_slope(r_Phi, D_Phi, Rmin_global, Rmax_global)
+    tilde_m_phi = alpha_phi - 1.0
+
+    print("\nBasic slopes from simulation:")
+    print(f"  Source M_i          ≈ {M_i:.3f}")
+    print(f"  Faraday SF exponent ≈ {alpha_phi:.3f}  (D_Φ ∝ R^{alpha_phi:.3f})")
+    print(f"  ⇒ LP16 tilde m_phi  ≈ {tilde_m_phi:.3f}")
+
+    # ---------- Helper: theory curves with 1-parameter normalization ----------
+
+    def theory_thick(R):
+        """
+        LP16 Eq. (162) for thick screen, up to a global factor K_thick.
+        """
+        return (R / R_i)**M_i + (r_phi_thick / L_thick)**(1.0 - tilde_m_phi) * \
+               (R / r_phi_thick)**(1.0 + tilde_m_phi)
+
+    def theory_thin_A(R):
+        """
+        LP16 Eq. (163): thin screen, R < L_thin, up to global factor K_A.
+        """
+        return (R / R_i)**M_i + (r_phi_thin / L_thin) * \
+               (R / r_phi_thin)**(1.0 + tilde_m_phi)
+
+    def theory_thin_B(R):
+        """
+        LP16 Eq. (164): thin screen, L_thin < R < r_phi_thin, up to K_B.
+        """
+        return (R / R_i)**M_i + (R / r_phi_thin)**(tilde_m_phi)
+
+    # ---------- Step 6: define R-ranges and normalize theory curves ----------
+
+    # Thick: R ∈ [Rmin_global, min(r_phi_thick, Rmax_global)]
+    Rmax_thick = min(r_phi_thick, Rmax_global)
+    R_th = np.linspace(Rmin_global, Rmax_thick, 200)
+
+    # Choose pivot for normalization (geometric mean of range)
+    R0_th = np.sqrt(Rmin_global * Rmax_thick)
+    idx0_th = np.argmin(np.abs(r_dP_th - R0_th))
+    D0_th = D_dP_th[idx0_th]
+    S0_th = theory_thick(R0_th)
+    K_th = D0_th / S0_th if S0_th != 0 else 1.0
+    D_th_theory = K_th * theory_thick(R_th)
+
+    # Thin Region A: R ∈ [Rmin_global, Rmax_thin_A]
+    Rmax_thin_A = min(L_thin, r_phi_thin, Rmax_global)
+    R_A = np.linspace(Rmin_global, Rmax_thin_A, 200)
+
+    R0_A = np.sqrt(Rmin_global * Rmax_thin_A)
+    idx0_A = np.argmin(np.abs(r_dP_tn - R0_A))
+    D0_A = D_dP_tn[idx0_A]
+    S0_A = theory_thin_A(R0_A)
+    K_A = D0_A / S0_A if S0_A != 0 else 1.0
+    D_A_theory = K_A * theory_thin_A(R_A)
+
+    # Thin Region B: R ∈ [Rmin_thin_B, Rmax_thin_B]
+    Rmin_thin_B = max(L_thin, Rmin_global)
+    Rmax_thin_B = min(r_phi_thin, Rmax_global)
+    R_B = np.linspace(Rmin_thin_B, Rmax_thin_B, 200)
+
+    R0_B = np.sqrt(Rmin_thin_B * Rmax_thin_B)
+    idx0_B = np.argmin(np.abs(r_dP_tn - R0_B))
+    D0_B = D_dP_tn[idx0_B]
+    S0_B = theory_thin_B(R0_B)
+    K_B = D0_B / S0_B if S0_B != 0 else 1.0
+    D_B_theory = K_B * theory_thin_B(R_B)
+
+    print("\nNormalization (one factor per regime):")
+    print(f"  Thick:  K_th ≈ {K_th:.3e}, pivot R0_th≈{R0_th:.2f}")
+    print(f"  Thin A: K_A  ≈ {K_A:.3e}, pivot R0_A ≈{R0_A:.2f}")
+    print(f"  Thin B: K_B  ≈ {K_B:.3e}, pivot R0_B ≈{R0_B:.2f}")
+
+    # ---------- Step 7: plotting (like Fig. 12, but in R-space) ----------
+
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10), sharey=False)
+    ax11, ax12, ax21, ax22 = axes.ravel()
+
+    # Panel 1: source SF with its measured slope
+    ax = ax11
+    ax.loglog(r_P, D_P, 'k-', lw=2, label=r'$D_{P_{\mathrm{emit}}}(R)$')
+    rline = np.linspace(Rmin_global, Rmax_global, 100)
+    D0_src = D_P[np.argmin(np.abs(r_P - Rmin_global))]
+    ax.loglog(rline,
+              D0_src * (rline / Rmin_global)**M_i,
+              'r--', lw=2,
+              label=fr'$R^{{M_i}}$, $M_i={M_i:.2f}$')
+    ax.set_xlim([r_P.min(), r_P.max()])
+    ax.set_ylim([D_P.min() * 0.8, D_P.max() * 1.2])
+    ax.set_xlabel(r'$R$')
+    ax.set_ylabel(r'$D(R)$')
+    ax.set_title(r'Source SF: $D_{P_{\mathrm{emit}}}(R)$')
+    ax.legend(fontsize=14)
+    ax.grid(True, which='both', ls=':')
+
+    # Panel 2: Faraday SF with its measured exponent
+    ax = ax12
+    ax.loglog(r_Phi, D_Phi, 'C0-', lw=2, label=r'$D_{\Phi}(R)$')
+    D0_phi = D_Phi[np.argmin(np.abs(r_Phi - Rmin_global))]
+    ax.loglog(rline,
+              D0_phi * (rline / Rmin_global)**alpha_phi,
+              'C3--', lw=2,
+              label=fr'$R^{{1+\tilde m_\phi}}$, $R^{{{alpha_phi:.2f}}}$')
+    ax.set_xlim([r_Phi.min(), r_Phi.max()])
+    ax.set_ylim([D_Phi.min() * 0.8, D_Phi.max() * 1.2])
+    ax.set_xlabel(r'$R$')
+    ax.set_title('Faraday SF: $D_{\Phi}(R)$')
+    ax.legend(fontsize=14)
+    ax.grid(True, which='both', ls=':')
+
+    # Panel 3: thick screen – data + *theory* (Eq. 162)
+    ax = ax21
+    ax.loglog(r_dP_th, D_dP_th, 'b-', lw=2, label=r'$D_{dP}^{\mathrm{thick}}(R)$')
+    ax.loglog(R_th, D_th_theory, 'r--', lw=2,
+              label=r'Theory (Eq. 162)')
+    ax.axvline(r_phi_thick, color='gray', ls=':', label=r'$r_\phi$')
+    ax.set_xlim([r_dP_th.min(), r_dP_th.max()])
+    ax.set_ylim([D_dP_th.min() * 0.8, D_dP_th.max() * 1.2])
+    ax.set_xlabel(r'$R$')
+    ax.set_ylabel(r'$D(R)$')
+    ax.set_title('Thick screen: $D_{dP}(R)$ vs theory')
+    ax.legend(fontsize=14)
+    ax.grid(True, which='both', ls=':')
+
+    # Panel 4: thin screen – data + theory for regions A and B
+    ax = ax22
+    ax.loglog(r_dP_tn, D_dP_tn, 'm-', lw=2, label=r'$D_{dP}^{\mathrm{thin}}(R)$')
+
+    # Theory in region A (R<L_thin): Eq. 163
+    ax.loglog(R_A, D_A_theory, 'r--', lw=2,
+              label=r'Theory A: Eq. 163')
+    # Theory in region B (L<R<r_phi): Eq. 164
+    ax.loglog(R_B, D_B_theory, 'g--', lw=2,
+              label=r'Theory B: Eq. 164')
+
+    ax.axvline(L_thin,     color='k',    ls=':', label=r'$L_{\mathrm{thin}}$')
+    ax.axvline(r_phi_thin, color='gray', ls=':', label=r'$r_\phi$')
+    ax.set_xlim([r_dP_tn.min(), r_dP_tn.max()])
+    ax.set_ylim([D_dP_tn.min() * 0.8, D_dP_tn.max() * 1.2])
+    ax.set_xlabel(r'$R$')
+    ax.set_title('Thin screen: $D_{dP}(R)$ vs theory')
+    ax.legend(fontsize=14)
+    ax.grid(True, which='both', ls=':')
+
+    plt.tight_layout()
+    plt.savefig('validate_lp16_appendixC_theory_overlay.png', dpi=300, bbox_inches='tight')
+    plt.show()
 
 if __name__ == "__main__":
     # Use n=256 or 512 for a serious test (512 is heavy in RAM).
@@ -724,12 +963,23 @@ if __name__ == "__main__":
     #     seed=1,
     # )
 
-    validate_lp16_appendixC_multislopes(
+    # validate_lp16_appendixC_multislopes(
+    #     n=256,
+    #     beta_B_emit=11.0/3.0,
+    #     beta_ne_emit=11.0/3.0,
+    #     beta_B_far=11.0/3.0,
+    #     beta_ne_far=11.0/3.0,
+    #     C_phi=1.0,
+    #     seed=1,
+    # )
+    
+    validate_lp16_appendixC_theory_overlay(
         n=256,
         beta_B_emit=11.0/3.0,
         beta_ne_emit=11.0/3.0,
         beta_B_far=11.0/3.0,
         beta_ne_far=11.0/3.0,
         C_phi=1.0,
+        A_phi=1.0,
         seed=1,
     )
