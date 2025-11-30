@@ -107,7 +107,7 @@ def fit_loglog_slope(k, E, kmin, kmax):
     return slope
 
 
-def recreate_fig12(npz_path, output_path=None, dpi=150):
+def recreate_fig12(npz_path, output_path=None, dpi=300):
     """
     Recreate Fig. 12 from saved spectra data.
     
@@ -190,29 +190,31 @@ def recreate_fig12(npz_path, output_path=None, dpi=150):
         # Reference slopes: k^{-3}, k^{-5/2}, k^{+1}
         # Use distinct modern colors for each reference slope
         slope_colors = {
-            -3.0: "#FF6B6B",   # Coral red - distinct from viridis
-            -2.5: "#2C3E50",   # Dark blue-gray - highly visible
-            1.0: "#E74C3C"     # Bright red - distinct and highly visible
+            -3.0: "#34495E",   # Purple - no blue, highly distinct
+            -2.5: "#9B59B6",   # Dark gray - no blue, highly visible
+            1.0: "#FF8C00"     # Dark orange - no blue
         }
         for slope_ref, ls, label in [(-3.0, ":",  r"$k^{-3}$"),
                                      (-2.5, "--", r"$k^{-5/2}$"),
                                      ( 1.0, "-.", r"$k^{1}$")]:
             # line: E = E0 * (k/k0)^{slope_ref}
             E_ref = E0 * (k0_arr / k0) ** slope_ref
-            # For k^1 line: move down and plot only from 40% to 80% of range
-            if slope_ref == 1.0:
-                E_ref = E_ref / 50000000.0
-                # Get indices for 40% to 80% of the range
-                n = len(k0_arr)
-                start_idx = int(0.05 * n)
-                end_idx = int(0.4 * n)
-                k_plot = k0_arr[start_idx:end_idx]
-                E_plot = E_ref[start_idx:end_idx]
-            else:
-                k_plot = k0_arr
-                E_plot = E_ref
+            # Adjust positions: k^{-3} down by 10, k^{-5/2} up by 10
+            if slope_ref == -3.0:
+                E_ref = E_ref / 1.5
+            elif slope_ref == -2.5:
+                E_ref = E_ref * 5
+            elif slope_ref == 1.0:
+                E_ref = E_ref / 70000000.0
+            
+            # Plot all reference lines only from 5% to 40% of the range
+            n = len(k0_arr)
+            start_idx = int(0.05 * n)
+            end_idx = int(0.4 * n)
+            k_plot = k0_arr[start_idx:end_idx]
+            E_plot = E_ref[start_idx:end_idx]
             ax.loglog(k_plot, E_plot, ls=ls, color=slope_colors[slope_ref], 
-                     alpha=0.9, lw=2.0, label=label, zorder=15)
+                    lw=2.0, label=label, zorder=15)
         
         # Optional: compute and print slopes for verification
         slopes = []
