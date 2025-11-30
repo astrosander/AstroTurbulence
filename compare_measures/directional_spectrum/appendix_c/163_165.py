@@ -1,6 +1,20 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+import matplotlib as mpl
+mpl.rcParams.update({
+    "text.usetex": False,          # use MathText (portable)
+    "font.family": "STIXGeneral",  # match math fonts
+    "font.size": 18,
+    "mathtext.fontset": "stix",
+    "axes.unicode_minus": False,   # proper minus sign
+    "axes.labelsize": 20,           # axis label text
+    "xtick.labelsize": 18,          # x-tick labels
+    "ytick.labelsize": 18,          # y-tick labels
+    "axes.titlesize": 20,           # title size
+    "legend.fontsize": 14,          # legend font size
+})
+
 # ============================================================
 # 1. 3D Gaussian random fields with power-law spectra
 # ============================================================
@@ -304,7 +318,7 @@ def validate_lp16_appendixC(
     r_phi_thick = correlation_length_2d(Phi_thick,  nbins=64, method="efold")
     r_phi_thin  = correlation_length_2d(Phi_thin,   nbins=64, method="efold")
 
-    print("\nEstimated correlation lengths (pixels):")
+    print("\nEstimated correlation lengths:")
     print(f"  R_i           ≈ {R_i:.2f}")
     print(f"  r_phi_thick   ≈ {r_phi_thick:.2f}")
     print(f"  r_phi_thin    ≈ {r_phi_thin:.2f}")
@@ -399,11 +413,13 @@ def validate_lp16_appendixC(
     rline = np.linspace(Rmin_global, Rmax_global, 50)
     D0 = D_P[np.argmin(np.abs(r_P - Rmin_global))]
     ref = D0 * (rline / Rmin_global)**M_i
-    ax.loglog(rline, ref, 'r--', lw=1.5, label=fr'slope $M_i\approx{M_i:.2f}$')
-    ax.set_xlabel(r'$R$ (pixels)')
+    ax.loglog(rline, ref, 'r--', lw=1.5, label=fr'slope $M_i={M_i:.2f}$')
+    ax.set_xlim([r_P.min(), r_P.max()])
+    ax.set_ylim([D_P.min() * 0.8, D_P.max() * 1.2])
+    ax.set_xlabel(r'$R$')
     ax.set_ylabel(r'$D(R)$')
     ax.set_title('Source structure function')
-    ax.legend()
+    ax.legend(fontsize=14)
     ax.grid(True, which='both', ls=':')
 
     # Panel 2: thick screen D_dP
@@ -413,11 +429,13 @@ def validate_lp16_appendixC(
     D0_t = D_dP_th[np.argmin(np.abs(r_dP_th - Rmin_global))]
     line_t = D0_t * (rfit / Rmin_global)**slope_dP_thick
     ax.loglog(rfit, line_t, 'r--', lw=1.5,
-              label=fr'fit: slope$\approx{ slope_dP_thick:.2f}$')
+              label=fr'fit: slope$={ slope_dP_thick:.2f}$')
     ax.axvline(r_phi_thick, color='gray', ls=':', label=r'$r_\phi$')
-    ax.set_xlabel(r'$R$ (pixels)')
+    ax.set_xlim([r_dP_th.min(), r_dP_th.max()])
+    ax.set_ylim([D_dP_th.min() * 0.8, D_dP_th.max() * 1.2])
+    ax.set_xlabel(r'$R$')
     ax.set_title('Thick screen (Eq. 162)')
-    ax.legend()
+    ax.legend(fontsize=14)
     ax.grid(True, which='both', ls=':')
 
     # Panel 3: thin screen D_dP with two non-overlapping segments
@@ -430,7 +448,7 @@ def validate_lp16_appendixC(
         D0_A = D_dP_tn[np.argmin(np.abs(r_dP_tn - Rmin_global))]
         line_A = D0_A * (rA / Rmin_global)**slope_thin_A
         ax.loglog(rA, line_A, 'r--', lw=1.5,
-                  label=fr'A: slope$\approx{ slope_thin_A:.2f}$')
+                  label=fr'A: slope$={ slope_thin_A:.2f}$')
 
     # Region B fit line: [Rmin_thin_B, Rmax_thin_B]
     if not np.isnan(slope_thin_B) and Rmax_thin_B > Rmin_thin_B:
@@ -438,16 +456,19 @@ def validate_lp16_appendixC(
         D0_B = D_dP_tn[np.argmin(np.abs(r_dP_tn - Rmin_thin_B))]
         line_B = D0_B * (rB / Rmin_thin_B)**slope_thin_B
         ax.loglog(rB, line_B, 'g--', lw=1.5,
-                  label=fr'B: slope$\approx{ slope_thin_B:.2f}$')
+                  label=fr'B: slope$={ slope_thin_B:.2f}$')
 
     ax.axvline(L_thin,     color='k',    ls=':', label=r'$L_{\rm thin}$')
     ax.axvline(r_phi_thin, color='gray', ls=':', label=r'$r_\phi$')
-    ax.set_xlabel(r'$R$ (pixels)')
+    ax.set_xlim([r_dP_tn.min(), r_dP_tn.max()])
+    ax.set_ylim([D_dP_tn.min() * 0.8, D_dP_tn.max() * 1.2])
+    ax.set_xlabel(r'$R$')
     ax.set_title('Thin screen (Eqs. 163 & 164)')
-    ax.legend()
+    ax.legend(fontsize=14)
     ax.grid(True, which='both', ls=':')
 
     plt.tight_layout()
+    plt.savefig('validate_lp16_appendixC.png', dpi=300, bbox_inches='tight')
     plt.show()
 
 def validate_lp16_appendixC_multislopes(
@@ -522,7 +543,7 @@ def validate_lp16_appendixC_multislopes(
     r_phi_thick = correlation_length_2d(Phi_thick,   nbins=64, method="efold")
     r_phi_thin  = correlation_length_2d(Phi_thin,    nbins=64, method="efold")
 
-    print("\nEstimated correlation lengths (pixels):")
+    print("\nEstimated correlation lengths:")
     print(f"  R_i           ≈ {R_i:.2f}")
     print(f"  r_phi_thick   ≈ {r_phi_thick:.2f}")
     print(f"  r_phi_thin    ≈ {r_phi_thin:.2f}")
@@ -604,7 +625,7 @@ def validate_lp16_appendixC_multislopes(
     # ----------------------------------------------------------
     # Step 8: plotting – 4 panels, multiple slopes, Fig-12 style
     # ----------------------------------------------------------
-    fig, axes = plt.subplots(2, 2, figsize=(12, 10), sharey=True)
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10), sharey=False)
     ax11, ax12, ax21, ax22 = axes.ravel()
 
     # Panel (1): D_{P_emit}(R) with M_i
@@ -614,11 +635,13 @@ def validate_lp16_appendixC_multislopes(
     D0 = D_P[np.argmin(np.abs(r_P - Rmin_global))]
     ref_P = D0 * (rline / Rmin_global)**M_i
     ax.loglog(rline, ref_P, 'r--', lw=2,
-              label=fr'$R^{{M_i}}$, $M_i\approx{M_i:.2f}$')
-    ax.set_xlabel(r'$R$ (pixels)')
+              label=fr'$R^{{M_i}}$, $M_i={M_i:.2f}$')
+    ax.set_xlim([r_P.min(), r_P.max()])
+    ax.set_ylim([D_P.min() * 0.8, D_P.max() * 1.2])
+    ax.set_xlabel(r'$R$')
     ax.set_ylabel(r'$D(R)$')
     ax.set_title(r'Source SF: $D_{P_{\mathrm{emit}}}(R)$')
-    ax.legend(fontsize=9)
+    ax.legend(fontsize=14)
     ax.grid(True, which='both', ls=':')
 
     # Panel (2): D_{Phi}(R) with alpha_phi (1+tilde_m_phi)
@@ -628,10 +651,12 @@ def validate_lp16_appendixC_multislopes(
     D0_phi = D_Phi[np.argmin(np.abs(r_Phi - Rmin_global))]
     ref_phi = D0_phi * (rline / Rmin_global)**alpha_phi
     ax.loglog(rline, ref_phi, 'C3--', lw=2,
-              label=fr'$R^{{1+\tilde m_\phi}}$, $\approx R^{{{alpha_phi:.2f}}}$')
-    ax.set_xlabel(r'$R$ (pixels)')
+              label=fr'$R^{{1+\tilde m_\phi}}$, $R^{{{alpha_phi:.2f}}}$')
+    ax.set_xlim([r_Phi.min(), r_Phi.max()])
+    ax.set_ylim([D_Phi.min() * 0.8, D_Phi.max() * 1.2])
+    ax.set_xlabel(r'$R$')
     ax.set_title('Faraday SF: $D_{\Phi}(R)$')
-    ax.legend(fontsize=9)
+    ax.legend(fontsize=14)
     ax.grid(True, which='both', ls=':')
 
     # Panel (3): Thick screen D_{dP}(R), one slope in R<r_phi_thick
@@ -642,12 +667,14 @@ def validate_lp16_appendixC_multislopes(
     D0_th = D_dP_th[np.argmin(np.abs(r_dP_th - Rmin_global))]
     line_th = D0_th * (rfit / Rmin_global)**slope_dP_thick
     ax.loglog(rfit, line_th, 'r--', lw=2,
-              label=fr'fit: slope $\approx {slope_dP_thick:.2f}$')
+              label=fr'fit: slope $= {slope_dP_thick:.2f}$')
     ax.axvline(r_phi_thick, color='gray', ls=':', label=r'$r_\phi$')
-    ax.set_xlabel(r'$R$ (pixels)')
+    ax.set_xlim([r_dP_th.min(), r_dP_th.max()])
+    ax.set_ylim([D_dP_th.min() * 0.8, D_dP_th.max() * 1.2])
+    ax.set_xlabel(r'$R$')
     ax.set_ylabel(r'$D(R)$')
     ax.set_title('Thick screen: $D_{dP}(R)$ (Eq. 162)')
-    ax.legend(fontsize=9)
+    ax.legend(fontsize=14)
     ax.grid(True, which='both', ls=':')
 
     # Panel (4): Thin screen D_{dP}(R), two non-overlapping slopes
@@ -660,7 +687,7 @@ def validate_lp16_appendixC_multislopes(
         D0_A = D_dP_tn[np.argmin(np.abs(r_dP_tn - Rmin_global))]
         line_A = D0_A * (rA / Rmin_global)**slope_thin_A
         ax.loglog(rA, line_A, 'r--', lw=2,
-                  label=fr'A ($R<L$): slope $\approx {slope_thin_A:.2f}$')
+                  label=fr'A ($R<L$): slope $= {slope_thin_A:.2f}$')
 
     # Region B: R ∈ [Rmin_thin_B, Rmax_thin_B]
     if not np.isnan(slope_thin_B) and Rmax_thin_B > Rmin_thin_B:
@@ -668,16 +695,19 @@ def validate_lp16_appendixC_multislopes(
         D0_B = D_dP_tn[np.argmin(np.abs(r_dP_tn - Rmin_thin_B))]
         line_B = D0_B * (rB / Rmin_thin_B)**slope_thin_B
         ax.loglog(rB, line_B, 'g--', lw=2,
-                  label=fr'B ($L<R<r_\phi$): slope $\approx {slope_thin_B:.2f}$')
+                  label=fr'B ($L<R<r_\phi$): slope $= {slope_thin_B:.2f}$')
 
     ax.axvline(L_thin,    color='k',    ls=':', label=r'$L_{\mathrm{thin}}$')
     ax.axvline(r_phi_thin, color='gray', ls=':', label=r'$r_\phi$')
-    ax.set_xlabel(r'$R$ (pixels)')
+    ax.set_xlim([r_dP_tn.min(), r_dP_tn.max()])
+    ax.set_ylim([D_dP_tn.min() * 0.8, D_dP_tn.max() * 1.2])
+    ax.set_xlabel(r'$R$')
     ax.set_title('Thin screen: $D_{dP}(R)$ (Eqs. 163–164)')
-    ax.legend(fontsize=9)
+    ax.legend(fontsize=14)
     ax.grid(True, which='both', ls=':')
 
     plt.tight_layout()
+    plt.savefig('validate_lp16_appendixC_multislopes.png', dpi=300, bbox_inches='tight')
     plt.show()
 
 
