@@ -253,6 +253,84 @@ def fit_powerlaw_slope(r, D, rmin, rmax):
 
 
 # ============================================================
+# Helper functions for directional spectrum computation
+# ============================================================
+
+def hann2d(ny, nx):
+    """2D Hann window for apodization."""
+    y = np.arange(ny)
+    x = np.arange(nx)
+    Y, X = np.meshgrid(y, x, indexing='ij')
+    wy = np.sin(np.pi * Y / (ny - 1))**2 if ny > 1 else np.ones(ny)
+    wx = np.sin(np.pi * X / (nx - 1))**2 if nx > 1 else np.ones(nx)
+    return wy * wx
+
+
+def centered_indices(ny, nx):
+    """Return centered kx, ky indices for FFT."""
+    iy = np.arange(-ny//2, ny - ny//2)
+    ix = np.arange(-nx//2, nx - nx//2)
+    return np.meshgrid(ix, iy, indexing='ij')
+
+
+def ring_average(field2d, ring_bins=48, k_min=3.0, k_max=None, apod=True, energy_like=False):
+    """
+    Ring-average a 2D field in k-space.
+    
+    Returns kc (ring centers), Pk (power), and optionally S (full 2D power), kx, ky, edges.
+    """
+    F = field2d
+    ny, nx = F.shape
+    if apod:
+        F = F * hann2d(ny, nx)
+    Fk = np.fft.fftshift(np.fft.fft2(F))
+    S = (Fk * np.conj(Fk)).real / (ny * nx)**2
+    kx, ky = centered_indices(ny, nx)
+    k = np.sqrt(kx**2 + ky**2)
+    if k_max is None:
+        k_max = min(kx.max(), ky.max())
+    edges = np.linspace(k_min, k_max, ring_bins + 1)
+    kc = 0.5 * (edges[1:] + edges[:-1])
+    Pk = np.zeros_like(kc)
+    cnt = np.zeros_like(kc, dtype=int)
+    for i in range(ring_bins):
+        m = (k >= edges[i]) & (k < edges[i+1])
+        cnt[i] = m.sum()
+        Pk[i] = S[m].mean() if cnt[i] > 0 else np.nan
+    good = (cnt > 10) & np.isfinite(Pk)
+    kc, Pk = kc[good], Pk[good]
+    if energy_like:
+        Pk = 2 * np.pi * kc * Pk
+    return kc, Pk, S, kx, ky, edges
+
+
+def directional_spectrum_from_complex(F, ring_bins=48, k_min=3.0, k_max=None):
+    """
+    Directional spectrum of a complex field F(X) (here F = dP/dλ²):
+
+      1) χ(X) = 0.5 * arg(F)
+      2) n(X) = (cos 2χ, sin 2χ)
+      3) P_dir(k) = P_c2(k) + P_s2(k) from ring-averaged 2D FFT.
+
+    Returns
+    -------
+    kc : 1D array
+        Ring-averaged wavenumbers.
+    P_dir : 1D array
+        Directional spectrum P_dir(k).
+    """
+    chi = 0.5 * np.angle(F)
+    c2 = np.cos(2.0 * chi)
+    s2 = np.sin(2.0 * chi)
+
+    kc, P_c2, *_ = ring_average(c2, ring_bins, k_min, k_max, apod=True, energy_like=False)
+    _,  P_s2, *_ = ring_average(s2, ring_bins, k_min, k_max, apod=True, energy_like=False)
+
+    P_dir = P_c2 + P_s2
+    return kc, P_dir
+
+
+# ============================================================
 # 4. Main validation routine for Appendix C
 # ============================================================
 
@@ -709,6 +787,100 @@ def validate_lp16_appendixC_theory_overlay(
 
     plt.tight_layout()
     plt.savefig('validate_lp16_appendixC_theory_overlay.png', dpi=300, bbox_inches='tight')
+    plt.show()
+
+    # ---------- Step 8: directional spectra of dP/dλ² (thick & thin) ----------
+
+    print("\nComputing directional spectra for dP/dλ²...")
+
+    # Directional spectra for thick and thin screens
+    kc_th, Pdir_th = directional_spectrum_from_complex(dP_thick, ring_bins=48, k_min=3.0)
+    kc_tn, Pdir_tn = directional_spectrum_from_complex(dP_thin,  ring_bins=48, k_min=3.0)
+
+    # Predicted slopes from LP16 Appendix C exponents:
+    # D(R) ∝ R^α  ⇒  E_2D(k) ∝ k^{-(α+2)} in 2D
+    s_src      = -(M_i + 2.0)            # source term: α = M_i
+    s_rm_A     = -(tilde_m_phi + 3.0)    # RM term in Eqs. 162,163: α = 1+tilde_m_phi
+    s_rm_B     = -(tilde_m_phi + 2.0)    # RM term in Eq. 164:     α = tilde_m_phi
+
+    print("\nDirectional-spectrum theoretical slopes (from LP16 exponents):")
+    print(f"  Source-like:        P_dir(k) ∝ k^{s_src:.3f}  (α = M_i ≈ {M_i:.3f})")
+    print(f"  RM-like (small R):  P_dir(k) ∝ k^{s_rm_A:.3f} (α = 1+tilde_m ≈ {1+tilde_m_phi:.3f})")
+    print(f"  RM-like (L<R<rφ):   P_dir(k) ∝ k^{s_rm_B:.3f} (α = tilde_m ≈ {tilde_m_phi:.3f})")
+
+    # Choose pivot scales in k to normalize the theory lines
+    def make_theory_line(kc, Pdir, slope, k_fraction_low=0.3, k_fraction_high=0.7):
+        """
+        Build a power-law line P_th(k) = A * k^slope, normalized at a pivot k0
+        chosen from the data (single-parameter normalization; exponent fixed).
+        """
+        kmin, kmax = kc.min(), kc.max()
+        k0 = 10.0 ** (0.5 * (np.log10(kmin) + np.log10(kmax)))  # geometric mean
+        idx0 = np.argmin(np.abs(kc - k0))
+        P0 = Pdir[idx0]
+        k_th = np.linspace(kmin, kmax, 200)
+        P_th = P0 * (k_th / k0) ** slope
+        return k_th, P_th
+
+    # Build theory lines for thick (source vs RM in Eq. 162)
+    k_th_src, P_th_src = make_theory_line(kc_th, Pdir_th, s_src)
+    k_th_rmA, P_th_rmA = make_theory_line(kc_th, Pdir_th, s_rm_A)
+
+    # Build theory lines for thin:
+    #   - Region A (R<L): source vs RM with slope s_rm_A
+    #   - Region B (L<R<rφ): source vs RM with slope s_rm_B
+    k_tn_src, P_tn_src = make_theory_line(kc_tn, Pdir_tn, s_src)
+    k_tn_rmB, P_tn_rmB = make_theory_line(kc_tn, Pdir_tn, s_rm_B)
+
+    # Optionally, measure empirical slopes of directional spectra for reference
+    def fit_k_slope(kc, Pk, kmin_fit_frac=0.2, kmax_fit_frac=0.8):
+        kmin_fit = kc[int(len(kc) * kmin_fit_frac)]
+        kmax_fit = kc[int(len(kc) * kmax_fit_frac)]
+        return fit_powerlaw_slope(kc, Pk, kmin_fit, kmax_fit)
+
+    slope_dir_th = fit_k_slope(kc_th, Pdir_th)
+    slope_dir_tn = fit_k_slope(kc_tn, Pdir_tn)
+
+    print("\nMeasured directional-spectrum slopes (single broad fit):")
+    print(f"  Thick screen: slope ≈ {slope_dir_th:.3f}")
+    print(f"  Thin  screen: slope ≈ {slope_dir_tn:.3f}")
+
+    # ---------- Step 9: plot directional spectra + LP16-based predictions ----------
+
+    fig2, (ax_th, ax_tn) = plt.subplots(1, 2, figsize=(12, 5), sharey=False)
+
+    # Thick screen panel
+    ax = ax_th
+    ax.loglog(kc_th, Pdir_th, 'b-', lw=2, label=r'$P_{\mathrm{dir}}^{\mathrm{thick}}(k)$')
+    ax.loglog(k_th_src, P_th_src, 'r--', lw=2,
+              label=fr'Source: $k^{{{s_src:.2f}}}$')
+    ax.loglog(k_th_rmA, P_th_rmA, 'g--', lw=2,
+              label=fr'RM (Eq. 162): $k^{{{s_rm_A:.2f}}}$')
+    ax.set_xlim([kc_th.min(), kc_th.max()])
+    ax.set_ylim([Pdir_th.min() * 0.8, Pdir_th.max() * 1.2])
+    ax.set_xlabel(r'$k$')
+    ax.set_ylabel(r'$P_{\mathrm{dir}}(k)$')
+    ax.set_title('Directional spectrum: thick screen')
+    ax.grid(True, which='both', ls=':')
+    ax.legend(fontsize=14)
+
+    # Thin screen panel
+    ax = ax_tn
+    ax.loglog(kc_tn, Pdir_tn, 'm-', lw=2, label=r'$P_{\mathrm{dir}}^{\mathrm{thin}}(k)$')
+    ax.loglog(k_tn_src, P_tn_src, 'r--', lw=2,
+              label=fr'Source: $k^{{{s_src:.2f}}}$')
+    ax.loglog(k_tn_rmB, P_tn_rmB, 'g--', lw=2,
+              label=fr'RM (Eq. 164): $k^{{{s_rm_B:.2f}}}$')
+    ax.set_xlim([kc_tn.min(), kc_tn.max()])
+    ax.set_ylim([Pdir_tn.min() * 0.8, Pdir_tn.max() * 1.2])
+    ax.set_xlabel(r'$k$')
+    ax.set_title('Directional spectrum: thin screen')
+    ax.grid(True, which='both', ls=':')
+    ax.legend(fontsize=14)
+
+    plt.tight_layout()
+    plt.savefig('validate_lp16_directional_spectrum.png',
+                dpi=300, bbox_inches='tight')
     plt.show()
 
 if __name__ == "__main__":
