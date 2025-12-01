@@ -845,7 +845,7 @@ def validate_lp16_appendixC_theory_overlay(
     plt.savefig('validate_lp16_appendixC_theory_overlay.png', dpi=300, bbox_inches='tight')
     plt.show()
 
-    # ---------- Step 8: directional spectra of P(X, λ²) for a range of λ ----------
+    # ---------- Step 8: directional spectra of P(X, λ²) for a range of χ ----------
 
     # Compute sigma_RM (RMS of Rotation Measure) from Faraday depth maps
     sigma_RM_thick = np.std(Phi_thick)
@@ -855,28 +855,39 @@ def validate_lp16_appendixC_theory_overlay(
     print(f"  sigma_RM (thick): {sigma_RM_thick:.3f}")
     print(f"  sigma_RM (thin):  {sigma_RM_thin:.3f}")
 
-    # Choose λ range: e.g. λ from 0.1 to 5, log-spaced
-    lam_min = 0.1
-    lam_max = 1.0
-    n_lam   = 8   # number of λ values; adjust if you want more curves
+    # Choose χ range: χ = 2*sigma_RM*lambda^2, from 0.2 to 50, log-spaced
+    chi_min = 0.2
+    chi_max = 50.0
+    n_lam   = 8   # number of χ values
 
-    lam_values = np.logspace(np.log10(lam_min), np.log10(lam_max), n_lam)
+    chi_values = np.logspace(np.log10(chi_min), np.log10(chi_max), n_lam)
 
-    print("\nComputing directional spectra of P(X, λ²) for λ values:")
-    print("  ", lam_values)
+    # Compute corresponding lambda values for thick and thin screens
+    lam_values_thick = np.sqrt(chi_values / (2.0 * sigma_RM_thick))
+    lam_values_thin = np.sqrt(chi_values / (2.0 * sigma_RM_thin))
+
+    print("\nComputing directional spectra of P(X, λ²) for χ values:")
+    print(f"  χ values: {chi_values}")
+    print(f"  λ values (thick): {lam_values_thick}")
+    print(f"  λ values (thin): {lam_values_thin}")
 
     kc_th = None
     kc_tn = None
     Pdir_th_all = []
     Pdir_tn_all = []
 
-    for lam in lam_values:
-        lam2 = lam**2
+    for i, chi in enumerate(chi_values):
+        # Get corresponding lambda for this chi value
+        lam_thick = lam_values_thick[i]
+        lam_thin = lam_values_thin[i]
+        
+        lam2_thick = lam_thick**2
+        lam2_thin = lam_thin**2
 
         # Complex polarization for this λ² in the separated SEFR geometry:
         # P(X, λ²) = P_emit(X) * exp[2 i λ² Φ(X)]
-        P_th_lam = P_emit_thick * np.exp(2j * lam2 * Phi_thick)
-        P_tn_lam = P_emit_thin  * np.exp(2j * lam2 * Phi_thin)
+        P_th_lam = P_emit_thick * np.exp(2j * lam2_thick * Phi_thick)
+        P_tn_lam = P_emit_thin  * np.exp(2j * lam2_thin * Phi_thin)
 
         kc_th_i, Pdir_th_i = directional_spectrum_from_complex(
             P_th_lam, ring_bins=48, k_min=3.0)
@@ -933,15 +944,13 @@ def validate_lp16_appendixC_theory_overlay(
 
     # Thick screen panel
     ax = ax_th
-    for i, lam in enumerate(lam_values):
-        lam2 = lam**2
-        param_thick = 2.0 * sigma_RM_thick * lam2
-        label = rf"$2\sigma_{{\rm RM}}\lambda^2={param_thick:.3f}$"
+    for i, chi in enumerate(chi_values):
+        label = rf"$\chi={chi:.2f}$"
         ax.loglog(kc_th, Pdir_th_all[i], '-', lw=2, color=colors[i], label=label)
 
     # add synchrotron-like reference line
     ax.loglog(k_th_syn, P_th_syn, 'r--', lw=2,
-              label=fr"Synch ref: $k^{{{s_syn:.2f}}}$")
+              label=fr"Synch ref: $k^{{-2-M_i}}=k^{{{s_syn:.2f}}}$")
 
     ax.set_xlim([kc_th.min(), kc_th.max()])
     ax.set_ylim([Pdir_th_all.min() * 0.8, Pdir_th_all.max() * 1.2])
@@ -953,15 +962,13 @@ def validate_lp16_appendixC_theory_overlay(
 
     # Thin screen panel
     ax = ax_tn
-    for i, lam in enumerate(lam_values):
-        lam2 = lam**2
-        param_thin = 2.0 * sigma_RM_thin * lam2
-        label = rf"$2\sigma_{{\rm RM}}\lambda^2={param_thin:.3f}$"
+    for i, chi in enumerate(chi_values):
+        label = rf"$\chi={chi:.2f}$"
         ax.loglog(kc_tn, Pdir_tn_all[i], '-', lw=2, color=colors[i], label=label)
 
     # add RM-like reference line (for large λ)
     ax.loglog(k_th_rm, P_th_rm, 'r--', lw=2,
-              label=fr"RM ref: $k^{{{s_rm:.2f}}}$")
+              label=fr"RM ref: $k^{{-2-\tilde m_\phi}}=k^{{{s_rm:.2f}}}$")
 
     ax.set_xlim([kc_tn.min(), kc_tn.max()])
     ax.set_ylim([Pdir_tn_all.min() * 0.8, Pdir_tn_all.max() * 1.2])
@@ -998,7 +1005,7 @@ if __name__ == "__main__":
     # )
     
     validate_lp16_appendixC_theory_overlay(
-        n=256,
+        n=792,
         beta_B_emit=11.0/3.0,
         beta_ne_emit=11.0/3.0,
         beta_B_far=11.0/3.0,
