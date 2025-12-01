@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 
 import matplotlib as mpl
 mpl.rcParams.update({
@@ -575,15 +576,38 @@ def validate_lp16_appendixC_theory_overlay(
       normalization per regime.
     """
 
-    print("Building cubes...")
-    emitter, far = build_separated_sefr_cubes(
-        n=n,
-        beta_B_emit=beta_B_emit,
-        beta_ne_emit=beta_ne_emit,
-        beta_B_far=beta_B_far,
-        beta_ne_far=beta_ne_far,
-        seed=seed,
-    )
+    # Generate filename based on parameters
+    cube_filename = f"cubes_n{n}_bBe{beta_B_emit:.3f}_bne{beta_ne_emit:.3f}_bBf{beta_B_far:.3f}_bnf{beta_ne_far:.3f}_seed{seed}.npz"
+    
+    # Check if cubes file exists
+    if os.path.exists(cube_filename):
+        print(f"Loading cubes from {cube_filename}...")
+        data = np.load(cube_filename, allow_pickle=True)
+        emitter = (
+            data['Bx_e'], data['By_e'], data['Bz_e'], data['ne_e']
+        )
+        far = (
+            data['Bx_f'], data['By_f'], data['Bz_f'], data['ne_f']
+        )
+        print("  Cubes loaded successfully.")
+    else:
+        print("Building cubes...")
+        emitter, far = build_separated_sefr_cubes(
+            n=n,
+            beta_B_emit=beta_B_emit,
+            beta_ne_emit=beta_ne_emit,
+            beta_B_far=beta_B_far,
+            beta_ne_far=beta_ne_far,
+            seed=seed,
+        )
+        # Save cubes for future use
+        print(f"Saving cubes to {cube_filename}...")
+        np.savez(
+            cube_filename,
+            Bx_e=emitter[0], By_e=emitter[1], Bz_e=emitter[2], ne_e=emitter[3],
+            Bx_f=far[0], By_f=far[1], Bz_f=far[2], ne_f=far[3]
+        )
+        print("  Cubes saved successfully.")
 
     # ---------- Step 1: choose geometry: thick and thin ----------
     print("\nEstimating global r_phi for geometry...")
@@ -906,7 +930,7 @@ if __name__ == "__main__":
     # )
     
     validate_lp16_appendixC_theory_overlay(
-        n=256,
+        n=512,
         beta_B_emit=11.0/3.0,
         beta_ne_emit=11.0/3.0,
         beta_B_far=11.0/3.0,
