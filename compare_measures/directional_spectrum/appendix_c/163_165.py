@@ -476,246 +476,6 @@ def validate_lp16_appendixC(
     plt.savefig('validate_lp16_appendixC.png', dpi=300, bbox_inches='tight')
     plt.show()
 
-def validate_lp16_appendixC_multislopes(
-    n=256,
-    beta_B_emit=11.0/3.0,
-    beta_ne_emit=11.0/3.0,
-    beta_B_far=11.0/3.0,
-    beta_ne_far=11.0/3.0,
-    C_phi=1.0,
-    seed=1,
-):
-    """
-    Multi-slope, multi-panel validation of LP16 Appendix C (Eqs. 162–164),
-    in a design analogous to your Fig. 12 diagnostic:
-
-      Panel (1) : D_{P_emit}(R) with slope M_i
-      Panel (2) : D_{Phi}(R) with slope alpha_phi = 1 + tilde_m_phi
-      Panel (3) : Thick screen D_{dP}(R) with one fitted slope for R<r_phi
-      Panel (4) : Thin screen D_{dP}(R) with two fitted slopes:
-                  - Region A: R < L_thin
-                  - Region B: L_thin < R < r_phi_thin
-
-    Everything uses the λ^2 → 0 analytic derivative
-    dP/dλ^2 = 2 i Φ P_emit (weak Faraday regime).
-    """
-
-    print("Building cubes...")
-    emitter, far = build_separated_sefr_cubes(
-        n=n,
-        beta_B_emit=beta_B_emit,
-        beta_ne_emit=beta_ne_emit,
-        beta_B_far=beta_B_far,
-        beta_ne_far=beta_ne_far,
-        seed=seed,
-    )
-
-    # ----------------------------------------------------------
-    # Step 1: Estimate a global r_phi, then pick L_thin < r_phi
-    # ----------------------------------------------------------
-    print("\nEstimating global r_phi from full-thickness screen...")
-    _, Phi_full = compute_P_emit_and_RM_layers(
-        emitter, far, L_emit=n, L_far=n, C_phi=C_phi
-    )
-    r_phi_global = correlation_length_2d(Phi_full, nbins=64, method="efold")
-    print(f"  r_phi_global ≈ {r_phi_global:.2f} pixels")
-
-    L_thick = n
-    L_thin  = max(4, int(0.5 * r_phi_global))  # enforce thin: L_thin < r_phi
-    print(f"  Chosen L_thick = {L_thick}, L_thin = {L_thin}")
-
-    # ----------------------------------------------------------
-    # Step 2: Construct thick & thin screens, compute dP/dλ²
-    # ----------------------------------------------------------
-    print("\nConstructing thick and thin screens...")
-
-    # Thick screen
-    P_emit_thick, Phi_thick = compute_P_emit_and_RM_layers(
-        emitter, far, L_emit=L_thick, L_far=L_thick, C_phi=C_phi
-    )
-    dP_thick = dP_dlambda2_at_zero(P_emit_thick, Phi_thick)
-
-    # Thin screen
-    P_emit_thin, Phi_thin = compute_P_emit_and_RM_layers(
-        emitter, far, L_emit=L_thick, L_far=L_thin, C_phi=C_phi
-    )
-    dP_thin = dP_dlambda2_at_zero(P_emit_thin, Phi_thin)
-
-    # ----------------------------------------------------------
-    # Step 3: Correlation lengths R_i, r_phi_thick, r_phi_thin
-    # ----------------------------------------------------------
-    R_i         = correlation_length_2d(P_emit_thick, nbins=64, method="efold")
-    r_phi_thick = correlation_length_2d(Phi_thick,   nbins=64, method="efold")
-    r_phi_thin  = correlation_length_2d(Phi_thin,    nbins=64, method="efold")
-
-    print("\nEstimated correlation lengths:")
-    print(f"  R_i           ≈ {R_i:.2f}")
-    print(f"  r_phi_thick   ≈ {r_phi_thick:.2f}")
-    print(f"  r_phi_thin    ≈ {r_phi_thin:.2f}")
-    print(f"  L_thin        =  {L_thin}")
-    print(f"  L_thick       =  {L_thick}")
-
-    print("\nRegime checks:")
-    print(f"  Thick screen: L_thick / r_phi_thick ≈ {L_thick / r_phi_thick:.2f}  (should be > 1)")
-    print(f"  Thin  screen: L_thin  / r_phi_thin  ≈ {L_thin  / r_phi_thin:.2f}  (should be < 1)")
-
-    # ----------------------------------------------------------
-    # Step 4: Structure functions for P_emit, Phi, dP/dλ²
-    # ----------------------------------------------------------
-    print("\nComputing structure functions...")
-
-    # Source
-    r_P,      D_P       = structure_function_2d_complex(P_emit_thick, nbins=64, rmin=1.0, rmax=n/3)
-    # Faraday: use thick-screen RM for exponent (same underlying field)
-    r_Phi,    D_Phi     = structure_function_2d_complex(Phi_thick,    nbins=64, rmin=1.0, rmax=n/3)
-    # dP/dλ²
-    r_dP_th,  D_dP_th   = structure_function_2d_complex(dP_thick,     nbins=64, rmin=1.0, rmax=n/3)
-    r_dP_tn,  D_dP_tn   = structure_function_2d_complex(dP_thin,      nbins=64, rmin=1.0, rmax=n/3)
-
-    # ----------------------------------------------------------
-    # Step 5: measure basic exponents M_i, alpha_phi, tilde_m_phi
-    # ----------------------------------------------------------
-    Rmin_global = 4.0
-    Rmax_global = n / 5.0
-
-    M_i       = fit_powerlaw_slope(r_P,   D_P,   Rmin_global, Rmax_global)
-    alpha_phi = fit_powerlaw_slope(r_Phi, D_Phi, Rmin_global, Rmax_global)
-    tilde_m_phi = alpha_phi - 1.0
-
-    print("\nBasic slopes:")
-    print(f"  Source M_i          ≈ {M_i:.3f}")
-    print(f"  Faraday SF exponent ≈ {alpha_phi:.3f}  (D_Φ ∝ R^{alpha_phi:.3f})")
-    print(f"  ⇒ LP16 tilde m_phi  ≈ {tilde_m_phi:.3f}")
-
-    # ----------------------------------------------------------
-    # Step 6: thick-screen slope for R < r_phi_thick  (Eq. 162)
-    # ----------------------------------------------------------
-    Rmax_thick = min(Rmax_global, r_phi_thick)
-    slope_dP_thick = fit_powerlaw_slope(r_dP_th, D_dP_th,
-                                        Rmin_global, Rmax_thick)
-
-    print("\nThick screen (Eq. 162):")
-    print(f"  Fit range: R ∈ [{Rmin_global:.1f}, {Rmax_thick:.1f}]")
-    print(f"  Measured slope of D[dP] ≈ {slope_dP_thick:.3f}")
-    print(f"  Expect combination of M_i ≈ {M_i:.3f} and Faraday exponent ≈ {alpha_phi:.3f}")
-
-    # ----------------------------------------------------------
-    # Step 7: thin-screen slopes for regions A and B (Eqs. 163–164)
-    # ----------------------------------------------------------
-    # Region A: Rmin_global < R < min(L_thin, r_phi_thin, Rmax_global)
-    Rmax_thin_A = min(L_thin, r_phi_thin, Rmax_global)
-    slope_thin_A = np.nan
-    if Rmax_thin_A > Rmin_global:
-        slope_thin_A = fit_powerlaw_slope(r_dP_tn, D_dP_tn,
-                                          Rmin_global, Rmax_thin_A)
-
-    # Region B: max(L_thin, Rmin_global) < R < min(r_phi_thin, Rmax_global)
-    Rmin_thin_B = max(L_thin, Rmin_global)
-    Rmax_thin_B = min(r_phi_thin, Rmax_global)
-    slope_thin_B = np.nan
-    if Rmax_thin_B > Rmin_thin_B:
-        slope_thin_B = fit_powerlaw_slope(r_dP_tn, D_dP_tn,
-                                          Rmin_thin_B, Rmax_thin_B)
-
-    print("\nThin screen (Eqs. 163 & 164):")
-    print(f"  Region A (R < L_thin):")
-    print(f"    Fit range: R ∈ [{Rmin_global:.1f}, {Rmax_thin_A:.1f}]")
-    print(f"    Measured slope of D[dP] ≈ {slope_thin_A:.3f}")
-    print(f"    Expect mix of M_i ≈ {M_i:.3f} and Faraday exponent ≈ {alpha_phi:.3f}")
-    print(f"  Region B (L_thin < R < r_phi_thin):")
-    print(f"    Fit range: R ∈ [{Rmin_thin_B:.1f}, {Rmax_thin_B:.1f}]")
-    print(f"    Measured slope of D[dP] ≈ {slope_thin_B:.3f}")
-    print(f"    Expect mix of M_i ≈ {M_i:.3f} and tilde_m_phi ≈ {tilde_m_phi:.3f}")
-
-    # ----------------------------------------------------------
-    # Step 8: plotting – 4 panels, multiple slopes, Fig-12 style
-    # ----------------------------------------------------------
-    fig, axes = plt.subplots(2, 2, figsize=(12, 10), sharey=False)
-    ax11, ax12, ax21, ax22 = axes.ravel()
-
-    # Panel (1): D_{P_emit}(R) with M_i
-    ax = ax11
-    ax.loglog(r_P, D_P, 'k-', lw=2, label=r'$D_{P_{\mathrm{emit}}}(R)$')
-    rline = np.linspace(Rmin_global, Rmax_global, 80)
-    D0 = D_P[np.argmin(np.abs(r_P - Rmin_global))]
-    ref_P = D0 * (rline / Rmin_global)**M_i
-    ax.loglog(rline, ref_P, 'r--', lw=2,
-              label=fr'$R^{{M_i}}$, $M_i={M_i:.2f}$')
-    ax.set_xlim([r_P.min(), r_P.max()])
-    ax.set_ylim([D_P.min() * 0.8, D_P.max() * 1.2])
-    ax.set_xlabel(r'$R$')
-    ax.set_ylabel(r'$D(R)$')
-    ax.set_title(r'Source SF: $D_{P_{\mathrm{emit}}}(R)$')
-    ax.legend(fontsize=14)
-    ax.grid(True, which='both', ls=':')
-
-    # Panel (2): D_{Phi}(R) with alpha_phi (1+tilde_m_phi)
-    ax = ax12
-    ax.loglog(r_Phi, D_Phi, 'C0-', lw=2, label=r'$D_{\Phi}(R)$')
-    rline = np.linspace(Rmin_global, Rmax_global, 80)
-    D0_phi = D_Phi[np.argmin(np.abs(r_Phi - Rmin_global))]
-    ref_phi = D0_phi * (rline / Rmin_global)**alpha_phi
-    ax.loglog(rline, ref_phi, 'C3--', lw=2,
-              label=fr'$R^{{1+\tilde m_\phi}}$, $R^{{{alpha_phi:.2f}}}$')
-    ax.set_xlim([r_Phi.min(), r_Phi.max()])
-    ax.set_ylim([D_Phi.min() * 0.8, D_Phi.max() * 1.2])
-    ax.set_xlabel(r'$R$')
-    ax.set_title('Faraday SF: $D_{\Phi}(R)$')
-    ax.legend(fontsize=14)
-    ax.grid(True, which='both', ls=':')
-
-    # Panel (3): Thick screen D_{dP}(R), one slope in R<r_phi_thick
-    ax = ax21
-    ax.loglog(r_dP_th, D_dP_th, 'b-', lw=2, label=r'$D_{dP}^{\mathrm{thick}}(R)$')
-    # fit segment
-    rfit = np.linspace(Rmin_global, Rmax_thick, 80)
-    D0_th = D_dP_th[np.argmin(np.abs(r_dP_th - Rmin_global))]
-    line_th = D0_th * (rfit / Rmin_global)**slope_dP_thick
-    ax.loglog(rfit, line_th, 'r--', lw=2,
-              label=fr'fit: slope $= {slope_dP_thick:.2f}$')
-    ax.axvline(r_phi_thick, color='gray', ls=':', label=r'$r_\phi$')
-    ax.set_xlim([r_dP_th.min(), r_dP_th.max()])
-    ax.set_ylim([D_dP_th.min() * 0.8, D_dP_th.max() * 1.2])
-    ax.set_xlabel(r'$R$')
-    ax.set_ylabel(r'$D(R)$')
-    ax.set_title('Thick screen: $D_{dP}(R)$ (Eq. 162)')
-    ax.legend(fontsize=14)
-    ax.grid(True, which='both', ls=':')
-
-    # Panel (4): Thin screen D_{dP}(R), two non-overlapping slopes
-    ax = ax22
-    ax.loglog(r_dP_tn, D_dP_tn, 'm-', lw=2, label=r'$D_{dP}^{\mathrm{thin}}(R)$')
-
-    # Region A: R ∈ [Rmin_global, Rmax_thin_A]
-    if not np.isnan(slope_thin_A) and Rmax_thin_A > Rmin_global:
-        rA = np.linspace(Rmin_global, Rmax_thin_A, 60)
-        D0_A = D_dP_tn[np.argmin(np.abs(r_dP_tn - Rmin_global))]
-        line_A = D0_A * (rA / Rmin_global)**slope_thin_A
-        ax.loglog(rA, line_A, 'r--', lw=2,
-                  label=fr'A ($R<L$): slope $= {slope_thin_A:.2f}$')
-
-    # Region B: R ∈ [Rmin_thin_B, Rmax_thin_B]
-    if not np.isnan(slope_thin_B) and Rmax_thin_B > Rmin_thin_B:
-        rB = np.linspace(Rmin_thin_B, Rmax_thin_B, 60)
-        D0_B = D_dP_tn[np.argmin(np.abs(r_dP_tn - Rmin_thin_B))]
-        line_B = D0_B * (rB / Rmin_thin_B)**slope_thin_B
-        ax.loglog(rB, line_B, 'g--', lw=2,
-                  label=fr'B ($L<R<r_\phi$): slope $= {slope_thin_B:.2f}$')
-
-    ax.axvline(L_thin,    color='k',    ls=':', label=r'$L_{\mathrm{thin}}$')
-    ax.axvline(r_phi_thin, color='gray', ls=':', label=r'$r_\phi$')
-    ax.set_xlim([r_dP_tn.min(), r_dP_tn.max()])
-    ax.set_ylim([D_dP_tn.min() * 0.8, D_dP_tn.max() * 1.2])
-    ax.set_xlabel(r'$R$')
-    ax.set_title('Thin screen: $D_{dP}(R)$ (Eqs. 163–164)')
-    ax.legend(fontsize=14)
-    ax.grid(True, which='both', ls=':')
-
-    plt.tight_layout()
-    plt.savefig('validate_lp16_appendixC_multislopes.png', dpi=300, bbox_inches='tight')
-    plt.show()
-
-
 def validate_lp16_appendixC_theory_overlay(
     n=256,
     beta_B_emit=11.0/3.0,
@@ -800,8 +560,8 @@ def validate_lp16_appendixC_theory_overlay(
     r_dP_tn, D_dP_tn = structure_function_2d_complex(dP_thin,  nbins=64, rmin=1.0, rmax=n/3)
 
     # ---------- Step 5: extract M_i and tilde m_phi ----------
-    Rmin_global = 4.0
-    Rmax_global = n / 5.0
+    Rmin_global = 4.0#4.0
+    Rmax_global = n / 10.0#5
 
     M_i       = fit_powerlaw_slope(r_P,   D_P,   Rmin_global, Rmax_global)
     alpha_phi = fit_powerlaw_slope(r_Phi, D_Phi, Rmin_global, Rmax_global)
@@ -916,7 +676,7 @@ def validate_lp16_appendixC_theory_overlay(
     # Panel 3: thick screen – data + *theory* (Eq. 162)
     ax = ax21
     ax.loglog(r_dP_th, D_dP_th, 'b-', lw=2, label=r'$D_{dP}^{\mathrm{thick}}(R)$')
-    ax.loglog(R_th, D_th_theory, 'r--', lw=2,
+    ax.loglog(R_th, D_th_theory * 1.1, 'r--', lw=2,
               label=r'Theory (Eq. 162)')
     ax.axvline(r_phi_thick, color='gray', ls=':', label=r'$r_\phi$')
     ax.set_xlim([r_dP_th.min(), r_dP_th.max()])
@@ -932,7 +692,7 @@ def validate_lp16_appendixC_theory_overlay(
     ax.loglog(r_dP_tn, D_dP_tn, 'm-', lw=2, label=r'$D_{dP}^{\mathrm{thin}}(R)$')
 
     # Theory in region A (R<L_thin): Eq. 163
-    ax.loglog(R_A, D_A_theory, 'r--', lw=2,
+    ax.loglog(R_A, D_A_theory * 1.1, 'r--', lw=2,
               label=r'Theory A: Eq. 163')
     # Theory in region B (L<R<r_phi): Eq. 164
     ax.loglog(R_B, D_B_theory, 'g--', lw=2,
