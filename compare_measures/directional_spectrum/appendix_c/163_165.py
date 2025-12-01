@@ -674,13 +674,21 @@ def validate_lp16_appendixC_theory_overlay(
     Rmax_thin_fit  = 0.5 * r_phi_thin   # ~29 for r_phi_thin ≈ 58
     Rmax_thick_fit = 0.5 * r_phi_thick  # ~60 for r_phi_thick ≈ 120
     
-    print(f"\nFitting ranges for exponents:")
-    print(f"  Thin  screen: R ∈ [{Rmin_global:.1f}, {Rmax_thin_fit:.1f}] pixels  (R < r_phi_thin = {r_phi_thin:.1f})")
-    print(f"  Thick screen: R ∈ [{Rmin_global:.1f}, {Rmax_thick_fit:.1f}] pixels  (R < r_phi_thick = {r_phi_thick:.1f})")
+    # For M_i and alpha_phi fits, use twice larger range (up to r_phi)
+    # Start from R=10 (reduced from left by 2.5x from R=4) to avoid grid effects
+    Rmin_Mi_fit = 10.0
+    Rmin_alpha_fit = 10.0
+    Rmax_Mi_fit = 0.8*r_phi_thick  # Use full range up to r_phi for source SF
+    Rmax_alpha_fit = 0.8*r_phi_thick  # Use full range up to r_phi for Faraday SF
     
-    M_i = fit_powerlaw_slope(r_P, D_P, Rmin_global, Rmax_thick_fit)
+    print(f"\nFitting ranges for exponents:")
+    print(f"  Source M_i:         R ∈ [{Rmin_Mi_fit:.1f}, {Rmax_Mi_fit:.1f}] pixels  (2x range, up to r_phi_thick)")
+    print(f"  Faraday (thick):    R ∈ [{Rmin_alpha_fit:.1f}, {Rmax_alpha_fit:.1f}] pixels  (2x range, up to r_phi_thick)")
+    print(f"  Faraday (thin):    R ∈ [{Rmin_global:.1f}, {Rmax_thin_fit:.1f}] pixels  (R < r_phi_thin = {r_phi_thin:.1f})")
+    
+    M_i = fit_powerlaw_slope(r_P, D_P, Rmin_Mi_fit, Rmax_Mi_fit)
     alpha_phi_thin  = fit_powerlaw_slope(r_Phi_thin,  D_Phi_thin,  Rmin_global, Rmax_thin_fit)
-    alpha_phi_thick = fit_powerlaw_slope(r_Phi_thick, D_Phi_thick, Rmin_global, Rmax_thick_fit)
+    alpha_phi_thick = fit_powerlaw_slope(r_Phi_thick, D_Phi_thick, Rmin_alpha_fit, Rmax_alpha_fit)
     
     # Use thick screen measurement (larger fitting range) as primary, but report both
     alpha_phi = alpha_phi_thick
@@ -767,10 +775,10 @@ def validate_lp16_appendixC_theory_overlay(
     # Panel 1: source SF with its measured slope
     ax = ax11
     ax.loglog(r_P, D_P, 'k-', lw=2, label=r'$D_{P_{\mathrm{emit}}}(R)$')
-    rline_src = np.linspace(Rmin_global, Rmax_thick_fit, 100)
-    D0_src = D_P[np.argmin(np.abs(r_P - Rmin_global))]
+    rline_src = np.linspace(Rmin_Mi_fit, Rmax_Mi_fit, 100)
+    D0_src = D_P[np.argmin(np.abs(r_P - Rmin_Mi_fit))]
     ax.loglog(rline_src,
-              D0_src * (rline_src / Rmin_global)**M_i,
+              D0_src * (rline_src / Rmin_Mi_fit)**M_i,
               'r--', lw=2,
               label=fr'$R^{{M_i}}$, $M_i={M_i:.2f}$')
     ax.set_xlim([r_P.min(), r_P.max()])
@@ -784,10 +792,10 @@ def validate_lp16_appendixC_theory_overlay(
     # Panel 2: Faraday SF with its measured exponent
     ax = ax12
     ax.loglog(r_Phi_thick, D_Phi_thick, 'C0-', lw=2, label=r'$D_{\Phi}(R)$ (thick)')
-    rline_phi = np.linspace(Rmin_global, Rmax_thick_fit, 100)
-    D0_phi = D_Phi_thick[np.argmin(np.abs(r_Phi_thick - Rmin_global))]
+    rline_phi = np.linspace(Rmin_alpha_fit, Rmax_alpha_fit, 100)
+    D0_phi = D_Phi_thick[np.argmin(np.abs(r_Phi_thick - Rmin_alpha_fit))]
     ax.loglog(rline_phi,
-              D0_phi * (rline_phi / Rmin_global)**alpha_phi,
+              D0_phi * (rline_phi / Rmin_alpha_fit)**alpha_phi,
               'C3--', lw=2,
               label=fr'$R^{{1+\tilde m_\phi}}$, $R^{{{alpha_phi:.2f}}}$')
     ax.set_xlim([r_Phi_thick.min(), r_Phi_thick.max()])
