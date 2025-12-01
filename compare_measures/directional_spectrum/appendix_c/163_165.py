@@ -427,8 +427,12 @@ def validate_lp16_appendixC(
     # ----------------------------------------------------------
     # Step 5: choose a common R-range and measure basic exponents
     # ----------------------------------------------------------
+    # For reliable measurement of tilde_m_phi, fit D_Phi(R) in the inertial range
+    # R < r_phi, away from grid scale (R_min ~ 4) and transition (R_max ~ 0.5*r_phi)
     Rmin_global = 4.0
-    Rmax_global = n / 5.0
+    Rmax_global = 0.5 * min(r_phi_thick, r_phi_thin)
+    print(f"\nFitting range for exponents: R ∈ [{Rmin_global:.1f}, {Rmax_global:.1f}] pixels")
+    print(f"  (ensures R < r_phi for both screens: {Rmax_global:.1f} < {r_phi_thin:.1f} and {r_phi_thick:.1f})")
 
     M_i = fit_powerlaw_slope(r_P,      D_P,      Rmin_global, Rmax_global)
     alpha_phi = fit_powerlaw_slope(r_Phi_th, D_Phi_th, Rmin_global, Rmax_global)
@@ -657,22 +661,39 @@ def validate_lp16_appendixC_theory_overlay(
     print("\nComputing structure functions...")
 
     r_P,   D_P   = structure_function_2d_complex(P_emit_thick, nbins=64, rmin=1.0, rmax=n/3)
-    r_Phi, D_Phi = structure_function_2d_complex(Phi_thick,    nbins=64, rmin=1.0, rmax=n/3)
+    r_Phi_thick, D_Phi_thick = structure_function_2d_complex(Phi_thick,    nbins=64, rmin=1.0, rmax=n/3)
+    r_Phi_thin,  D_Phi_thin  = structure_function_2d_complex(Phi_thin,     nbins=64, rmin=1.0, rmax=n/3)
     r_dP_th, D_dP_th = structure_function_2d_complex(dP_thick, nbins=64, rmin=1.0, rmax=n/3)
     r_dP_tn, D_dP_tn = structure_function_2d_complex(dP_thin,  nbins=64, rmin=1.0, rmax=n/3)
 
     # ---------- Step 5: extract M_i and tilde m_phi ----------
-    Rmin_global = 4.0#4.0
-    Rmax_global = n / 10.0#5
-
-    M_i       = fit_powerlaw_slope(r_P,   D_P,   Rmin_global, Rmax_global)
-    alpha_phi = fit_powerlaw_slope(r_Phi, D_Phi, Rmin_global, Rmax_global)
+    # For reliable measurement of tilde_m_phi, fit D_Phi(R) in the inertial range
+    # R < r_phi, away from grid scale (R_min ~ 4) and transition (R_max ~ 0.5*r_phi)
+    # Use separate fitting ranges for thin and thick screens for better accuracy
+    Rmin_global = 4.0
+    Rmax_thin_fit  = 0.5 * r_phi_thin   # ~29 for r_phi_thin ≈ 58
+    Rmax_thick_fit = 0.5 * r_phi_thick  # ~60 for r_phi_thick ≈ 120
+    
+    print(f"\nFitting ranges for exponents:")
+    print(f"  Thin  screen: R ∈ [{Rmin_global:.1f}, {Rmax_thin_fit:.1f}] pixels  (R < r_phi_thin = {r_phi_thin:.1f})")
+    print(f"  Thick screen: R ∈ [{Rmin_global:.1f}, {Rmax_thick_fit:.1f}] pixels  (R < r_phi_thick = {r_phi_thick:.1f})")
+    
+    M_i = fit_powerlaw_slope(r_P, D_P, Rmin_global, Rmax_thick_fit)
+    alpha_phi_thin  = fit_powerlaw_slope(r_Phi_thin,  D_Phi_thin,  Rmin_global, Rmax_thin_fit)
+    alpha_phi_thick = fit_powerlaw_slope(r_Phi_thick, D_Phi_thick, Rmin_global, Rmax_thick_fit)
+    
+    # Use thick screen measurement (larger fitting range) as primary, but report both
+    alpha_phi = alpha_phi_thick
     tilde_m_phi = alpha_phi - 1.0
+    tilde_m_phi_thin = alpha_phi_thin - 1.0
 
     print("\nBasic slopes from simulation:")
     print(f"  Source M_i          ≈ {M_i:.3f}")
-    print(f"  Faraday SF exponent ≈ {alpha_phi:.3f}  (D_Φ ∝ R^{alpha_phi:.3f})")
-    print(f"  ⇒ LP16 tilde m_phi  ≈ {tilde_m_phi:.3f}")
+    print(f"  Faraday SF exponent (thick): ≈ {alpha_phi_thick:.3f}  (D_Φ ∝ R^{alpha_phi_thick:.3f})")
+    print(f"  Faraday SF exponent (thin):  ≈ {alpha_phi_thin:.3f}  (D_Φ ∝ R^{alpha_phi_thin:.3f})")
+    print(f"  ⇒ LP16 tilde m_phi (thick):  ≈ {tilde_m_phi:.3f}")
+    print(f"  ⇒ LP16 tilde m_phi (thin):   ≈ {tilde_m_phi_thin:.3f}")
+    print(f"  Using thick screen value: tilde m_phi ≈ {tilde_m_phi:.3f}")
 
     # ---------- Helper: theory curves with 1-parameter normalization ----------
 
@@ -698,8 +719,8 @@ def validate_lp16_appendixC_theory_overlay(
 
     # ---------- Step 6: define R-ranges and normalize theory curves ----------
 
-    # Thick: R ∈ [Rmin_global, min(r_phi_thick, Rmax_global)]
-    Rmax_thick = min(r_phi_thick, Rmax_global)
+    # Thick: R ∈ [Rmin_global, min(r_phi_thick, Rmax_thick_fit)]
+    Rmax_thick = min(r_phi_thick, Rmax_thick_fit)
     R_th = np.linspace(Rmin_global, Rmax_thick, 200)
 
     # Choose pivot for normalization (geometric mean of range)
@@ -711,7 +732,7 @@ def validate_lp16_appendixC_theory_overlay(
     D_th_theory = K_th * theory_thick(R_th)
 
     # Thin Region A: R ∈ [Rmin_global, Rmax_thin_A]
-    Rmax_thin_A = min(L_thin, r_phi_thin, Rmax_global)
+    Rmax_thin_A = min(L_thin, r_phi_thin, Rmax_thin_fit)
     R_A = np.linspace(Rmin_global, Rmax_thin_A, 200)
 
     R0_A = np.sqrt(Rmin_global * Rmax_thin_A)
@@ -723,8 +744,8 @@ def validate_lp16_appendixC_theory_overlay(
 
     # Thin Region B: R ∈ [Rmin_thin_B, Rmax_thin_B]
     Rmin_thin_B = max(L_thin, Rmin_global)
-    Rmax_thin_B = min(r_phi_thin, Rmax_global)
-    R_B = np.linspace(Rmin_thin_B, Rmax_thin_B, 200)
+    Rmax_thin_B = min(r_phi_thin, Rmax_thin_fit)
+    R_B = np.linspace(Rmin_thin_B, r_phi_thin, 200)#np.linspace(Rmin_thin_B, Rmax_thin_B, 200)
 
     R0_B = np.sqrt(Rmin_thin_B * Rmax_thin_B)
     idx0_B = np.argmin(np.abs(r_dP_tn - R0_B))
@@ -746,10 +767,10 @@ def validate_lp16_appendixC_theory_overlay(
     # Panel 1: source SF with its measured slope
     ax = ax11
     ax.loglog(r_P, D_P, 'k-', lw=2, label=r'$D_{P_{\mathrm{emit}}}(R)$')
-    rline = np.linspace(Rmin_global, Rmax_global, 100)
+    rline_src = np.linspace(Rmin_global, Rmax_thick_fit, 100)
     D0_src = D_P[np.argmin(np.abs(r_P - Rmin_global))]
-    ax.loglog(rline,
-              D0_src * (rline / Rmin_global)**M_i,
+    ax.loglog(rline_src,
+              D0_src * (rline_src / Rmin_global)**M_i,
               'r--', lw=2,
               label=fr'$R^{{M_i}}$, $M_i={M_i:.2f}$')
     ax.set_xlim([r_P.min(), r_P.max()])
@@ -762,14 +783,15 @@ def validate_lp16_appendixC_theory_overlay(
 
     # Panel 2: Faraday SF with its measured exponent
     ax = ax12
-    ax.loglog(r_Phi, D_Phi, 'C0-', lw=2, label=r'$D_{\Phi}(R)$')
-    D0_phi = D_Phi[np.argmin(np.abs(r_Phi - Rmin_global))]
-    ax.loglog(rline,
-              D0_phi * (rline / Rmin_global)**alpha_phi,
+    ax.loglog(r_Phi_thick, D_Phi_thick, 'C0-', lw=2, label=r'$D_{\Phi}(R)$ (thick)')
+    rline_phi = np.linspace(Rmin_global, Rmax_thick_fit, 100)
+    D0_phi = D_Phi_thick[np.argmin(np.abs(r_Phi_thick - Rmin_global))]
+    ax.loglog(rline_phi,
+              D0_phi * (rline_phi / Rmin_global)**alpha_phi,
               'C3--', lw=2,
               label=fr'$R^{{1+\tilde m_\phi}}$, $R^{{{alpha_phi:.2f}}}$')
-    ax.set_xlim([r_Phi.min(), r_Phi.max()])
-    ax.set_ylim([D_Phi.min() * 0.8, D_Phi.max() * 1.2])
+    ax.set_xlim([r_Phi_thick.min(), r_Phi_thick.max()])
+    ax.set_ylim([D_Phi_thick.min() * 0.8, D_Phi_thick.max() * 1.2])
     ax.set_xlabel(r'$R$')
     ax.set_title('Faraday SF: $D_{\Phi}(R)$')
     ax.legend(fontsize=14)
@@ -930,7 +952,7 @@ if __name__ == "__main__":
     # )
     
     validate_lp16_appendixC_theory_overlay(
-        n=512,
+        n=792,
         beta_B_emit=11.0/3.0,
         beta_ne_emit=11.0/3.0,
         beta_B_far=11.0/3.0,
