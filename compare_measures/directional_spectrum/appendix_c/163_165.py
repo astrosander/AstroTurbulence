@@ -307,11 +307,13 @@ def ring_average(field2d, ring_bins=48, k_min=3.0, k_max=None, apod=True, energy
 
 def directional_spectrum_from_complex(F, ring_bins=48, k_min=3.0, k_max=None):
     """
-    Directional spectrum of a complex field F(X) (here F = dP/dλ²):
+    Directional spectrum of a complex polarization-like field F(X):
 
       1) χ(X) = 0.5 * arg(F)
       2) n(X) = (cos 2χ, sin 2χ)
       3) P_dir(k) = P_c2(k) + P_s2(k) from ring-averaged 2D FFT.
+
+    This is exactly the same construction used for P(X, λ²) = Q + iU.
 
     Returns
     -------
@@ -676,10 +678,10 @@ def validate_lp16_appendixC_theory_overlay(
     
     # For M_i and alpha_phi fits, use twice larger range (up to r_phi)
     # Start from R=10 (reduced from left by 2.5x from R=4) to avoid grid effects
-    Rmin_Mi_fit = 10.0
-    Rmin_alpha_fit = 10.0
-    Rmax_Mi_fit = 0.8*r_phi_thick  # Use full range up to r_phi for source SF
-    Rmax_alpha_fit = 0.8*r_phi_thick  # Use full range up to r_phi for Faraday SF
+    Rmin_Mi_fit = 4.0
+    Rmin_alpha_fit = 4.0
+    Rmax_Mi_fit = 0.5*r_phi_thick  # Use full range up to r_phi for source SF
+    Rmax_alpha_fit = 0.5*r_phi_thick  # Use full range up to r_phi for Faraday SF
     
     print(f"\nFitting ranges for exponents:")
     print(f"  Source M_i:         R ∈ [{Rmin_Mi_fit:.1f}, {Rmax_Mi_fit:.1f}] pixels  (2x range, up to r_phi_thick)")
@@ -843,98 +845,134 @@ def validate_lp16_appendixC_theory_overlay(
     plt.savefig('validate_lp16_appendixC_theory_overlay.png', dpi=300, bbox_inches='tight')
     plt.show()
 
-    # ---------- Step 8: directional spectra of dP/dλ² (thick & thin) ----------
+    # ---------- Step 8: directional spectra of P(X, λ²) for a range of λ ----------
 
-    print("\nComputing directional spectra for dP/dλ²...")
+    # Compute sigma_RM (RMS of Rotation Measure) from Faraday depth maps
+    sigma_RM_thick = np.std(Phi_thick)
+    sigma_RM_thin = np.std(Phi_thin)
+    
+    print("\nRMS of Rotation Measure:")
+    print(f"  sigma_RM (thick): {sigma_RM_thick:.3f}")
+    print(f"  sigma_RM (thin):  {sigma_RM_thin:.3f}")
 
-    # Directional spectra for thick and thin screens
-    kc_th, Pdir_th = directional_spectrum_from_complex(dP_thick, ring_bins=48, k_min=3.0)
-    kc_tn, Pdir_tn = directional_spectrum_from_complex(dP_thin,  ring_bins=48, k_min=3.0)
+    # Choose λ range: e.g. λ from 0.1 to 5, log-spaced
+    lam_min = 0.1
+    lam_max = 1.0
+    n_lam   = 8   # number of λ values; adjust if you want more curves
 
-    # Predicted slopes from LP16 Appendix C exponents:
-    # D(R) ∝ R^α  ⇒  E_2D(k) ∝ k^{-(α+2)} in 2D
-    s_src      = -(M_i + 2.0)            # source term: α = M_i
-    s_rm_A     = -(tilde_m_phi + 3.0)    # RM term in Eqs. 162,163: α = 1+tilde_m_phi
-    s_rm_B     = -(tilde_m_phi + 2.0)    # RM term in Eq. 164:     α = tilde_m_phi
+    lam_values = np.logspace(np.log10(lam_min), np.log10(lam_max), n_lam)
 
-    print("\nDirectional-spectrum theoretical slopes (from LP16 exponents):")
-    print(f"  Source-like:        P_dir(k) ∝ k^{s_src:.3f}  (α = M_i ≈ {M_i:.3f})")
-    print(f"  RM-like (small R):  P_dir(k) ∝ k^{s_rm_A:.3f} (α = 1+tilde_m ≈ {1+tilde_m_phi:.3f})")
-    print(f"  RM-like (L<R<rφ):   P_dir(k) ∝ k^{s_rm_B:.3f} (α = tilde_m ≈ {tilde_m_phi:.3f})")
+    print("\nComputing directional spectra of P(X, λ²) for λ values:")
+    print("  ", lam_values)
 
-    # Choose pivot scales in k to normalize the theory lines
-    def make_theory_line(kc, Pdir, slope, k_fraction_low=0.3, k_fraction_high=0.7):
+    kc_th = None
+    kc_tn = None
+    Pdir_th_all = []
+    Pdir_tn_all = []
+
+    for lam in lam_values:
+        lam2 = lam**2
+
+        # Complex polarization for this λ² in the separated SEFR geometry:
+        # P(X, λ²) = P_emit(X) * exp[2 i λ² Φ(X)]
+        P_th_lam = P_emit_thick * np.exp(2j * lam2 * Phi_thick)
+        P_tn_lam = P_emit_thin  * np.exp(2j * lam2 * Phi_thin)
+
+        kc_th_i, Pdir_th_i = directional_spectrum_from_complex(
+            P_th_lam, ring_bins=48, k_min=3.0)
+        kc_tn_i, Pdir_tn_i = directional_spectrum_from_complex(
+            P_tn_lam, ring_bins=48, k_min=3.0)
+
+        if kc_th is None:
+            kc_th = kc_th_i
+        if kc_tn is None:
+            kc_tn = kc_tn_i
+
+        Pdir_th_all.append(Pdir_th_i)
+        Pdir_tn_all.append(Pdir_tn_i)
+
+    Pdir_th_all = np.array(Pdir_th_all)  # shape (n_lam, Nk)
+    Pdir_tn_all = np.array(Pdir_tn_all)
+
+    # ---------- Step 9: theoretical reference slopes for P_dir(k) (from LP16 exponents) ----------
+
+    # SF exponents: D(R) ∝ R^α ⇒ E_2D(k) ∝ k^{-(α+2)} in 2D
+    s_syn = -(M_i + 2.0)             # synchrotron-dominated branch
+    s_rm  = -(tilde_m_phi + 2.0)     # RM-like branch for P (rough approximation)
+
+    print("\nDirectional spectrum reference slopes for P(X, λ²):")
+    print(f"  Synchrotron-like: P_dir(k) ∝ k^{s_syn:.3f}")
+    print(f"  RM-like (P):     P_dir(k) ∝ k^{s_rm:.3f}")
+
+    def make_theory_line(kc, Pk_ref, slope):
         """
-        Build a power-law line P_th(k) = A * k^slope, normalized at a pivot k0
-        chosen from the data (single-parameter normalization; exponent fixed).
+        Build a single power-law line P_th(k) = A * k^slope,
+        normalized at a pivot k0 using Pk_ref (e.g. one λ curve).
         """
         kmin, kmax = kc.min(), kc.max()
         k0 = 10.0 ** (0.5 * (np.log10(kmin) + np.log10(kmax)))  # geometric mean
         idx0 = np.argmin(np.abs(kc - k0))
-        P0 = Pdir[idx0]
+        P0 = Pk_ref[idx0]
+
         k_th = np.linspace(kmin, kmax, 200)
-        P_th = P0 * (k_th / k0) ** slope
+        P_th = P0 * (k_th / k0)**slope
         return k_th, P_th
 
-    # Build theory lines for thick (source vs RM in Eq. 162)
-    k_th_src, P_th_src = make_theory_line(kc_th, Pdir_th, s_src)
-    k_th_rmA, P_th_rmA = make_theory_line(kc_th, Pdir_th, s_rm_A)
+    # Use the smallest-λ thick-curve as reference to anchor P_th(k)
+    k_th_syn, P_th_syn = make_theory_line(kc_th, Pdir_th_all[0], s_syn)
+    # Use the largest-λ thin-curve as reference to anchor RM-like line
+    k_th_rm,  P_th_rm  = make_theory_line(kc_tn, Pdir_tn_all[-1], s_rm)
 
-    # Build theory lines for thin:
-    #   - Region A (R<L): source vs RM with slope s_rm_A
-    #   - Region B (L<R<rφ): source vs RM with slope s_rm_B
-    k_tn_src, P_tn_src = make_theory_line(kc_tn, Pdir_tn, s_src)
-    k_tn_rmB, P_tn_rmB = make_theory_line(kc_tn, Pdir_tn, s_rm_B)
-
-    # Optionally, measure empirical slopes of directional spectra for reference
-    def fit_k_slope(kc, Pk, kmin_fit_frac=0.2, kmax_fit_frac=0.8):
-        kmin_fit = kc[int(len(kc) * kmin_fit_frac)]
-        kmax_fit = kc[int(len(kc) * kmax_fit_frac)]
-        return fit_powerlaw_slope(kc, Pk, kmin_fit, kmax_fit)
-
-    slope_dir_th = fit_k_slope(kc_th, Pdir_th)
-    slope_dir_tn = fit_k_slope(kc_tn, Pdir_tn)
-
-    print("\nMeasured directional-spectrum slopes (single broad fit):")
-    print(f"  Thick screen: slope ≈ {slope_dir_th:.3f}")
-    print(f"  Thin  screen: slope ≈ {slope_dir_tn:.3f}")
-
-    # ---------- Step 9: plot directional spectra + LP16-based predictions ----------
+    # ---------- Step 10: plot directional spectra of P for multiple λ ----------
 
     fig2, (ax_th, ax_tn) = plt.subplots(1, 2, figsize=(12, 5), sharey=False)
 
+    # Color map for different λ
+    cmap = plt.cm.viridis
+    colors = [cmap(i / max(1, n_lam - 1)) for i in range(n_lam)]
+
     # Thick screen panel
     ax = ax_th
-    ax.loglog(kc_th, Pdir_th, 'b-', lw=2, label=r'$P_{\mathrm{dir}}^{\mathrm{thick}}(k)$')
-    ax.loglog(k_th_src, P_th_src, 'r--', lw=2,
-              label=fr'Source: $k^{{{s_src:.2f}}}$')
-    ax.loglog(k_th_rmA, P_th_rmA, 'g--', lw=2,
-              label=fr'RM (Eq. 162): $k^{{{s_rm_A:.2f}}}$')
+    for i, lam in enumerate(lam_values):
+        lam2 = lam**2
+        param_thick = 2.0 * sigma_RM_thick * lam2
+        label = rf"$2\sigma_{{\rm RM}}\lambda^2={param_thick:.3f}$"
+        ax.loglog(kc_th, Pdir_th_all[i], '-', lw=2, color=colors[i], label=label)
+
+    # add synchrotron-like reference line
+    ax.loglog(k_th_syn, P_th_syn, 'r--', lw=2,
+              label=fr"Synch ref: $k^{{{s_syn:.2f}}}$")
+
     ax.set_xlim([kc_th.min(), kc_th.max()])
-    ax.set_ylim([Pdir_th.min() * 0.8, Pdir_th.max() * 1.2])
-    ax.set_xlabel(r'$k$')
-    ax.set_ylabel(r'$P_{\mathrm{dir}}(k)$')
-    ax.set_title('Directional spectrum: thick screen')
+    ax.set_ylim([Pdir_th_all.min() * 0.8, Pdir_th_all.max() * 1.2])
+    ax.set_xlabel(r"$k$")
+    ax.set_ylabel(r"$P_{\mathrm{dir}}(k)$")
+    ax.set_title(r"Directional spectrum of $P(X,\lambda^2)$: thick screen")
     ax.grid(True, which='both', ls=':')
-    ax.legend(fontsize=14)
+    ax.legend(fontsize=10, ncol=2)
 
     # Thin screen panel
     ax = ax_tn
-    ax.loglog(kc_tn, Pdir_tn, 'm-', lw=2, label=r'$P_{\mathrm{dir}}^{\mathrm{thin}}(k)$')
-    ax.loglog(k_tn_src, P_tn_src, 'r--', lw=2,
-              label=fr'Source: $k^{{{s_src:.2f}}}$')
-    ax.loglog(k_tn_rmB, P_tn_rmB, 'g--', lw=2,
-              label=fr'RM (Eq. 164): $k^{{{s_rm_B:.2f}}}$')
+    for i, lam in enumerate(lam_values):
+        lam2 = lam**2
+        param_thin = 2.0 * sigma_RM_thin * lam2
+        label = rf"$2\sigma_{{\rm RM}}\lambda^2={param_thin:.3f}$"
+        ax.loglog(kc_tn, Pdir_tn_all[i], '-', lw=2, color=colors[i], label=label)
+
+    # add RM-like reference line (for large λ)
+    ax.loglog(k_th_rm, P_th_rm, 'r--', lw=2,
+              label=fr"RM ref: $k^{{{s_rm:.2f}}}$")
+
     ax.set_xlim([kc_tn.min(), kc_tn.max()])
-    ax.set_ylim([Pdir_tn.min() * 0.8, Pdir_tn.max() * 1.2])
-    ax.set_xlabel(r'$k$')
-    ax.set_title('Directional spectrum: thin screen')
+    ax.set_ylim([Pdir_tn_all.min() * 0.8, Pdir_tn_all.max() * 1.2])
+    ax.set_xlabel(r"$k$")
+    ax.set_title(r"Directional spectrum of $P(X,\lambda^2)$: thin screen")
     ax.grid(True, which='both', ls=':')
-    ax.legend(fontsize=14)
+    ax.legend(fontsize=10, ncol=2)
 
     plt.tight_layout()
-    plt.savefig('validate_lp16_directional_spectrum.png',
-                dpi=300, bbox_inches='tight')
+    plt.savefig("validate_lp16_directional_spectrum_P_lambda.png",
+                dpi=300, bbox_inches="tight")
     plt.show()
 
 if __name__ == "__main__":
@@ -960,7 +998,7 @@ if __name__ == "__main__":
     # )
     
     validate_lp16_appendixC_theory_overlay(
-        n=792,
+        n=256,
         beta_B_emit=11.0/3.0,
         beta_ne_emit=11.0/3.0,
         beta_B_far=11.0/3.0,
