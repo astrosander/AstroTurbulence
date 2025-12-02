@@ -204,6 +204,185 @@ def radial_corr_length_unbiased(field2d, bins=256, method="efold"):
         rlen = np.nan
     return rlen, rc, Cr
 
+def theory_Pdir_piecewise(k_ref, lam, sigma_RM,
+                          r_i, r_phi, Lz,
+                          m_i=2.0/3.0, m_phi=2.0/3.0,
+                          mtilde_phi=1.0,  # effective index in LP16 Eq. 154
+                          K_i=None, K_phi=None,
+                          norm_pivot=None, P_pivot=None):
+    """
+    Return theoretical P_dir(k, lambda) based on r_dir(λ) decorrelation scale.
+    
+    Uses the λ-dependent decorrelation radius r_dir(λ) (analogous to LP16's R_s)
+    to determine spectral slopes:
+    - For k << min(1/r_i, k_dir(λ)): flat (slope ≈ 0)
+    - For 1/r_i << k << k_dir(λ): mixed regime (slope ≈ -11/3)
+    - For k >> k_dir(λ): Faraday-randomized (slope ≈ -8/3)
+
+    Parameters
+    ----------
+    k_ref : 1D array
+        k values (your 'kc' from ring_average).
+    lam : float
+        Wavelength (same units you use elsewhere).
+    sigma_RM : float
+        RMS of the Faraday depth Phi_map (same as in your code).
+    r_i, r_phi : float
+        Correlation lengths of emission and Faraday depth in real-space pixels.
+    Lz : float
+        Thickness of the Faraday slab along the LOS, in the same units as r_i, r_phi
+        (for a cube with unit cells, Lz ~ Nz along LOS).
+    m_i, m_phi : float
+        Structure-function exponents for emissivity and RM.
+    mtilde_phi : float
+        Effective exponent as in LP16 Eq. (154); for Kolmogorov RM you can
+        take ~1.
+    K_i, K_phi : float, optional
+        Positions of the spectral breaks; if None, defaults to 1/r_i, 1/r_phi.
+    norm_pivot : float, optional
+        k at which to force P_pred(k) = P_pivot. If None, no renormalization.
+    P_pivot : float, optional
+        Target value of P_pred(norm_pivot).
+
+    Returns
+    -------
+    P_pred : 1D array
+        Theoretical directional spectrum at k_ref.
+    slopes : dict
+        Dictionary with sP, sM, sH, chi, r_dir, k_dir.
+    """
+
+    # 1. Chi parameter
+    chi = 2.0 * sigma_RM * (lam ** 2)
+
+    # 2. Asymptotic slopes
+    s_mix = -(m_i + m_phi + 2.0)  # -11/3 for Kolmogorov
+    s_em  = -(m_i + 2.0)           # -8/3 for Kolmogorov
+    s_flat = 0.0
+
+    # 3. Calculate r_dir(λ) using LP16 R_s formula
+    # r_dir(λ) ≈ r_φ (L_σ_φ / √(L r_φ))^(2/(1+m̃_φ))
+    # where L_σ_φ = (√2 λ² σ_φ)⁻¹ = (√2 / χ)
+    if lam > 0 and sigma_RM > 0 and Lz > 0 and r_phi > 0:
+        L_sigma_phi = 1.0 / (np.sqrt(2.0) * (lam ** 2) * sigma_RM)  # = √2 / χ
+        sqrt_L_rphi = np.sqrt(Lz * r_phi)
+        
+        if L_sigma_phi < sqrt_L_rphi:  # Thick-screen, strong-rotation regime
+            ratio = L_sigma_phi / sqrt_L_rphi
+            exponent = 2.0 / (1.0 + mtilde_phi)
+            r_dir = r_phi * (ratio ** exponent)
+        else:
+            # For thin-screen or weak-rotation, use simpler form
+            # r_dir(χ) ≈ r_φ [4/(C_D χ²)]^(1/m_φ)
+            # Using order-unity constant C_D ≈ 2κ ≈ 1
+            C_D = 1.0  # Order-unity constant
+            if chi > 0:
+                r_dir = r_phi * (4.0 / (C_D * chi ** 2)) ** (1.0 / m_phi)
+            else:
+                r_dir = np.inf  # No Faraday decorrelation at λ=0
+    else:
+        r_dir = np.inf  # No Faraday decorrelation
+
+    # 4. Convert to k-space: k_dir(λ) = 1/r_dir(λ)
+    if np.isfinite(r_dir) and r_dir > 0:
+        k_dir = 1.0 / r_dir
+    else:
+        k_dir = 0.0  # Infinite r_dir means k_dir = 0 (no decorrelation)
+
+    # 5. Break positions in k-space
+    if K_i is None:
+        K_i = 1.0 / r_i if r_i > 0 else None
+    if K_phi is None:
+        K_phi = 1.0 / r_phi if r_phi > 0 else None
+
+    # 6. Build piecewise spectrum based on k_dir(λ)
+    # Logic from theory:
+    # - For k << 1/r_i AND k << k_dir(λ): flat (slope = 0)
+    # - For 1/r_i << k << k_dir(λ): mixed regime (slope = -11/3)
+    # - For k >> k_dir(λ): Faraday-randomized (slope = -8/3)
+    
+    P_pred = np.zeros_like(k_ref, dtype=float)
+    
+    # Normalize at a reference point (use K_i if available, otherwise first k)
+    if K_i is not None:
+        k_norm = K_i
+    elif k_dir > 0:
+        k_norm = k_dir
+    else:
+        k_norm = k_ref[0] if len(k_ref) > 0 else 1.0
+    P_norm = 1.0
+    
+    # Build spectrum with proper slopes in each regime
+    for idx, k in enumerate(k_ref):
+        # Determine slope based on position relative to K_i and k_dir
+        if K_i is not None and k <= K_i:
+            # Low-k range: k < K_i
+            # Flat only if also well below k_dir
+            if k_dir > 0:
+                # Use flat if k << k_dir, otherwise transition
+                if k < 0.1 * k_dir:  # Well below k_dir
+                    slope = s_flat
+                elif k < k_dir:  # Approaching k_dir
+                    # Smooth transition: interpolate between flat and mixed
+                    frac = (k - 0.1 * k_dir) / (0.9 * k_dir)
+                    slope = s_flat + frac * (s_mix - s_flat)
+                else:  # k > k_dir (shouldn't happen if k <= K_i, but handle it)
+                    slope = s_em
+            else:
+                # No k_dir (λ=0 case): use flat
+                slope = s_flat
+        elif k_dir > 0 and k <= k_dir:
+            # Mid-k range: K_i < k < k_dir (mixed regime)
+            slope = s_mix
+        else:
+            # High-k range: k > k_dir (Faraday-randomized)
+            slope = s_em
+        
+        # Calculate P(k) ensuring continuity
+        if idx == 0:
+            P_pred[idx] = P_norm * (k / k_norm) ** slope
+        else:
+            # Continue from previous point to ensure continuity
+            P_pred[idx] = P_pred[idx-1] * (k / k_ref[idx-1]) ** slope
+
+    # 8. Optional renormalization to match measured spectrum at a pivot k
+    if (norm_pivot is not None) and (P_pivot is not None):
+        # Find nearest k_ref to the pivot
+        j = np.argmin(np.abs(k_ref - norm_pivot))
+        if P_pred[j] > 0:
+            P_pred *= (P_pivot / P_pred[j])
+
+    # 9. Calculate effective slopes for reporting
+    # These represent the slopes in the three traditional ranges (k<K_i, K_i<k<K_phi, k>K_phi)
+    # but adjusted based on where k_dir(λ) falls
+    if k_dir > 0:
+        if K_i is not None and k_dir > K_i:
+            # k_dir is above K_i: low-k can be flat, mid-k is mixed, high-k is emission
+            sP_eff = s_flat
+            sM_eff = s_mix
+            sH_eff = s_em
+        else:
+            # k_dir is below or at K_i: all ranges above k_dir use emission slope
+            sP_eff = s_flat if (K_i is not None) else s_em
+            sM_eff = s_em
+            sH_eff = s_em
+    else:
+        # No Faraday decorrelation (λ=0): all slopes are mixed
+        sP_eff = s_flat if (K_i is not None) else s_mix
+        sM_eff = s_mix
+        sH_eff = s_mix
+
+    slopes = {
+        "sP": sP_eff,
+        "sM": sM_eff,
+        "sH": sH_eff,
+        "chi": chi,
+        "r_dir": r_dir,
+        "k_dir": k_dir
+    }
+    print(P_pred, slopes)
+    return P_pred, slopes
+
 def _measure_rphi_ri(Bx, By, Bz, ne, los_axis, emit_frac, screen_frac, gamma=2.0):
     B_perp1, B_perp2, B_parallel = get_field_components_for_los(Bx, By, Bz, los_axis)
     
@@ -394,80 +573,67 @@ def plot_spectrum(lam, save_path=None, show_plots=True,
 
     kmin, kmax = kc.min(), kc.max()
     
-    # Add piecewise theoretical prediction: zero slope for k < K_i, -11/3 for K_i < k < K_phi, -8/3 for k > K_phi
+    # Calculate Lz (screen thickness in grid units along LOS)
+    Nz = Bx.shape[use_los_axis]
+    Lz = (use_screen_frac[1] - use_screen_frac[0]) * Nz
+    
+    # Create smooth k_ref for plotting
     k_ref = np.logspace(np.log10(kmin), np.log10(kmax), 200)
     
-    # Find a reference point for normalization (use a point near K_i if available, otherwise middle)
-    if Ki_idx is not None and Ki_idx >= kmin and Ki_idx <= kmax:
-        # Use value at K_i as reference
-        k_ref_norm = Ki_idx
-        # Find closest data point to K_i for normalization
-        idx_norm = np.argmin(np.abs(kc - Ki_idx))
-        if idx_norm < len(Pdir) and np.isfinite(Pdir[idx_norm]) and Pdir[idx_norm] > 0:
-            P_ref = Pdir[idx_norm]
-        else:
-            # Fallback to median
-            valid_mask = np.isfinite(Pdir) & (Pdir > 0)
-            P_ref = np.median(Pdir[valid_mask]) if valid_mask.sum() > 0 else Pdir[0] if len(Pdir) > 0 else 1.0
+    # Compute λ-dependent theoretical prediction based on R_s picture
+    if np.isfinite(r_i) and r_i > 0 and np.isfinite(r_phi) and r_phi > 0 and Lz > 0:
+        # Prepare parameters for theory function
+        # K_i and K_phi are in same units as kc (wavenumber space)
+        # Pass them if available, otherwise function will calculate from r_i, r_phi
+        theory_kwargs = {
+            'k_ref': k_ref,
+            'lam': lam,
+            'sigma_RM': sigma_RM,
+            'r_i': r_i,
+            'r_phi': r_phi,
+            'Lz': Lz,
+            'm_i': 2.0/3.0,
+            'm_phi': 2.0/3.0,
+            'mtilde_phi': 1.0,
+        }
+        
+        # Add K_i and K_phi if available (they're in same units as k_ref)
+        if Ki_idx is not None:
+            theory_kwargs['K_i'] = Ki_idx
+        if Kphi_idx is not None:
+            theory_kwargs['K_phi'] = Kphi_idx
+        
+        # Normalize to match data at mid-range k
+        mid_idx = len(kc) // 2
+        if mid_idx < len(kc) and mid_idx < len(Pdir):
+            if np.isfinite(Pdir[mid_idx]) and Pdir[mid_idx] > 0:
+                theory_kwargs['norm_pivot'] = kc[mid_idx]
+                theory_kwargs['P_pivot'] = Pdir[mid_idx]
+        
+        P_pred_piecewise, slopes_th = theory_Pdir_piecewise(**theory_kwargs)
+
+        # Plot theoretical prediction
+        ax.loglog(k_ref, P_pred_piecewise, color='blue', lw=2.0, alpha=0.7, 
+                  label=rf'Theory ($r_{{\rm dir}}(\lambda)$), $\chi={slopes_th["chi"]:.2f}$')
+        
+        # Add vertical line for k_dir(λ) if it's in the plot range
+        k_dir = slopes_th.get("k_dir", 0.0)
+        if k_dir > 0 and k_dir >= kmin and k_dir <= kmax:
+            ax.axvline(k_dir, color="#F39C12", lw=2.0, ls=":", alpha=0.9,
+                      label=fr"$k_{{\rm dir}}(\lambda)=1/r_{{\rm dir}}$ = {k_dir:.3f}")
     else:
-        # Fallback: use median of valid data
+        # Fallback: simple prediction if parameters are invalid
         mid_idx = len(Pdir) // 2
         if mid_idx < len(Pdir) and np.isfinite(Pdir[mid_idx]) and Pdir[mid_idx] > 0:
             P_ref = Pdir[mid_idx]
-            k_ref_norm = kc[mid_idx]
+            k_ref_mid = kc[mid_idx]
         else:
             valid_mask = np.isfinite(Pdir) & (Pdir > 0)
-            if valid_mask.sum() > 0:
-                P_ref = np.median(Pdir[valid_mask])
-                k_ref_norm = np.median(kc[valid_mask])
-            else:
-                P_ref = Pdir[0] if len(Pdir) > 0 and Pdir[0] > 0 else 1.0
-                k_ref_norm = kc[0] if len(kc) > 0 else kmin
-    
-    # Create piecewise prediction
-    P_pred_piecewise = np.zeros_like(k_ref)
-    slope_11_3 = -8.0/3.0
-    slope_8_3 = -11.0/3.0
-    
-    if Ki_idx is not None and Kphi_idx is not None:
-        # Segment 1: k < K_i (zero slope - constant)
-        mask1 = k_ref < Ki_idx
-        if mask1.sum() > 0:
-            # Constant value at K_i
-            P_at_Ki = P_ref * (Ki_idx / k_ref_norm)**0.0  # Zero slope
-            P_pred_piecewise[mask1] = P_at_Ki
-        
-        # Segment 2: K_i <= k < K_phi (-11/3 slope)
-        mask2 = (k_ref >= Ki_idx) & (k_ref < Kphi_idx)
-        if mask2.sum() > 0:
-            # Start from value at K_i
-            P_at_Ki = P_ref * (Ki_idx / k_ref_norm)**0.0
-            P_pred_piecewise[mask2] = P_at_Ki * (k_ref[mask2] / Ki_idx)**slope_11_3
-        
-        # Segment 3: k >= K_phi (-8/3 slope)
-        mask3 = k_ref >= Kphi_idx
-        if mask3.sum() > 0:
-            # Start from value at K_phi (from segment 2)
-            P_at_Ki = P_ref * (Ki_idx / k_ref_norm)**0.0
-            P_at_Kphi = P_at_Ki * (Kphi_idx / Ki_idx)**slope_11_3
-            P_pred_piecewise[mask3] = P_at_Kphi * (k_ref[mask3] / Kphi_idx)**slope_8_3
-    elif Ki_idx is not None:
-        # Only K_i available: zero slope for k < K_i, -11/3 for k >= K_i
-        mask1 = k_ref < Ki_idx
-        if mask1.sum() > 0:
-            P_at_Ki = P_ref * (Ki_idx / k_ref_norm)**0.0
-            P_pred_piecewise[mask1] = P_at_Ki
-        mask2 = k_ref >= Ki_idx
-        if mask2.sum() > 0:
-            P_at_Ki = P_ref * (Ki_idx / k_ref_norm)**0.0
-            P_pred_piecewise[mask2] = P_at_Ki * (k_ref[mask2] / Ki_idx)**slope_11_3
-    else:
-        # No boundaries available: use -11/3 for all
-        P_pred_piecewise = P_ref * (k_ref / k_ref_norm)**slope_11_3
-    
-    # Plot piecewise prediction
-    ax.loglog(k_ref, P_pred_piecewise, color='blue', lw=2.0, alpha=0.7, 
-              label=r'Pediction')
+            P_ref = np.median(Pdir[valid_mask]) if valid_mask.sum() > 0 else 1.0
+            k_ref_mid = np.median(kc[valid_mask]) if valid_mask.sum() > 0 else kmin
+        P_pred_piecewise = P_ref * (k_ref / k_ref_mid)**(-11.0/3.0)
+        ax.loglog(k_ref, P_pred_piecewise, color='blue', lw=2.0, alpha=0.7, 
+                  label=r'Theory (fallback)')
     
     # Three separate, non-overlapping slope measurements:
     sP = None
