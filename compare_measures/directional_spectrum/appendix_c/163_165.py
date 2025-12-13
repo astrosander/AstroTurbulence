@@ -858,10 +858,13 @@ def validate_lp16_appendixC_theory_overlay(
     # Choose χ range: χ = 2*sigma_RM*lambda^2, from 0.2 to 50, log-spaced
     chi_min = 0.2
     chi_max = 50.0
-    n_lam   = 8   # number of χ values
+    n_lam   = 200   # number of χ values
 
     chi_values = np.logspace(np.log10(chi_min), np.log10(chi_max), n_lam)
 
+
+    chi_values = np.arange(0.1, 0.1 * (n_lam + 1), 0.2)
+    
     # Compute corresponding lambda values for thick and thin screens
     lam_values_thick = np.sqrt(chi_values / (2.0 * sigma_RM_thick))
     lam_values_thin = np.sqrt(chi_values / (2.0 * sigma_RM_thin))
@@ -946,7 +949,7 @@ def validate_lp16_appendixC_theory_overlay(
     ax = ax_th
     for i, chi in enumerate(chi_values):
         label = rf"$\chi={chi:.2f}$"
-        ax.loglog(kc_th, Pdir_th_all[i], '-', lw=2, color=colors[i], label=label)
+        ax.loglog(kc_th, Pdir_th_all[i], '-', lw=0.5, color=colors[i])#, label=label)
 
     # add synchrotron-like reference line
     ax.loglog(k_th_syn, P_th_syn, 'r--', lw=2,
@@ -964,7 +967,7 @@ def validate_lp16_appendixC_theory_overlay(
     ax = ax_tn
     for i, chi in enumerate(chi_values):
         label = rf"$\chi={chi:.2f}$"
-        ax.loglog(kc_tn, Pdir_tn_all[i], '-', lw=2, color=colors[i], label=label)
+        ax.loglog(kc_tn, Pdir_tn_all[i], '-', lw=0.5, color=colors[i])#, label=label)
 
     # add RM-like reference line (for large λ)
     ax.loglog(k_th_rm, P_th_rm, 'r--', lw=2,
@@ -978,7 +981,49 @@ def validate_lp16_appendixC_theory_overlay(
     ax.legend(fontsize=10, ncol=2)
 
     plt.tight_layout()
+    
+    # Save all data needed to recreate the plot
+    npz_filename = "validate_lp16_directional_spectrum_P_lambda.npz"
+    np.savez(
+        npz_filename,
+        # Chi values and lambda values
+        chi_values=chi_values,
+        lam_values_thick=lam_values_thick,
+        lam_values_thin=lam_values_thin,
+        n_lam=n_lam,
+        # Thick screen data
+        kc_th=kc_th,
+        Pdir_th_all=Pdir_th_all,
+        k_th_syn=k_th_syn,
+        P_th_syn=P_th_syn,
+        # Thin screen data
+        kc_tn=kc_tn,
+        Pdir_tn_all=Pdir_tn_all,
+        k_th_rm=k_th_rm,
+        P_th_rm=P_th_rm,
+        # Slopes
+        s_syn=s_syn,
+        s_rm=s_rm,
+        # Function parameters
+        n=n,
+        beta_B_emit=beta_B_emit,
+        beta_ne_emit=beta_ne_emit,
+        beta_B_far=beta_B_far,
+        beta_ne_far=beta_ne_far,
+        C_phi=C_phi,
+        A_phi=A_phi,
+        seed=seed,
+        # Additional parameters that might be useful
+        M_i=M_i,
+        tilde_m_phi=tilde_m_phi,
+        sigma_RM_thick=sigma_RM_thick,
+        sigma_RM_thin=sigma_RM_thin,
+    )
+    print(f"\nSaved plot data to {npz_filename}")
+    
     plt.savefig("validate_lp16_directional_spectrum_P_lambda.png",
+                dpi=300, bbox_inches="tight")
+    plt.savefig("validate_lp16_directional_spectrum_P_lambda.svg",
                 dpi=300, bbox_inches="tight")
     plt.show()
 
@@ -1005,7 +1050,7 @@ if __name__ == "__main__":
     # )
     
     validate_lp16_appendixC_theory_overlay(
-        n=792,
+        n=512,
         beta_B_emit=11.0/3.0,
         beta_ne_emit=11.0/3.0,
         beta_B_far=11.0/3.0,

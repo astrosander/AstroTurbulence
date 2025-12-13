@@ -343,16 +343,12 @@ def run_fig12_like_sim(
         save_dir = "."
     os.makedirs(save_dir, exist_ok=True)
 
-    # Wavelength grid
     loglam = np.arange(np.log10(lam_min), np.log10(lam_max) + 1e-8, dloglam)
     lam_list = 10 ** loglam
 
-    # Two configurations, as in Fig. 4 / Fig. 12
-    # Left panel: steep emission (β=4), Kolmogorov Faraday (β=7/2)
     cfg_left = dict(beta_B_emit=4.0,   beta_ne_emit=4.0,
                     beta_B_far=7.0/2.0, beta_ne_far=7.0/2.0)
 
-    # Right panel: swap the roles (Kolmogorov emission, steep Faraday)
     cfg_right = dict(beta_B_emit=7.0/2.0, beta_ne_emit=7.0/2.0,
                      beta_B_far=4.0,      beta_ne_far=4.0)
 
