@@ -111,6 +111,24 @@ def toy_Pdir_shape(k, chi, nu0, nuphi, kappa0, kapphi, chi_star):
     return (1.0 - w) * matern_psd_2d_per_mode(k, nu0, kappa0) + w * matern_psd_2d_per_mode(k, nuphi, kapphi)
 
 
+def kapphi_eff_of_chi(chi, chi_star, kapphi_star, alpha_phi, kappa_min, kappa_max):
+    chi = float(chi)
+    chi_star = float(chi_star)
+    alpha_phi = float(alpha_phi)
+    q = 2.0 / alpha_phi
+    chi_safe = max(chi, 1e-6)
+    kappa = kapphi_star * (chi_safe / chi_star) ** q
+    return float(np.clip(kappa, kappa_min, kappa_max))
+
+def toy_Pdir_shape_chidep(k, chi, nu0, nuphi, kappa0, kapphi_star, chi_star, alpha_phi):
+    k = np.asarray(k, float)
+    w = (chi * chi) / (chi * chi + chi_star * chi_star)
+    kappa_min = 0.5 * k.min()
+    kappa_max = 0.9 * k.max()
+    kapphi = kapphi_eff_of_chi(chi, chi_star, kapphi_star, alpha_phi, kappa_min, kappa_max)
+    return (1.0 - w) * matern_psd_2d_per_mode(k, nu0, kappa0) + w * matern_psd_2d_per_mode(k, nuphi, kapphi)
+
+
 def normalize_at_pivot(k, model, data):
     k = np.asarray(k, float)
     model = np.asarray(model, float)
@@ -183,7 +201,6 @@ def plot_from_npz(npz_filename="validate_lp16_directional_spectrum_P_lambda.npz"
         kapphi_hat = kc_tn.min() * 2.0
 
     L0_hat   = n / kappa0_hat
-    Lphi_hat = n / kapphi_hat
 
     chi_star_hat, slopes_hi, (k_hi_min, k_hi_max), s_target = fit_chi_star_from_highk_slopes(
         kc_tn, Pdir_tn_all, chi_values, s_syn, s_rm
@@ -191,43 +208,61 @@ def plot_from_npz(npz_filename="validate_lp16_directional_spectrum_P_lambda.npz"
     if not np.isfinite(chi_star_hat) or chi_star_hat <= 0:
         chi_star_hat = 1.0
 
+    alpha_phi = 1.0 + tilde_m_phi
+    q = 2.0 / alpha_phi
+    chi_max = float(np.max(chi_values))
+    kapphi_star = kapphi_hat * (chi_star_hat / chi_max) ** q
+    Lphi_star = n / kapphi_star
+
     print("\nMatérn toy model parameter picks (from spectra):")
     print(f"  nu0   = M_i/2          ≈ {nu0:.3f}")
     print(f"  nuphi = tilde_m_phi/2  ≈ {nuphi:.3f}")
     print(f"  kappa0_hat  ≈ {kappa0_hat:.3f}  ->  L0_hat   = n/kappa0 ≈ {L0_hat:.2f} px")
-    print(f"  kapphi_hat  ≈ {kapphi_hat:.3f}  ->  Lphi_hat = n/kapphi ≈ {Lphi_hat:.2f} px")
+    print(f"  kapphi_hat (at chi_max={chi_max:.2f}) ≈ {kapphi_hat:.3f}  ->  Lphi(chi_max) ≈ {n/kapphi_hat:.2f} px")
     print(f"  chi_*_hat   ≈ {chi_star_hat:.3f}  (from high-k slopes fit over k∈[{k_hi_min:.1f},{k_hi_max:.1f}])")
     print(f"  target slope for chi_*: (s_syn+s_rm)/2 = {s_target:.3f}")
+    print(f"  alpha_phi = 1+tilde_m_phi = {alpha_phi:.3f}  =>  q=2/alpha_phi = {q:.3f}")
+    print(f"  kapphi_star (at chi_*) ≈ {kapphi_star:.3f}  ->  Lphi(chi_*) = n/kapphi_star ≈ {Lphi_star:.2f} px")
 
     fig2, (ax_th, ax_tn) = plt.subplots(1, 2, figsize=(12, 5), sharey=False)
 
+    chi_min = chi_values.min()
+    chi_max = chi_values.max()
+    chi_selected = np.array([
+        chi_min,
+        chi_min + 0.25 * (chi_max - chi_min),
+        chi_star_hat,
+        chi_min + 0.75 * (chi_max - chi_min),
+        chi_max
+    ])
+    
+    selected_idxs = []
+    for chi_target in chi_selected:
+        idx = np.argmin(np.abs(chi_values - chi_target))
+        selected_idxs.append(idx)
+    selected_idxs = np.unique(selected_idxs)
+    
+    print(f"\nSelected 5 chi values for plotting:")
+    for j, idx in enumerate(selected_idxs):
+        print(f"  {j+1}. chi = {chi_values[idx]:.3f} (index {idx})")
+    
     cmap = plt.cm.viridis
-    colors = [cmap(i / max(1, n_lam - 1)) for i in range(n_lam)]
+    colors_selected = [cmap(i / max(1, len(selected_idxs) - 1)) for i in range(len(selected_idxs))]
 
     ax = ax_th
-    for i, chi in enumerate(chi_values):
-        label = rf"$\chi={chi:.2f}$"
-        ax.loglog(kc_th, Pdir_th_all[i], '-', lw=0.5, color=colors[i])
-
-    toy_idxs = np.unique(np.clip(
-        [0,
-         int(len(chi_values) * 0.33),
-         np.argmin(np.abs(chi_values - chi_star_hat)),
-         int(len(chi_values) * 0.67),
-         len(chi_values) - 1],
-        0, len(chi_values) - 1
-    ))
-
-    for j, idx in enumerate(toy_idxs):
+    for j, idx in enumerate(selected_idxs):
         chi = chi_values[idx]
-        model = toy_Pdir_shape(kc_th, chi, nu0, nuphi,
-                               kappa0_hat, kapphi_hat, chi_star_hat)
+        label = rf"$\chi={chi:.2f}$"
+        ax.loglog(kc_th, Pdir_th_all[idx], '-', lw=1.5, color=colors_selected[j], label=label)
+        
+        model = toy_Pdir_shape_chidep(kc_th, chi, nu0, nuphi,
+                                      kappa0_hat, kapphi_star, chi_star_hat, alpha_phi)
         model = normalize_at_pivot(kc_th, model, Pdir_th_all[idx])
         lab = "Matérn toy model" if j == 0 else None
         ax.loglog(kc_th, model, 'k--', lw=1.6, alpha=0.8, label=lab)
 
     ax.text(0.03, 0.06,
-            rf"$L_0={L0_hat:.1f}\,$px, $L_\phi={Lphi_hat:.1f}\,$px, $\chi_*={chi_star_hat:.2f}$",
+            rf"$L_0={L0_hat:.1f}\,$px, $L_\phi(\chi_*)={Lphi_star:.1f}\,$px, $\chi_*={chi_star_hat:.2f}$",
             transform=ax.transAxes, fontsize=12, va='bottom')
 
     ax.loglog(k_th_syn, P_th_syn, 'r--', lw=2,
@@ -242,20 +277,19 @@ def plot_from_npz(npz_filename="validate_lp16_directional_spectrum_P_lambda.npz"
     ax.legend(fontsize=10, ncol=2)
 
     ax = ax_tn
-    for i, chi in enumerate(chi_values):
-        label = rf"$\chi={chi:.2f}$"
-        ax.loglog(kc_tn, Pdir_tn_all[i], '-', lw=0.5, color=colors[i])
-
-    for j, idx in enumerate(toy_idxs):
+    for j, idx in enumerate(selected_idxs):
         chi = chi_values[idx]
-        model = toy_Pdir_shape(kc_tn, chi, nu0, nuphi,
-                               kappa0_hat, kapphi_hat, chi_star_hat)
+        label = rf"$\chi={chi:.2f}$"
+        ax.loglog(kc_tn, Pdir_tn_all[idx], '-', lw=1.5, color=colors_selected[j], label=label)
+        
+        model = toy_Pdir_shape_chidep(kc_tn, chi, nu0, nuphi,
+                                      kappa0_hat, kapphi_star, chi_star_hat, alpha_phi)
         model = normalize_at_pivot(kc_tn, model, Pdir_tn_all[idx])
         lab = "Matérn toy model" if j == 0 else None
         ax.loglog(kc_tn, model, 'k--', lw=1.6, alpha=0.8, label=lab)
 
     ax.text(0.03, 0.06,
-            rf"$L_0={L0_hat:.1f}\,$px, $L_\phi={Lphi_hat:.1f}\,$px, $\chi_*={chi_star_hat:.2f}$",
+            rf"$L_0={L0_hat:.1f}\,$px, $L_\phi(\chi_*)={Lphi_star:.1f}\,$px, $\chi_*={chi_star_hat:.2f}$",
             transform=ax.transAxes, fontsize=12, va='bottom')
 
     ax.loglog(k_th_rm, P_th_rm, 'r--', lw=2,
