@@ -1059,7 +1059,7 @@ if __name__ == "__main__":
     # )
     
     validate_lp16_appendixC_theory_overlay(
-        n=1400,
+        n=512,
         beta_B_emit=11.0/3.0,
         beta_ne_emit=11.0/3.0,
         beta_B_far=11.0/3.0,
