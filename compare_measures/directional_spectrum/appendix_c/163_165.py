@@ -911,8 +911,8 @@ def validate_lp16_appendixC_theory_overlay(
     # ---------- Step 9: theoretical reference slopes for P_dir(k) (from LP16 exponents) ----------
 
     # SF exponents: D(R) ∝ R^α ⇒ E_2D(k) ∝ k^{-(α+2)} in 2D
-    s_syn = -(M_i + 2.0)             # synchrotron-dominated branch
-    s_rm  = -(tilde_m_phi + 2.0)     # RM-like branch for P (rough approximation)
+    s_syn = -(tilde_m_phi + 3.0)             # synchrotron-dominated branch
+    s_rm  = -(tilde_m_phi + 3.0)     # RM-like branch for P (rough approximation)
 
     print("\nDirectional spectrum reference slopes for P(X, λ²):")
     print(f"  Synchrotron-like: P_dir(k) ∝ k^{s_syn:.3f}")
@@ -1018,7 +1018,16 @@ def validate_lp16_appendixC_theory_overlay(
         tilde_m_phi=tilde_m_phi,
         sigma_RM_thick=sigma_RM_thick,
         sigma_RM_thin=sigma_RM_thin,
+        # Geometry + SF scalings
+        R_i=R_i,
+        r_phi_thick=r_phi_thick,
+        r_phi_thin=r_phi_thin,
+        L_thin=L_thin,
+        L_thick=L_thick,
+        alpha_phi_thick=alpha_phi_thick,
+        alpha_phi_thin=alpha_phi_thin,
     )
+
     print(f"\nSaved plot data to {npz_filename}")
     
     plt.savefig("validate_lp16_directional_spectrum_P_lambda.png",
@@ -1050,7 +1059,7 @@ if __name__ == "__main__":
     # )
     
     validate_lp16_appendixC_theory_overlay(
-        n=512,
+        n=1400,
         beta_B_emit=11.0/3.0,
         beta_ne_emit=11.0/3.0,
         beta_B_far=11.0/3.0,
