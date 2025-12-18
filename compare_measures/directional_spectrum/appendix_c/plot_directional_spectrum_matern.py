@@ -186,27 +186,41 @@ def plot_from_npz(npz_filename="validate_lp16_directional_spectrum_P_lambda.npz"
         warnings.warn("Too few ring points in fit window. Increase ring_bins (e.g. 192–256 for n~1024–1400) or widen window.")
 
     # --- plot spectra (same as before, with fit window shading)
+    # Select chi values closest to [0, 1, 2, 3, 4, 5]
+    target_chis = np.array([0, 1, 2, 3, 4, 5])*2
+
+    plot_indices = []
+    for target_chi in target_chis:
+        # Find index with chi value closest to target
+        idx = np.argmin(np.abs(chi_values - target_chi))
+        plot_indices.append(idx)
+    plot_indices = np.unique(plot_indices)  # Remove duplicates if any
+    
     fig2, (ax_th, ax_tn) = plt.subplots(1, 2, figsize=(12, 5), sharey=False)
     cmap = plt.cm.viridis
-    colors = [cmap(i / max(1, n_lam - 1)) for i in range(n_lam)]
+    colors = [cmap(i / max(1, len(plot_indices) - 1)) for i in range(len(plot_indices))]
 
     ax = ax_th
-    for i in range(len(chi_values)):
-        ax.loglog(kc_th, Pdir_th_all[i], "-", lw=0.5, color=colors[i])
-    ax.axvspan(kfit_min_th, kfit_max_th, alpha=0.12, label="fit window")
+    for idx, i in enumerate(plot_indices):
+        chi = chi_values[i]
+        ax.loglog(kc_th, Pdir_th_all[i], "-", lw=2.5, color=colors[idx], 
+                 label=fr"$\chi={chi:.2g}$")
+    # ax.axvspan(kfit_min_th, kfit_max_th, alpha=0.12, label="fit window")
     ax.set_xlabel(r"$k$"); ax.set_ylabel(r"$P_{\rm dir}(k)$")
     ax.set_title("Directional spectrum: thick")
     ax.grid(True, which="both", ls=":")
-    ax.legend(fontsize=10)
+    ax.legend(fontsize=9)
 
     ax = ax_tn
-    for i in range(len(chi_values)):
-        ax.loglog(kc_tn, Pdir_tn_all[i], "-", lw=0.5, color=colors[i])
-    ax.axvspan(kfit_min_tn, kfit_max_tn, alpha=0.12, label="fit window")
+    for idx, i in enumerate(plot_indices):
+        chi = chi_values[i]
+        ax.loglog(kc_tn, Pdir_tn_all[i], "-", lw=2.5, color=colors[idx],
+                 label=fr"$\chi={chi:.2g}$")
+    # ax.axvspan(kfit_min_tn, kfit_max_tn, alpha=0.12, label="fit window")
     ax.set_xlabel(r"$k$")
     ax.set_title("Directional spectrum: thin")
     ax.grid(True, which="both", ls=":")
-    ax.legend(fontsize=10)
+    ax.legend(fontsize=9)
 
     plt.tight_layout()
     plt.savefig(f"{save_prefix}.pdf", dpi=300, bbox_inches="tight")
@@ -271,7 +285,7 @@ def plot_from_npz(npz_filename="validate_lp16_directional_spectrum_P_lambda.npz"
 
 if __name__ == "__main__":
     import sys
-    npz_file = sys.argv[1] if len(sys.argv) > 1 else "validate_lp16_directional_spectrum_P_lambda.npz"
+    npz_file = sys.argv[1] if len(sys.argv) > 1 else "validate_lp16_directional_spectrum_P_lambda_512_3-6666.npz"#"validate_lp16_directional_spectrum_P_lambda.npz"
     kmin = float(sys.argv[2]) if len(sys.argv) > 2 else None
     kmax = float(sys.argv[3]) if len(sys.argv) > 3 else None
     # kmin
