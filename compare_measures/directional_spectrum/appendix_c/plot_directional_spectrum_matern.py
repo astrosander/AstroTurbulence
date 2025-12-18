@@ -41,51 +41,103 @@ def default_k_window(n, kc, frac_lo_nyq=0.03, frac_hi_nyq=0.25, kmin_floor=8.0):
     return float(kmin), float(kmax)
 
 
-# ---- 3-asymptote analytic slope model ----
-def seff3(chi, chi1, chi2, spsi, sphi, p=2.0):
+# ---- Corrected thick/thin screen models ----
+def sphi_thick_from_tilde(tilde_m_phi):
+    """Thick Faraday exponent is (1 + tilde_m_phi) in real space -> slope -(2 + (1+tilde))"""
+    return -(3.0 + tilde_m_phi)
+
+def sphi_thin_from_tilde(tilde_m_phi):
+    """Thin (L<R<r_phi) branch -> slope -(2 + tilde)"""
+    return -(2.0 + tilde_m_phi)
+
+def seff_src_to_white(chi, chi2, spsi, p=2.0):
+    """Monotone s: spsi -> 0 (for thick screens)."""
     chi = np.asarray(chi, float)
-    w1 = (chi / chi1) ** p
-    w2 = (chi / chi2) ** p
-    return (spsi + sphi * w1 + 0.0 * w2) / (1.0 + w1 + w2)
+    w2 = (chi/chi2)**p
+    return spsi / (1.0 + w2)
 
+def seff_src_rm_white(chi, chi1, chi2, spsi, sphi, p=2.0):
+    """Three-asymptote: spsi -> sphi -> 0 (for thin screens)."""
+    chi = np.asarray(chi, float)
+    w1 = (chi/chi1)**p
+    w2 = (chi/chi2)**p
+    return (spsi + sphi*w1) / (1.0 + w1 + w2)
 
-def fit_chi1_chi2_grid(chi, s_meas, spsi, sphi, p=2.0, ngrid=140):
-    """
-    Fit (chi1, chi2) by 2D grid search in log-space.
-    Returns best (chi1, chi2) and best MSE.
-    """
+def fit_chi2_only(chi, s_meas, spsi, p=2.0, ngrid=400):
+    """Fit chi2 for thick: spsi -> 0."""
     chi = np.asarray(chi, float)
     s_meas = np.asarray(s_meas, float)
     m = np.isfinite(chi) & np.isfinite(s_meas) & (chi > 0)
     chi = chi[m]; s_meas = s_meas[m]
     if chi.size < 8:
+        return np.nan, np.inf
+
+    grid = np.logspace(np.log10(chi.min())-2, np.log10(chi.max())+2, ngrid)
+    best = (np.inf, np.nan)
+    for chi2 in grid:
+        s_pred = seff_src_to_white(chi, chi2, spsi, p=p)
+        mse = np.mean((s_meas - s_pred)**2)
+        if mse < best[0]:
+            best = (mse, chi2)
+    return float(best[1]), float(best[0])
+
+def fit_chi1_chi2_ordered(chi, s_meas, spsi, sphi, p=2.0, ngrid=160):
+    """Fit chi1<chi2 for thin: spsi -> sphi -> 0."""
+    chi = np.asarray(chi, float)
+    s_meas = np.asarray(s_meas, float)
+    m = np.isfinite(chi) & np.isfinite(s_meas) & (chi > 0)
+    chi = chi[m]; s_meas = s_meas[m]
+    if chi.size < 10:
         return np.nan, np.nan, np.inf
 
-    lo = np.log10(chi.min()) - 2.0
-    hi = np.log10(chi.max()) + 2.0
-    grid = np.logspace(lo, hi, ngrid)
+    grid = np.logspace(np.log10(chi.min())-2, np.log10(chi.max())+2, ngrid)
 
     best_mse = np.inf
     best = (np.nan, np.nan)
-    # cheap-ish 2D search: ngrid^2 ~ 2e4 if ngrid=140 (OK)
-    for chi1 in grid:
-        # precompute w1 contribution for speed
-        w1 = (chi / chi1) ** p
-        for chi2 in grid:
-            w2 = (chi / chi2) ** p
-            s_pred = (spsi + sphi * w1) / (1.0 + w1 + w2)
-            mse = np.mean((s_meas - s_pred) ** 2)
+    for i, chi1 in enumerate(grid):
+        # only allow chi2 > chi1
+        for chi2 in grid[i+1:]:
+            s_pred = seff_src_rm_white(chi, chi1, chi2, spsi, sphi, p=p)
+            mse = np.mean((s_meas - s_pred)**2)
             if mse < best_mse:
                 best_mse = mse
                 best = (chi1, chi2)
-
     return float(best[0]), float(best[1]), float(best_mse)
+
+def fit_with_p_scan(chi, s_meas_th, s_meas_tn, spsi, tilde_m_phi, p_list=(1.5, 2.0, 2.5, 3.0)):
+    """
+    Returns best fits for thick and thin, choosing p that minimizes MSE.
+    Thick uses only src->white.
+    Thin uses src->rm->white with rm slope appropriate to thin.
+    """
+    sphi_thick = sphi_thick_from_tilde(tilde_m_phi)
+    sphi_thin  = sphi_thin_from_tilde(tilde_m_phi)
+
+    best = dict(mse=np.inf)
+
+    for p in p_list:
+        # thick
+        chi2_th, mse_th = fit_chi2_only(chi, s_meas_th, spsi, p=p)
+        # thin
+        chi1_tn, chi2_tn, mse_tn = fit_chi1_chi2_ordered(chi, s_meas_tn, spsi, sphi_thin, p=p)
+
+        mse_tot = mse_th + mse_tn
+        if mse_tot < best["mse"]:
+            best = dict(
+                p=p,
+                # thick
+                chi2_th=chi2_th, mse_th=mse_th, sphi_thick=sphi_thick,
+                # thin
+                chi1_tn=chi1_tn, chi2_tn=chi2_tn, mse_tn=mse_tn, sphi_thin=sphi_thin,
+                mse=mse_tot
+            )
+    return best
 
 
 def plot_from_npz(npz_filename="validate_lp16_directional_spectrum_P_lambda.npz",
                   kfit_min=None, kfit_max=None,
                   save_prefix="validate_lp16_directional_spectrum_P_lambda_matern",
-                  p_mix=2.0):
+                  p_list=(1.5, 2.0, 2.5, 3.0)):
     if not os.path.exists(npz_filename):
         raise FileNotFoundError(f"NPZ file not found: {npz_filename}")
 
@@ -102,14 +154,18 @@ def plot_from_npz(npz_filename="validate_lp16_directional_spectrum_P_lambda.npz"
     M_i = float(data["M_i"])
     tilde_m_phi = float(data["tilde_m_phi"])
 
-    # asymptotes you used before:
+    # asymptotes:
     spsi = float(data["s_syn"])  # = -(M_i+2)
-    sphi = float(data["s_rm"])   # your "RM-like" reference (may be regime-dependent)
+    # Compute correct s_phi for thick vs thin
+    sphi_thick = sphi_thick_from_tilde(tilde_m_phi)
+    sphi_thin = sphi_thin_from_tilde(tilde_m_phi)
 
     print("Data loaded successfully.")
     print(f"  n = {n}, n_lam = {n_lam}")
     print(f"  M_i = {M_i:.3f} -> spsi = {spsi:.3f}")
-    print(f"  tilde_m_phi = {tilde_m_phi:.3f} -> sphi = {sphi:.3f}")
+    print(f"  tilde_m_phi = {tilde_m_phi:.3f}")
+    print(f"    -> sphi_thick = {sphi_thick:.3f} (thick: no intermediate branch)")
+    print(f"    -> sphi_thin = {sphi_thin:.3f} (thin: RM intermediate branch)")
 
     # choose k-fit windows
     if (kfit_min is None) or (kfit_max is None):
@@ -153,6 +209,7 @@ def plot_from_npz(npz_filename="validate_lp16_directional_spectrum_P_lambda.npz"
     ax.legend(fontsize=10)
 
     plt.tight_layout()
+    plt.savefig(f"{save_prefix}.pdf", dpi=300, bbox_inches="tight")
     plt.savefig(f"{save_prefix}.png", dpi=300, bbox_inches="tight")
     plt.savefig(f"{save_prefix}.svg", dpi=300, bbox_inches="tight")
     print(f"\nSaved spectra plot to {save_prefix}.png/svg")
@@ -161,50 +218,53 @@ def plot_from_npz(npz_filename="validate_lp16_directional_spectrum_P_lambda.npz"
     s_meas_th = np.array([fit_loglog_slope(kc_th, Pdir_th_all[i], kfit_min_th, kfit_max_th) for i in range(len(chi_values))])
     s_meas_tn = np.array([fit_loglog_slope(kc_tn, Pdir_tn_all[i], kfit_min_tn, kfit_max_tn) for i in range(len(chi_values))])
 
-    # --- fit (chi1, chi2) separately for thick and thin
-    chi1_th, chi2_th, mse_th = fit_chi1_chi2_grid(chi_values, s_meas_th, spsi, sphi, p=p_mix)
-    chi1_tn, chi2_tn, mse_tn = fit_chi1_chi2_grid(chi_values, s_meas_tn, spsi, sphi, p=p_mix)
+    # --- fit with p scan (thick: src->white only, thin: src->rm->white)
+    best = fit_with_p_scan(chi_values, s_meas_th, s_meas_tn, spsi, tilde_m_phi,
+                           p_list=p_list)
 
-    print("\n3-asymptote fit results (src -> RM -> white):")
-    print(f"  thick: chi1={chi1_th:.3g}, chi2={chi2_th:.3g}, MSE={mse_th:.3e}")
-    print(f"  thin:  chi1={chi1_tn:.3g}, chi2={chi2_tn:.3g}, MSE={mse_tn:.3e}")
+    print("\nBest p + fits:")
+    print(f"  p = {best['p']:.2f}")
+    print(f"  thick: chi2={best['chi2_th']:.3g}, MSE={best['mse_th']:.3e} (src -> white)")
+    print(f"  thin:  chi1={best['chi1_tn']:.3g}, chi2={best['chi2_tn']:.3g}, MSE={best['mse_tn']:.3e} (src -> RM -> white)")
+    print(f"  total MSE = {best['mse']:.3e}")
 
-    s_pred_th = seff3(chi_values, chi1_th, chi2_th, spsi, sphi, p=p_mix)
-    s_pred_tn = seff3(chi_values, chi1_tn, chi2_tn, spsi, sphi, p=p_mix)
+    # predictions
+    s_pred_th = seff_src_to_white(chi_values, best["chi2_th"], spsi, p=best["p"])
+    s_pred_tn = seff_src_rm_white(chi_values, best["chi1_tn"], best["chi2_tn"],
+                                  spsi, best["sphi_thin"], p=best["p"])
 
     # --- plot slope vs chi
     order = np.argsort(chi_values)
     chi_s = chi_values[order]
 
-    fig3, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4), sharey=True)
+    fig3, (ax1, ax2) = plt.subplots(2, 1, figsize=(6, 8), sharex=True)
 
     ax = ax1
     ax.semilogx(chi_s, s_meas_th[order], "o", ms=4, label="measured")
-    ax.semilogx(chi_s, s_pred_th[order], "-", lw=2, label=fr"pred: chi1={chi1_th:.2g}, chi2={chi2_th:.2g}")
+    ax.semilogx(chi_s, s_pred_th[order], "-", lw=2, label=fr"pred: chi2={best['chi2_th']:.2g}, p={best['p']:.2f}")
     ax.axhline(spsi, ls="--", lw=1.2, label=fr"$s_\psi={spsi:.2f}$")
-    ax.axhline(sphi, ls="--", lw=1.2, label=fr"$s_\phi={sphi:.2f}$")
     ax.axhline(0.0, ls=":", lw=1.2, label=r"$s_\infty=0$")
     ax.set_xlabel(r"$\chi$")
     ax.set_ylabel(r"slope $s$ in $P_{\rm dir}\propto k^s$")
-    ax.set_title("Thick: slope vs χ")
+    ax.set_title("Thick")
     ax.grid(True, which="both", ls=":")
     ax.legend(fontsize=10)
 
     ax = ax2
     ax.semilogx(chi_s, s_meas_tn[order], "o", ms=4, label="measured")
-    ax.semilogx(chi_s, s_pred_tn[order], "-", lw=2, label=fr"pred: chi1={chi1_tn:.2g}, chi2={chi2_tn:.2g}")
+    ax.semilogx(chi_s, s_pred_tn[order], "-", lw=2, label=fr"pred: chi1={best['chi1_tn']:.2g}, chi2={best['chi2_tn']:.2g}, p={best['p']:.2f}")
     ax.axhline(spsi, ls="--", lw=1.2, label=fr"$s_\psi={spsi:.2f}$")
-    ax.axhline(sphi, ls="--", lw=1.2, label=fr"$s_\phi={sphi:.2f}$")
+    ax.axhline(best["sphi_thin"], ls="--", lw=1.2, label=fr"$s_\phi={best['sphi_thin']:.2f}$")
     ax.axhline(0.0, ls=":", lw=1.2, label=r"$s_\infty=0$")
     ax.set_xlabel(r"$\chi$")
-    ax.set_title("Thin: slope vs χ")
+    ax.set_title("Thin")
     ax.grid(True, which="both", ls=":")
     ax.legend(fontsize=10)
 
     plt.tight_layout()
     out = "validate_lp16_seff3_vs_chi.png"
     plt.savefig(out, dpi=300, bbox_inches="tight")
-    plt.savefig(out.replace(".png", ".svg"), dpi=300, bbox_inches="tight")
+    plt.savefig(out.replace(".png", ".pdf"), dpi=300, bbox_inches="tight")
     print(f"Saved slope-validation plot: {out} / .svg")
     plt.show()
 
@@ -214,4 +274,6 @@ if __name__ == "__main__":
     npz_file = sys.argv[1] if len(sys.argv) > 1 else "validate_lp16_directional_spectrum_P_lambda.npz"
     kmin = float(sys.argv[2]) if len(sys.argv) > 2 else None
     kmax = float(sys.argv[3]) if len(sys.argv) > 3 else None
-    plot_from_npz(npz_file, kfit_min=kmin, kfit_max=kmax, p_mix=2.0)
+    # kmin
+    # kmax=100
+    plot_from_npz(npz_file, kfit_min=kmin, kfit_max=kmax)
