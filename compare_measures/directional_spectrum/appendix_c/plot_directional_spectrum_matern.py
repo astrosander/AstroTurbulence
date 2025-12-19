@@ -215,9 +215,33 @@ def plot_from_npz(npz_filename="validate_lp16_directional_spectrum_P_lambda.npz"
     P_ref = P_ref_scale * (k_ref ** (-10/3))
     ax_th.loglog(k_ref, P_ref, "--", lw=2.0, color="red", label=r"$k^{-10/3}$")
     
+    # Find chi closest to 10 and fit line for k>100
+    chi_target = 10.0
+    idx_chi10 = np.argmin(np.abs(chi_values - chi_target))
+    chi_actual = chi_values[idx_chi10]
+    P_chi10 = Pdir_th_all[idx_chi10]
+    
+    # Fit line for k>100
+    mask_k100 = kc_th > 100
+    if mask_k100.sum() >= 3:
+        k_fit = kc_th[mask_k100]
+        P_fit = P_chi10[mask_k100]
+        # Fit in log-log space
+        log_k = np.log(k_fit)
+        log_P = np.log(P_fit)
+        slope, intercept = np.polyfit(log_k, log_P, 1)
+        
+        # Create fit line for k>100
+        k_fit_line = np.logspace(np.log10(k_fit.min()), np.log10(kc_th.max()), 100)
+        P_fit_line = np.exp(intercept) * (k_fit_line ** slope)
+        
+        ax_th.loglog(k_fit_line, P_fit_line, "-.", lw=2.5, color="black", 
+                    label=fr"$k^{{{slope:.2f}}}$")
+        print(f"\nFit for chi={chi_actual:.2g} (k>100): slope = {slope:.3f}, intercept = {intercept:.3f}")
+    
     # ax_th.axvspan(kfit_min_th, kfit_max_th, alpha=0.12, label="fit window")
     ax_th.set_xlabel(r"$k$", fontsize=20); ax_th.set_ylabel(r"$P_{\rm dir}(k)$", fontsize=20)
-    ax_th.set_title("Directional spectrum: thick ($m_\\phi=3, m_\\psi=11/3$)", fontsize=20)
+    ax_th.set_title("Directional spectrum: thick ($m_\\phi=11/3, m_\\psi=11/3$)", fontsize=20)
     ax_th.tick_params(labelsize=16)
     ax_th.grid(True, which="both", ls=":")
     ax_th.legend(fontsize=16)
@@ -285,7 +309,7 @@ def plot_from_npz(npz_filename="validate_lp16_directional_spectrum_P_lambda.npz"
 
 if __name__ == "__main__":
     import sys
-    npz_file = sys.argv[1] if len(sys.argv) > 1 else "validate_lp16_directional_spectrum_P_lambda.npz"#
+    npz_file = sys.argv[1] if len(sys.argv) > 1 else "validate_lp16_directional_spectrum_P_lambda.npz"#"validate_lp16_directional_spectrum_P_lambda_512_3-6666.npz"#"validate_lp16_directional_spectrum_P_lambda.npz"#
     kmin = float(sys.argv[2]) if len(sys.argv) > 2 else None
     kmax = float(sys.argv[3]) if len(sys.argv) > 3 else None
     # kmin
