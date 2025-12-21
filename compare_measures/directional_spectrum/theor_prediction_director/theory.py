@@ -1,6 +1,36 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+plt.rcParams.update({
+    'font.size': 11,
+    "font.family": "STIXGeneral",
+    "mathtext.fontset": "stix",
+    # 'font.family': 'serif',
+    # 'font.serif': ['Times', 'Palatino', 'New Century Schoolbook', 'Bookman', 'Computer Modern Roman'],
+    'text.usetex': False,
+    'axes.linewidth': 1.2,
+    'axes.labelsize': 12,
+    'axes.titlesize': 13,
+    'xtick.labelsize': 14,
+    'ytick.labelsize': 14,
+    'legend.fontsize': 14,
+    'legend.frameon': True,
+    'legend.fancybox': True,
+    'legend.framealpha': 0.9,
+    'figure.dpi': 100,
+    'savefig.dpi': 300,
+    'savefig.bbox': 'tight',
+    'savefig.pad_inches': 0.1,
+})
+
+import matplotlib as mpl
+
+# --- unified TeX-style appearance (MathText, no system LaTeX needed) ---
+mpl.rcParams.update({
+    "text.usetex": False,          # use MathText (portable)
+    "font.family": "STIXGeneral",  # match math fonts
+})
+
 def ring_average_2d(power2d, kmin=1.0, kmax=None, nbins=40):
     ny, nx = power2d.shape
     ky = np.arange(-ny//2, ny - ny//2)
@@ -51,74 +81,115 @@ def spectrum_from_corr(C):
 
 def directional_spectrum_from_models(
     N=512,
-    A_P=1.0, R0=55.0, mpsi=1.37,
-    sigma_RM=108.0, rphi=33.8, mPhi=0.93,
+    A_P=1.0,
+    R0=55.0,
+    mpsi=1.37,
+    sigma_RM=108.0,
+    rphi=33.8,
+    mPhi=0.93,
     chi_list=(0.2, 1.0, 5.0, 20.0),
     nbins=50,
     kmin=2.0,
+    save_figures=False,
+    figure_prefix='directional_spectrum',
 ):
     R = radial_grid(N)
 
-    DP  = D_P_model(R, A_P=A_P, R0=R0, mpsi=mpsi)
+    DP = D_P_model(R, A_P=A_P, R0=R0, mpsi=mpsi)
     DPH = D_Phi_model(R, sigma_RM=sigma_RM, rphi=rphi, mPhi=mPhi)
 
     xi_P = corr_from_structure(DP, C0=1.0)
-
     xi_Phi = corr_from_structure(DPH, C0=sigma_RM**2)
 
-    P_ui_2d  = spectrum_from_corr(xi_P)
+    P_ui_2d = spectrum_from_corr(xi_P)
     P_Phi_2d = spectrum_from_corr(xi_Phi)
 
-    kc_ui,  P_ui  = ring_average_2d(P_ui_2d,  kmin=kmin, nbins=nbins)
-    kc_ph,  P_ph  = ring_average_2d(P_Phi_2d, kmin=kmin, nbins=nbins)
+    kc_ui, P_ui = ring_average_2d(P_ui_2d, kmin=kmin, nbins=nbins)
+    kc_ph, P_ph = ring_average_2d(P_Phi_2d, kmin=kmin, nbins=nbins)
 
     results = []
 
     for chi in chi_list:
         lam2 = chi / (2.0 * sigma_RM)
         lam4 = lam2**2
-
         C_dir = xi_P * np.exp(-2.0 * lam4 * DPH)
-
         Pdir_2d = spectrum_from_corr(C_dir)
         kc, Pdir = ring_average_2d(Pdir_2d, kmin=kmin, nbins=nbins)
-
         results.append((chi, kc, Pdir))
 
-    plt.figure(figsize=(7.5, 5.5))
+    fig1, ax1 = plt.subplots(figsize=(6.5, 5.0))
 
-    for chi, kc, Pdir in results:
-        plt.loglog(kc, Pdir, lw=1.5, label=rf"$\chi={chi:g}$")
+    chi_values = np.array([chi for chi, _, _ in results])
+    if len(chi_values) > 1:
+        chi_min = chi_values.min()*0.1
+        chi_max = chi_values.max()*0.1
+        if chi_max > chi_min:
+            chi_shifted = chi_values - chi_min + 1e-6
+            chi_norm_linear = (chi_shifted - chi_shifted.min()) / (chi_shifted.max() - chi_shifted.min())
+            chi_norm_power = chi_norm_linear**0.3
+            chi_norm_power = chi_norm_power * 0.9
+            colors = plt.cm.plasma(chi_norm_power)
+        else:
+            colors = plt.cm.plasma(np.linspace(0, 0.85, len(results)))
+    else:
+        colors = plt.cm.plasma([0.5])
+    
+    k_all = []
+    Pdir_all = []
+    
+    for idx, (chi, kc, Pdir) in enumerate(results):
+        ax1.loglog(kc, Pdir, lw=2.0, label=rf"$\chi={chi:g}$", color=colors[idx])
+        k_all.extend(kc)
+        Pdir_all.extend(Pdir)
 
     if results:
         _, kc_ref, Pdir_ref = results[0]
         if len(kc_ref) > 0:
-            k_mid = kc_ref[len(kc_ref)//2]
-            P_mid = Pdir_ref[len(Pdir_ref)//2]
-            k_ref = np.logspace(np.log10(kc_ref.min()), np.log10(kc_ref.max()), 100)
-            P_ref = P_mid * (k_ref / k_mid)**(-11.0/3.0) *0.3
-            plt.loglog(k_ref, P_ref, 'k--', lw=1.5, alpha=0.7, label=r"$k^{-11/3}$")
-            P_ref = P_mid * (k_ref / k_mid)**(-10.0/3.0) *0.9
-            plt.loglog(k_ref, P_ref, 'r--', lw=1.5, alpha=0.7, label=r"$k^{-10/3}$")
+            k_mid = kc_ref[len(kc_ref) // 2]
+            P_mid = Pdir_ref[len(Pdir_ref) // 2]
+            k_ref = np.logspace(np.log10(kc_ref.min()), np.log10(kc_ref.max()), 200)
+            P_ref_11 = P_mid * (k_ref / k_mid)**(-11.0/3.0) * 0.4
+            P_ref_10 = P_mid * (k_ref / k_mid)**(-10.0/3.0) * 0.8
+            ax1.loglog(k_ref, P_ref_11, 'g-.', lw=2.0, alpha=0.8, label=r"$k^{-11/3}$")
+            ax1.loglog(k_ref, P_ref_10, 'r--', lw=2.0, alpha=0.8, label=r"$k^{-10/3}$")
 
-    plt.xlabel(r"$k$ (FFT index radius)")
-    plt.ylabel(r"$P_{\rm dir}(k)$ (arb. units)")
-    plt.title(r"Directional spectrum from $D_P(R)$ and $D_\Phi(R)$")
+    if k_all and Pdir_all:
+        k_all = np.array(k_all)
+        Pdir_all = np.array(Pdir_all)
+        valid = np.isfinite(k_all) & np.isfinite(Pdir_all) & (k_all > 0) & (Pdir_all > 0)
+        if np.any(valid):
+            k_min = k_all[valid].min()
+            k_max = k_all[valid].max()
+            P_min = Pdir_all[valid].min()
+            P_max = Pdir_all[valid].max()
+            ax1.set_xlim(k_min, k_max)
+            ax1.set_ylim(P_min, P_max)
 
-    plt.grid(True, which="both", ls=":")
-    plt.legend()
+    ax1.set_xlabel(r"$k$", fontsize=16)# (FFT index radius)
+    ax1.set_ylabel(r"$P_{\rm dir}(k)$", fontsize=16)
+    # ax1.set_title(r"Directional spectrum from $D_P(R)$ and $D_\Phi(R)$", fontsize=13)
+    ax1.grid(True, which="both", ls=":", alpha=0.5)
+    ax1.legend(loc='best', frameon=True, fancybox=True, shadow=False)
     plt.tight_layout()
+    
+    if save_figures or True:
+        plt.savefig(f"{figure_prefix}_main.pdf", format='pdf')
+        plt.savefig(f"{figure_prefix}_main.png", format='png')
     plt.show()
 
-    plt.figure(figsize=(7.5, 5.5))
-    plt.loglog(kc_ui, P_ui,  lw=2, label=r"$P_{u_i}(k)$ from $\xi_P$")
-    plt.loglog(kc_ph, P_ph,  lw=2, label=r"$P_{\Phi}(k)$ from $\xi_\Phi$")
-    plt.xlabel(r"$k$ (FFT index radius)")
-    plt.ylabel(r"$P(k)$ (arb. units)")
-    plt.title("Reference spectra implied by the input structure functions")
-    plt.grid(True, which="both", ls=":")
-    plt.legend()
+    fig2, ax2 = plt.subplots(figsize=(6.5, 5.0))
+    ax2.loglog(kc_ui, P_ui, lw=2.5, label=r"$P_{u_i}(k)$ from $\xi_P$", color='C0')
+    ax2.loglog(kc_ph, P_ph, lw=2.5, label=r"$P_{\Phi}(k)$ from $\xi_\Phi$", color='C1')
+    ax2.set_xlabel(r"$k$", fontsize=16)
+    ax2.set_ylabel(r"$P(k)$", fontsize=16)
+    # ax2.set_title("Reference spectra implied by the input structure functions", fontsize=13)
+    ax2.grid(True, which="both", ls=":", alpha=0.5)
+    ax2.legend(loc='best', frameon=True, fancybox=True, shadow=False)
     plt.tight_layout()
+    
+    if save_figures:
+        plt.savefig(f"{figure_prefix}_reference.pdf", format='pdf')
+        plt.savefig(f"{figure_prefix}_reference.png", format='png')
     plt.show()
 
 def mPhi_from_beta3D(beta_3d):
@@ -128,12 +199,12 @@ def mPhi_from_beta3D(beta_3d):
 
 if __name__ == "__main__":
     chi_list = [0]
-    chi_list_item=0.5
-    for i in range(8):
+    chi_list_item = 1.0#0.5
+    for i in range(6):
         chi_list.append(chi_list_item)
-        chi_list_item*=2
+        chi_list_item *= 2
 
-    beta_kolm = 11.0/3.0
+    beta_kolm = 11.0 / 3.0
     mPhi_kolm = mPhi_from_beta3D(beta_kolm)
 
     directional_spectrum_from_models(
@@ -147,4 +218,6 @@ if __name__ == "__main__":
         chi_list=chi_list,
         nbins=100,
         kmin=3.0,
+        save_figures=False,
+        figure_prefix='directional_spectrum',
     )
