@@ -1,5 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.special import j0
+from scipy.integrate import simpson
 
 plt.rcParams.update({
     'font.size': 11,
@@ -31,7 +33,7 @@ mpl.rcParams.update({
     "font.family": "STIXGeneral",  # match math fonts
 })
 
-def ring_average_2d(power2d, kmin=1.0, kmax=None, nbins=40):
+def ring_average_2d(power2d, kmin=1.0, kmax=None, nbins=200):
     ny, nx = power2d.shape
     ky = np.arange(-ny//2, ny - ny//2)
     kx = np.arange(-nx//2, nx - nx//2)
@@ -74,10 +76,46 @@ def corr_from_structure(D, C0):
     return C0 - 0.5 * D
 
 def spectrum_from_corr(C):
-    C0 = np.fft.ifftshift(C)
-    Pk = np.fft.fft2(C0)
-    Pk = np.fft.fftshift(Pk)
-    return Pk.real
+    ny, nx = C.shape
+    
+    y = np.arange(-ny//2, ny - ny//2)
+    x = np.arange(-nx//2, nx - nx//2)
+    X, Y = np.meshgrid(x, y, indexing="xy")
+    R = np.sqrt(X**2 + Y**2)
+    
+    R_flat = R.flatten()
+    C_flat = C.flatten()
+    
+    R_max = R_flat.max()
+    R_bins = np.linspace(0, R_max, min(500, int(R_max) + 1))
+    R_centers = 0.5 * (R_bins[:-1] + R_bins[1:])
+    
+    C_radial = np.zeros(len(R_centers))
+    for i in range(len(R_centers)):
+        if i == 0:
+            mask = (R_flat >= 0) & (R_flat < R_bins[1])
+        else:
+            mask = (R_flat >= R_bins[i]) & (R_flat < R_bins[i+1])
+        if np.any(mask):
+            C_radial[i] = np.mean(C_flat[mask])
+    
+    ky = np.arange(-ny//2, ny - ny//2)
+    kx = np.arange(-nx//2, nx - nx//2)
+    KX, KY = np.meshgrid(kx, ky, indexing="xy")
+    K = np.sqrt(KX**2 + KY**2)
+    
+    Pk = np.zeros_like(C, dtype=float)
+    
+    for i in range(ny):
+        for j in range(nx):
+            k = K[i, j]
+            if k > 0 and len(R_centers) > 1:
+                integrand = C_radial * j0(k * R_centers) * 2 * np.pi * R_centers
+                Pk[i, j] = simpson(integrand, R_centers)
+            else:
+                Pk[i, j] = 0.0
+    
+    return Pk
 
 def directional_spectrum_from_models(
     N=512,
@@ -88,7 +126,7 @@ def directional_spectrum_from_models(
     rphi=33.8,
     mPhi=0.93,
     chi_list=(0.2, 1.0, 5.0, 20.0),
-    nbins=50,
+    nbins=200,
     kmin=2.0,
     save_figures=False,
     figure_prefix='directional_spectrum',
@@ -104,8 +142,8 @@ def directional_spectrum_from_models(
     P_ui_2d = spectrum_from_corr(xi_P)
     P_Phi_2d = spectrum_from_corr(xi_Phi)
 
-    kc_ui, P_ui = ring_average_2d(P_ui_2d, kmin=kmin, nbins=nbins)
-    kc_ph, P_ph = ring_average_2d(P_Phi_2d, kmin=kmin, nbins=nbins)
+    kc_ui, P_ui = ring_average_2d(P_ui_2d, kmin=kmin, kmax=N/2, nbins=nbins)
+    kc_ph, P_ph = ring_average_2d(P_Phi_2d, kmin=kmin, kmax=N/2, nbins=nbins)
 
     results = []
 
@@ -114,7 +152,7 @@ def directional_spectrum_from_models(
         lam4 = lam2**2
         C_dir = xi_P * np.exp(-2.0 * lam4 * DPH)
         Pdir_2d = spectrum_from_corr(C_dir)
-        kc, Pdir = ring_average_2d(Pdir_2d, kmin=kmin, nbins=nbins)
+        kc, Pdir = ring_average_2d(Pdir_2d, kmin=kmin, kmax=N/2, nbins=nbins)
         results.append((chi, kc, Pdir))
 
     fig1, ax1 = plt.subplots(figsize=(6.5, 5.0))
@@ -147,7 +185,7 @@ def directional_spectrum_from_models(
         if len(kc_ref) > 0:
             k_mid = kc_ref[len(kc_ref) // 2]
             P_mid = Pdir_ref[len(Pdir_ref) // 2]
-            k_ref = np.logspace(np.log10(kc_ref.min()), np.log10(kc_ref.max()), 200)
+            k_ref = np.logspace(np.log10(kc_ref.min()), np.log10(kc_ref.max()), 500)
             P_ref_11 = P_mid * (k_ref / k_mid)**(-11.0/3.0) * 0.4
             P_ref_10 = P_mid * (k_ref / k_mid)**(-10.0/3.0) * 0.8
             ax1.loglog(k_ref, P_ref_11, 'g-.', lw=2.0, alpha=0.8, label=r"$k^{-11/3}$")
@@ -208,7 +246,7 @@ if __name__ == "__main__":
     mPhi_kolm = mPhi_from_beta3D(beta_kolm)
 
     directional_spectrum_from_models(
-        N=1024,
+        N=1024*2,
         A_P=1.0,
         R0=55.38,
         mpsi=1.373,
@@ -216,7 +254,7 @@ if __name__ == "__main__":
         rphi=33.76,
         mPhi=mPhi_kolm,
         chi_list=chi_list,
-        nbins=100,
+        nbins=200,
         kmin=3.0,
         save_figures=False,
         figure_prefix='directional_spectrum',
