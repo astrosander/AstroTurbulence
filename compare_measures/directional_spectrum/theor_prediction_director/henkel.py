@@ -45,44 +45,54 @@ def compute_Pdir(k, integrand, Rmax):
 def main():
     Rmax = 256.0
 
-    rphi = 33.8
-    chi  = 5.0
+    rphi = 0.8#33.8
+    chi_values = [0.8, 2.0, 5.0]
 
     mpsi = 5.0/3.0
-    R0   = 55.4
+    R0   = 1#55.4
     A_P  = 1
 
     k_values = np.logspace(np.log10(0.1), np.log10(100.0), 400)
 
-    mPhi1 = 5.0/3.0
-    integrand1 = make_integrand(mPhi=mPhi1, rphi=rphi, chi=chi,
-                                mpsi=mpsi, R0=R0, A_P=A_P)
-    Pdir1 = np.array([compute_Pdir(k, integrand1, Rmax) for k in k_values])
-
-    mPhi2 = 1.0
-    integrand2 = make_integrand(mPhi=mPhi2, rphi=rphi, chi=chi,
-                                mpsi=mpsi, R0=R0, A_P=A_P)
-    Pdir2 = np.array([compute_Pdir(k, integrand2, Rmax) for k in k_values])
-
+    mPhi_values = [1]#[5.0/3.0, 1.0]
+    colors_mPhi53 = ['#1f77b4', '#ff7f0e', '#2ca02c']
+    colors_mPhi1 = ['#d62728', '#9467bd', '#8c564b']
+    linestyles = ['-', '--']
+    
+    all_Pdir = []
+    
     plt.figure(figsize=(7, 4.5))
-    plt.loglog(k_values, np.abs(Pdir1), color="blue", lw=2,
-               label=rf"$m_\psi={mpsi:.1f}$, $m_\Phi={mPhi1:.1f}$")
-    plt.loglog(k_values, np.abs(Pdir2), color="red", lw=2,
-               label=rf"$m_\psi={mpsi:.1f}$, $m_\Phi={mPhi2:.1f}$")
+    
+    for i, mPhi in enumerate(mPhi_values):
+        for j, chi in enumerate(chi_values):
+            integrand = make_integrand(mPhi=mPhi, rphi=rphi, chi=chi,
+                                      mpsi=mpsi, R0=R0, A_P=A_P)
+            Pdir = np.array([compute_Pdir(k, integrand, Rmax) for k in k_values])
+            all_Pdir.append(Pdir)
+            
+            if i == 0:
+                color = colors_mPhi53[j]
+            else:
+                color = colors_mPhi1[j]
+            
+            plt.loglog(k_values, np.abs(Pdir), color=color, 
+                      linestyle=linestyles[i], lw=2, alpha=0.8,
+                      label=rf"$m_\psi={mpsi:.1f}$, $m_\Phi={mPhi:.1f}$, $\chi={chi}$")
 
-    slope_ref1 = -(mPhi1 + 2.0)
-    slope_ref2 = -(mPhi2 + 2.0)
     k0 = 5.0
     i0 = np.argmin(np.abs(k_values - k0))
-    ref1 = np.abs(Pdir1[i0]) * (k_values / k_values[i0])**(slope_ref1)
-    ref2 = np.abs(Pdir2[i0]) * (k_values / k_values[i0])**(slope_ref2)
-    plt.loglog(k_values, ref1, "-.", color="black", lw=1.5, alpha=0.7,
-               label=rf"$k^{{{slope_ref1:.2f}}}$")
-    plt.loglog(k_values, ref2, "--", color="gray", lw=1.5, alpha=0.7,
-               label=rf"$k^{{{slope_ref2:.2f}}}$")
+    
+    for i, mPhi in enumerate(mPhi_values):
+        slope_ref = -(mPhi + 2.0)
+        Pdir_ref = all_Pdir[i * len(chi_values)]
+        ref = np.abs(Pdir_ref[i0]) * (k_values / k_values[i0])**(slope_ref)
+        plt.loglog(k_values, ref, "-.", color="black", lw=1.5, alpha=0.5,
+                   label=rf"$k^{{{slope_ref:.2f}}}$" if i == 0 else "")
 
-    valid_mask = (np.isfinite(np.abs(Pdir1)) & (np.abs(Pdir1) > 0) &
-                  np.isfinite(np.abs(Pdir2)) & (np.abs(Pdir2) > 0))
+    valid_mask = np.ones(len(k_values), dtype=bool)
+    for Pdir in all_Pdir:
+        valid_mask &= (np.isfinite(np.abs(Pdir)) & (np.abs(Pdir) > 0))
+    
     if np.any(valid_mask):
         k_min = k_values[valid_mask].min()
         k_max = k_values[valid_mask].max()
@@ -93,7 +103,7 @@ def main():
     plt.title(r"$P_{\rm dir}(k)=2\pi\int_{0}^{R_{\max}}\left[\left(1 - A_P f_\Psi(R)\right)e^{-\chi^2 f_\Phi(R)}-(1 - A_P) e^{-\chi^2}\right]J_0(kR) R  dR$", fontsize=16)#$f_\Phi(R)=\frac{(R/r_\phi)^{m_\Phi}}{1 + (R/r_\phi)^{m_\Phi}},\qquadf_\Psi(R)=\frac{(R/R_0)^{m_\Psi}}{1 + (R/R_0)^{m_\Psi}}$")
     plt.legend()
     plt.tight_layout()
-    plt.savefig("henkel.png", dpi=300, bbox_inches="tight")
+    plt.savefig("henkel.pdf", dpi=300, bbox_inches="tight")
     plt.show()
 
 if __name__ == "__main__":
