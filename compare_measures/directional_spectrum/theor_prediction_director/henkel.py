@@ -4,12 +4,12 @@ from scipy.integrate import quad
 from scipy.special import j0
 
 plt.rcParams.update({
-    "font.size": 14,
-    "axes.labelsize": 14,
-    "axes.titlesize": 14,
-    "legend.fontsize": 14,
-    "xtick.labelsize": 14,
-    "ytick.labelsize": 14,
+    "font.size": 18,
+    "axes.labelsize": 18,
+    "axes.titlesize": 18,
+    "legend.fontsize": 18,
+    "xtick.labelsize": 18,
+    "ytick.labelsize": 18,
     "axes.linewidth": 1.0,
     "lines.linewidth": 2.0,
     "mathtext.fontset": "stix",
@@ -45,7 +45,6 @@ def compute_Pdir(k, integrand, Rmax):
 def main():
     Rmax = 256.0
 
-    mPhi = 5.0/3.0
     rphi = 33.8
     chi  = 5.0
 
@@ -53,24 +52,37 @@ def main():
     R0   = 55.4
     A_P  = 1
 
-    integrand = make_integrand(mPhi=mPhi, rphi=rphi, chi=chi,
-                               mpsi=mpsi, R0=R0, A_P=A_P)
-
     k_values = np.logspace(np.log10(0.1), np.log10(100.0), 400)
-    Pdir = np.array([compute_Pdir(k, integrand, Rmax) for k in k_values])
+
+    mPhi1 = 5.0/3.0
+    integrand1 = make_integrand(mPhi=mPhi1, rphi=rphi, chi=chi,
+                                mpsi=mpsi, R0=R0, A_P=A_P)
+    Pdir1 = np.array([compute_Pdir(k, integrand1, Rmax) for k in k_values])
+
+    mPhi2 = 1.0
+    integrand2 = make_integrand(mPhi=mPhi2, rphi=rphi, chi=chi,
+                                mpsi=mpsi, R0=R0, A_P=A_P)
+    Pdir2 = np.array([compute_Pdir(k, integrand2, Rmax) for k in k_values])
 
     plt.figure(figsize=(7, 4.5))
-    plt.loglog(k_values, np.abs(Pdir), color="blue", lw=2,
-               label=rf"$P_{{\rm dir}}(k)$, $\chi={chi}$")
+    plt.loglog(k_values, np.abs(Pdir1), color="blue", lw=2,
+               label=rf"$m_\psi={mpsi:.1f}$, $m_\Phi={mPhi1:.1f}$")
+    plt.loglog(k_values, np.abs(Pdir2), color="red", lw=2,
+               label=rf"$m_\psi={mpsi:.1f}$, $m_\Phi={mPhi2:.1f}$")
 
-    slope_ref = -(mPhi + 2.0)
+    slope_ref1 = -(mPhi1 + 2.0)
+    slope_ref2 = -(mPhi2 + 2.0)
     k0 = 5.0
     i0 = np.argmin(np.abs(k_values - k0))
-    ref = np.abs(Pdir[i0]) * (k_values / k_values[i0])**(slope_ref)
-    plt.loglog(k_values, ref, "-.", color="black", lw=1.5, alpha=0.7,
-               label=r"$k^{{-11/3}}$")
+    ref1 = np.abs(Pdir1[i0]) * (k_values / k_values[i0])**(slope_ref1)
+    ref2 = np.abs(Pdir2[i0]) * (k_values / k_values[i0])**(slope_ref2)
+    plt.loglog(k_values, ref1, "-.", color="black", lw=1.5, alpha=0.7,
+               label=rf"$k^{{{slope_ref1:.2f}}}$")
+    plt.loglog(k_values, ref2, "--", color="gray", lw=1.5, alpha=0.7,
+               label=rf"$k^{{{slope_ref2:.2f}}}$")
 
-    valid_mask = np.isfinite(np.abs(Pdir)) & (np.abs(Pdir) > 0)
+    valid_mask = (np.isfinite(np.abs(Pdir1)) & (np.abs(Pdir1) > 0) &
+                  np.isfinite(np.abs(Pdir2)) & (np.abs(Pdir2) > 0))
     if np.any(valid_mask):
         k_min = k_values[valid_mask].min()
         k_max = k_values[valid_mask].max()
@@ -78,7 +90,7 @@ def main():
 
     plt.xlabel(r"$k$")
     plt.ylabel(r"$|P_{\rm dir}(k)|$")
-    plt.title(r"$P_{\rm dir}(k)=2\pi\int_{0}^{R_{\max}}\left[\left(1 - A_P f_\Psi(R)\right)e^{-\chi^2 f_\Phi(R)}-(1 - A_P) e^{-\chi^2}\right]J_0(kR) R  dR$")#$f_\Phi(R)=\frac{(R/r_\phi)^{m_\Phi}}{1 + (R/r_\phi)^{m_\Phi}},\qquadf_\Psi(R)=\frac{(R/R_0)^{m_\Psi}}{1 + (R/R_0)^{m_\Psi}}$")
+    plt.title(r"$P_{\rm dir}(k)=2\pi\int_{0}^{R_{\max}}\left[\left(1 - A_P f_\Psi(R)\right)e^{-\chi^2 f_\Phi(R)}-(1 - A_P) e^{-\chi^2}\right]J_0(kR) R  dR$", fontsize=16)#$f_\Phi(R)=\frac{(R/r_\phi)^{m_\Phi}}{1 + (R/r_\phi)^{m_\Phi}},\qquadf_\Psi(R)=\frac{(R/R_0)^{m_\Psi}}{1 + (R/R_0)^{m_\Psi}}$")
     plt.legend()
     plt.tight_layout()
     plt.savefig("henkel.png", dpi=300, bbox_inches="tight")
