@@ -63,14 +63,14 @@ def compute_Pdir(k, integrand, Rmax, n_points=50000, Rmin=1e-6):
 def main():
     Rmax = 1024*2#256.0
 
-    rphi = 0.3#33.8
-    chi_values = [0, 1, 2, 4]#0.8, 2.0, 5.0]
+    rphi = 0.8#33.8
+    chi_values = [0, 0.5, 1, 2]#0.8, 2.0, 5.0]
 
     mpsi = 5.0/3.0
     R0   = 1#55.4
     A_P  = 1
 
-    k_values = np.logspace(np.log10(0.1), np.log10(500.0), 400)
+    k_values = np.logspace(np.log10(0.1), np.log10(90.0), 400)
 
     mPhi_values = [1]#[5.0/3.0, 1.0]
     colors_mPhi53 = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
@@ -79,7 +79,7 @@ def main():
     
     all_Pdir = []
     
-    plt.figure(figsize=(7*1.2, 4.5*1.2))
+    plt.figure(figsize=(7, 4.5))
     
     R = np.logspace(np.log10(1e-5), np.log10(Rmax), 500000)
     
@@ -96,19 +96,26 @@ def main():
             else:
                 color = colors_mPhi1[j]
             
-            plt.loglog(k_values, np.abs(Pdir), color=color, 
+            if chi < 0.1:
+                k_mask = k_values <= 50
+            elif chi<1.5:
+                k_mask = k_values <= 70
+            else:
+                k_mask = np.ones(len(k_values), dtype=bool)
+            
+            plt.loglog(k_values[k_mask], np.abs(Pdir[k_mask]), color=color, 
                       linestyle=linestyles[i], lw=2, alpha=0.8,
                       label=rf"$\chi={chi}$")#$m_\psi={mpsi:.1f}$, $m_\Phi={mPhi:.1f}$, 
 
     k0 = 5.0
     i0 = np.argmin(np.abs(k_values - k0))
-    mask_k_gt_1 = k_values > 10
+    mask_k_gt_1 = k_values > 15
     mask_k_gt_2 = (k_values > 10) & (k_values < 50)
     
     for i, mPhi in enumerate(mPhi_values):
         slope_ref = -(mPhi + 2.0)
         Pdir_ref = all_Pdir[i * len(chi_values)]
-        ref = np.abs(Pdir_ref[i0]) * (k_values / k_values[i0])**(slope_ref)*50
+        ref = np.abs(Pdir_ref[i0]) * (k_values / k_values[i0])**(slope_ref)*15
         plt.loglog(k_values[mask_k_gt_1], ref[mask_k_gt_1], "-.", color="black", lw=1.5, alpha=1,
                    label=rf"$k^{{{slope_ref:.2f}}}$" if i == 0 else "")
     
@@ -133,6 +140,7 @@ def main():
     plt.legend()
     plt.tight_layout()
     plt.savefig("henkel.png", dpi=300, bbox_inches="tight")
+    plt.savefig("henkel.pdf", dpi=300, bbox_inches="tight")
     # plt.show()
 
 if __name__ == "__main__":
