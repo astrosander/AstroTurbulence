@@ -5,12 +5,12 @@ from numba.extending import register_jitable
 from scipy.special import j0
 
 plt.rcParams.update({
-    "font.size": 18,
-    "axes.labelsize": 18,
-    "axes.titlesize": 18,
-    "legend.fontsize": 18,
-    "xtick.labelsize": 18,
-    "ytick.labelsize": 18,
+    "font.size": 16,
+    "axes.labelsize": 16,
+    "axes.titlesize": 16,
+    "legend.fontsize": 16,
+    "xtick.labelsize": 16,
+    "ytick.labelsize": 16,
     "axes.linewidth": 1.0,
     "lines.linewidth": 2.0,
     "mathtext.fontset": "stix",
@@ -53,7 +53,7 @@ def compute_Pdir_parallel(k_values, R, j0_matrix, mPhi, rphi, chi, mpsi, R0, A_P
     
     return results
 
-def compute_Pdir(k, integrand, Rmax, n_points=50000, Rmin=1e-6):
+def compute_Pdir(k, integrand, Rmax, n_points=50000, Rmin=1e-8):
     R = np.logspace(np.log10(Rmin), np.log10(Rmax), n_points)
     integrand_values = integrand(R, k)
     val = trapezoidal_integral(integrand_values, R)
@@ -64,15 +64,15 @@ def main():
     Rmax = 1024*2#256.0
 
     rphi = 0.8#33.8
-    chi_values = [0, 0.5, 1, 2]#0.8, 2.0, 5.0]
+    chi_values = [0, 2,4, 8]#0.8, 2.0, 5.0]
 
     mpsi = 5.0/3.0
     R0   = 1#55.4
     A_P  = 1
 
-    k_values = np.logspace(np.log10(0.1), np.log10(90.0), 400)
+    k_values = np.logspace(np.log10(0.1), np.log10(10000.0), 400)
 
-    mPhi_values = [1]#[5.0/3.0, 1.0]
+    mPhi_values = [0.5]#[5.0/3.0, 1.0]
     colors_mPhi53 = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
     colors_mPhi1 = ['#e377c2', '#17becf', '#bcbd22', '#ff9896', '#c5b0d5', '#ffbb78']
     linestyles = ['-', '--']
@@ -86,6 +86,9 @@ def main():
     kR_matrix = np.outer(k_values, R)
     j0_matrix = j0(kR_matrix)
     
+    all_k_plotted = []
+    all_Pdir_plotted = []
+    
     for i, mPhi in enumerate(mPhi_values):
         for j, chi in enumerate(chi_values):
             Pdir = compute_Pdir_parallel(k_values, R, j0_matrix, mPhi, rphi, chi, mpsi, R0, A_P)
@@ -98,41 +101,64 @@ def main():
             
             if chi < 0.1:
                 k_mask = k_values <= 50
-            elif chi<1.5:
-                k_mask = k_values <= 70
+            elif chi<2.5:
+                k_mask = k_values <= 90
             else:
                 k_mask = np.ones(len(k_values), dtype=bool)
             
-            plt.loglog(k_values[k_mask], np.abs(Pdir[k_mask]), color=color, 
+            k_plot = k_values[k_mask]
+            Pdir_plot = np.abs(Pdir[k_mask])
+            valid = (np.isfinite(Pdir_plot)) & (Pdir_plot > 0)
+            
+            if np.any(valid):
+                all_k_plotted.extend(k_plot[valid])
+                all_Pdir_plotted.extend(Pdir_plot[valid])
+            
+            plt.loglog(k_plot[valid], Pdir_plot[valid], color=color, 
                       linestyle=linestyles[i], lw=2, alpha=0.8,
                       label=rf"$\chi={chi}$")#$m_\psi={mpsi:.1f}$, $m_\Phi={mPhi:.1f}$, 
 
     k0 = 5.0
     i0 = np.argmin(np.abs(k_values - k0))
-    mask_k_gt_1 = k_values > 15
+    mask_k_gt_1 = k_values > 600
     mask_k_gt_2 = (k_values > 10) & (k_values < 50)
     
     for i, mPhi in enumerate(mPhi_values):
         slope_ref = -(mPhi + 2.0)
         Pdir_ref = all_Pdir[i * len(chi_values)]
-        ref = np.abs(Pdir_ref[i0]) * (k_values / k_values[i0])**(slope_ref)*15
-        plt.loglog(k_values[mask_k_gt_1], ref[mask_k_gt_1], "-.", color="black", lw=1.5, alpha=1,
+        ref = np.abs(Pdir_ref[i0]) * (k_values / k_values[i0])**(slope_ref)*150
+        ref_plot = ref[mask_k_gt_1]
+        k_ref_plot = k_values[mask_k_gt_1]
+        valid_ref = (np.isfinite(ref_plot)) & (ref_plot > 0)
+        
+        if np.any(valid_ref):
+            all_k_plotted.extend(k_ref_plot[valid_ref])
+            all_Pdir_plotted.extend(ref_plot[valid_ref])
+        
+        plt.loglog(k_ref_plot[valid_ref], ref_plot[valid_ref], "-.", color="black", lw=1.5, alpha=1,
                    label=rf"$k^{{{slope_ref:.2f}}}$" if i == 0 else "")
     
     slope_11_3 = -11.0/3.0
     Pdir_ref_11_3 = all_Pdir[0]
     ref_11_3 = np.abs(Pdir_ref_11_3[i0]) * (k_values / k_values[i0])**(slope_11_3)*0.2
-    plt.loglog(k_values[mask_k_gt_2], ref_11_3[mask_k_gt_2], "--", color="green", lw=1.5, alpha=1,
+    ref_11_3_plot = ref_11_3[mask_k_gt_2]
+    k_ref_11_3_plot = k_values[mask_k_gt_2]
+    valid_ref_11_3 = (np.isfinite(ref_11_3_plot)) & (ref_11_3_plot > 0)
+    
+    if np.any(valid_ref_11_3):
+        all_k_plotted.extend(k_ref_11_3_plot[valid_ref_11_3])
+        all_Pdir_plotted.extend(ref_11_3_plot[valid_ref_11_3])
+    
+    plt.loglog(k_ref_11_3_plot[valid_ref_11_3], ref_11_3_plot[valid_ref_11_3], "--", color="green", lw=1.5, alpha=1,
                label=r"$k^{-11/3}$")
 
-    valid_mask = np.ones(len(k_values), dtype=bool)
-    for Pdir in all_Pdir:
-        valid_mask &= (np.isfinite(np.abs(Pdir)) & (np.abs(Pdir) > 0))
-    
-    if np.any(valid_mask):
-        k_min = k_values[valid_mask].min()
-        k_max = k_values[valid_mask].max()
+    if len(all_k_plotted) > 0 and len(all_Pdir_plotted) > 0:
+        k_min = np.min(all_k_plotted)
+        k_max = np.max(all_k_plotted)
+        Pdir_min = np.min(all_Pdir_plotted)
+        Pdir_max = np.max(all_Pdir_plotted)
         plt.xlim(k_min, k_max)
+        plt.ylim(Pdir_min, Pdir_max)
 
     plt.xlabel(r"$k$")
     plt.ylabel(r"$|P_{\rm dir}(k)|$")
