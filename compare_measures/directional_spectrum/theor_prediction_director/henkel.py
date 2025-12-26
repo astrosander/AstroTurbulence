@@ -63,11 +63,11 @@ def compute_Pdir(k, integrand, Rmax, n_points=50000, Rmin=1e-8):
 def main():
     Rmax = 1024*2#256.0
 
-    rphi = 0.8#33.8
-    chi_values = [0, 2,4, 8]#0.8, 2.0, 5.0]
+    rphi = 1#33.8
+    chi_values = [0,0.25, 0.5,1,2,4]#, 8]#0.8, 2.0, 5.0]
 
     mpsi = 5.0/3.0
-    R0   = 1#55.4
+    R0   = 2#55.4
     A_P  = 1
 
     k_values = np.logspace(np.log10(0.1), np.log10(10000.0), 400)
@@ -99,7 +99,7 @@ def main():
             else:
                 color = colors_mPhi1[j]
             
-            if chi < 0.1:
+            if chi < 1.1:
                 k_mask = k_values <= 50
             elif chi<2.5:
                 k_mask = k_values <= 90
@@ -117,6 +117,20 @@ def main():
             plt.loglog(k_plot[valid], Pdir_plot[valid], color=color, 
                       linestyle=linestyles[i], lw=2, alpha=0.8,
                       label=rf"$\chi={chi}$")#$m_\psi={mpsi:.1f}$, $m_\Phi={mPhi:.1f}$, 
+            
+            # Calculate and plot k_\times(chi) point
+            if chi > 0:  # Skip chi=0 as it would give infinite k_\times
+                k_cross = ((A_P * R0**mpsi) / (chi**2 * rphi**mPhi))**(1.0 / (mpsi - mPhi))
+                # Find the index in k_values closest to k_cross
+                idx_cross = np.argmin(np.abs(k_values - k_cross))
+                k_cross_actual = k_values[idx_cross]
+                Pdir_cross = np.abs(Pdir[idx_cross])
+                
+                # Only plot if the point is valid and within the plotted range
+                if np.isfinite(Pdir_cross) and Pdir_cross > 0:
+                    plt.loglog(k_cross_actual, Pdir_cross, 'o', color=color, 
+                              markersize=8, markeredgecolor='black', markeredgewidth=1.5,
+                              zorder=10, alpha=0.9)
 
     k0 = 5.0
     i0 = np.argmin(np.abs(k_values - k0))
