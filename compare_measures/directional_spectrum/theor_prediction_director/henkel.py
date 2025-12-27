@@ -59,15 +59,63 @@ def compute_Pdir(k, integrand, Rmax, n_points=50000, Rmin=1e-8):
     val = trapezoidal_integral(integrand_values, R)
     return 2*np.pi * val
 
+def compute_second_derivative(k, Pdir, smoothing_window=10):
+    """
+    Compute the second derivative of log(Pdir) with respect to log(k).
+    Returns k values and second derivative values.
+    """
+    # Filter valid data
+    valid = (np.isfinite(Pdir)) & (Pdir > 0) & (k > 0)
+    if np.sum(valid) < 5:
+        return np.array([]), np.array([])
+    
+    k_valid = k[valid]
+    Pdir_valid = Pdir[valid]
+    
+    # Work in log space
+    log_k = np.log(k_valid)
+    log_Pdir = np.log(Pdir_valid)
+    
+    # Smooth the log data to reduce noise
+    if len(log_Pdir) > smoothing_window:
+        # Simple moving average smoothing
+        half_window = smoothing_window // 2
+        log_Pdir_smooth = np.zeros_like(log_Pdir)
+        for i in range(len(log_Pdir)):
+            start = max(0, i - half_window)
+            end = min(len(log_Pdir), i + half_window + 1)
+            log_Pdir_smooth[i] = np.mean(log_Pdir[start:end])
+    else:
+        log_Pdir_smooth = log_Pdir
+    
+    # Compute first derivative (slope in log-log space)
+    dlogP_dlogk = np.gradient(log_Pdir_smooth, log_k)
+    
+    # Smooth the first derivative
+    if len(dlogP_dlogk) > smoothing_window:
+        half_window = smoothing_window // 2
+        dlogP_dlogk_smooth = np.zeros_like(dlogP_dlogk)
+        for i in range(len(dlogP_dlogk)):
+            start = max(0, i - half_window)
+            end = min(len(dlogP_dlogk), i + half_window + 1)
+            dlogP_dlogk_smooth[i] = np.mean(dlogP_dlogk[start:end])
+    else:
+        dlogP_dlogk_smooth = dlogP_dlogk
+    
+    # Compute second derivative
+    d2logP_dlogk2 = np.gradient(dlogP_dlogk_smooth, log_k)
+    
+    return k_valid, d2logP_dlogk2
+
 
 def main():
     Rmax = 1024*2#256.0
 
-    rphi = 1#33.8
+    rphi = 0.1#33.8
     chi_values = [0,0.25, 0.5,1,2,4]#, 8]#0.8, 2.0, 5.0]
 
     mpsi = 5.0/3.0
-    R0   = 2#55.4
+    R0   = 1#55.4
     A_P  = 1
 
     k_values = np.logspace(np.log10(0.1), np.log10(10000.0), 400)
@@ -120,7 +168,7 @@ def main():
             
             # Calculate and plot k_\times(chi) point
             if chi > 0:  # Skip chi=0 as it would give infinite k_\times
-                k_cross = ((A_P * R0**mpsi) / (chi**2 * rphi**mPhi))**(1.0 / (mpsi - mPhi))
+                k_cross = ((rphi**mPhi) / (chi**2 * R0**mpsi))**(1.0 / (mpsi - mPhi))
                 # Find the index in k_values closest to k_cross
                 idx_cross = np.argmin(np.abs(k_values - k_cross))
                 k_cross_actual = k_values[idx_cross]
@@ -176,12 +224,99 @@ def main():
 
     plt.xlabel(r"$k$")
     plt.ylabel(r"$|P_{\rm dir}(k)|$")
-    plt.title(r"$P_{\rm dir}(k)=2\pi\int_{0}^{R_{\max}}A_P\left(1 - f_\Psi(R)\right)e^{-\chi^2 f_\Phi(R)}J_0(kR) R  dR$", fontsize=16)
+    # plt.title(r"$P_{\rm dir}(k)=2\pi\int_{0}^{R_{\max}}A_P\left(1 - f_\Psi(R)\right)e^{-\chi^2 f_\Phi(R)}J_0(kR) R  dR$", fontsize=16)
     plt.legend()
     plt.tight_layout()
     plt.savefig("henkel.png", dpi=300, bbox_inches="tight")
     plt.savefig("henkel.pdf", dpi=300, bbox_inches="tight")
     # plt.show()
+    
+    # Create second plot for second derivative
+    plt.figure(figsize=(7, 4.5))
+    
+    all_k_deriv = []
+    all_d2_plotted = []
+    
+    for i, mPhi in enumerate(mPhi_values):
+        for j, chi in enumerate(chi_values):
+            Pdir = all_Pdir[i * len(chi_values) + j]
+            
+            if i == 0:
+                color = colors_mPhi53[j]
+            else:
+                color = colors_mPhi1[j]
+            
+            if chi < 1.1:
+                k_mask = k_values <= 50
+            elif chi<2.5:
+                k_mask = k_values <= 90
+            else:
+                k_mask = np.ones(len(k_values), dtype=bool)
+            
+            k_plot = k_values[k_mask]
+            Pdir_plot = np.abs(Pdir[k_mask])
+            
+            # Filter for k < 6 for second derivative analysis
+            k_mask_deriv = k_plot < 6.0
+            k_plot_deriv = k_plot[k_mask_deriv]
+            Pdir_plot_deriv = Pdir_plot[k_mask_deriv]
+            
+            # Compute second derivative
+            k_deriv, d2logP_dlogk2 = compute_second_derivative(k_plot_deriv, Pdir_plot_deriv, smoothing_window=7)
+            
+            if len(k_deriv) > 0:
+                valid_deriv = (np.isfinite(d2logP_dlogk2)) & (np.isfinite(k_deriv))
+                k_deriv_valid = k_deriv[valid_deriv]
+                d2logP_dlogk2_valid = d2logP_dlogk2[valid_deriv]
+                
+                if len(k_deriv_valid) > 0:
+                    all_k_deriv.extend(k_deriv_valid)
+                    all_d2_plotted.extend(d2logP_dlogk2_valid)
+                    
+                    plt.semilogx(k_deriv_valid, d2logP_dlogk2_valid, color=color, 
+                                linestyle=linestyles[i], lw=2, alpha=0.8,
+                                label=rf"$\chi={chi}$")
+                    
+                    # Calculate and plot k_\times(chi) point on second derivative plot
+                    if chi > 0:  # Skip chi=0 as it would give infinite k_\times
+                        k_cross = ((rphi**mPhi) / (chi**2 * R0**mpsi))**(1.0 / (mpsi - mPhi))
+                        
+                        # Only plot if k_cross < 6 (within our analysis range)
+                        if k_cross < 6.0:
+                            # Find the index in k_deriv_valid closest to k_cross
+                            if len(k_deriv_valid) > 0:
+                                idx_cross = np.argmin(np.abs(k_deriv_valid - k_cross))
+                                k_cross_actual = k_deriv_valid[idx_cross]
+                                d2_cross = d2logP_dlogk2_valid[idx_cross]
+                                
+                                # Only plot if the point is valid
+                                if np.isfinite(d2_cross):
+                                    plt.semilogx(k_cross_actual, d2_cross, 'o', color=color, 
+                                                markersize=8, markeredgecolor='black', markeredgewidth=1.5,
+                                                zorder=10, alpha=0.9)
+                    
+                    # Plot zero line for reference
+                    if j == 0 and i == 0:
+                        plt.axhline(y=0, color='gray', linestyle=':', lw=1, alpha=0.5, zorder=0)
+    
+    if len(all_k_deriv) > 0 and len(all_d2_plotted) > 0:
+        k_min_deriv = np.min(all_k_deriv)
+        k_max_deriv = np.max(all_k_deriv)
+        d2_min = np.min(all_d2_plotted)
+        d2_max = np.max(all_d2_plotted)
+        # Add some padding
+        d2_range = d2_max - d2_min
+        plt.xlim(k_min_deriv, k_max_deriv)
+        plt.ylim(d2_min - 0.1 * d2_range, d2_max + 0.1 * d2_range)
+    
+    plt.xlabel(r"$k$")
+    plt.ylabel(r"$\frac{d^2 \log|P_{\rm dir}|}{d(\log k)^2}$")
+    # plt.title(r"Second derivative of $\log|P_{\rm dir}(k)|$ with respect to $\log k$", fontsize=16)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig("henkel_second_derivative.png", dpi=300, bbox_inches="tight")
+    plt.savefig("henkel_second_derivative.pdf", dpi=300, bbox_inches="tight")
+    plt.show()
 
 if __name__ == "__main__":
     main()
