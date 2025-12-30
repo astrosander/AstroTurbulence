@@ -5,13 +5,13 @@ plt.rcParams['text.usetex'] = True
 plt.rcParams['font.family'] = 'serif'
 plt.rcParams["legend.frameon"] = False
 # Publication-ready font sizes
-plt.rcParams['font.size'] = 18
-plt.rcParams['axes.labelsize'] = 18
-plt.rcParams['axes.titlesize'] = 18
-plt.rcParams['xtick.labelsize'] = 18
-plt.rcParams['ytick.labelsize'] = 18
-plt.rcParams['legend.fontsize'] = 18
-plt.rcParams['figure.titlesize'] = 18
+plt.rcParams['font.size'] = 22
+plt.rcParams['axes.labelsize'] = 22
+plt.rcParams['axes.titlesize'] = 22
+plt.rcParams['xtick.labelsize'] = 22
+plt.rcParams['ytick.labelsize'] = 22
+plt.rcParams['legend.fontsize'] = 22
+plt.rcParams['figure.titlesize'] = 22
 
 def Xi_i(R, Xi0=1.0, Ri=1.0, Mi=2/3):
     return Xi0 / (1.0 + (R / Ri) ** Mi)
@@ -62,7 +62,7 @@ def xiP_from_D(Xi, D, lam=1.0, clip_exp=(-700.0, 50.0)):
     return Xi * np.exp(expo)
 
 
-def plot_one_screen(screen_type, params, outfile_png):
+def plot_one_screen(screen_type, params, outfile_pdf):
     r_i = params["r_i"]
     Ri = params["Ri"]
     Mi = params["Mi"]
@@ -149,12 +149,12 @@ def plot_one_screen(screen_type, params, outfile_png):
 
     colors = ["C0", "C2", "C1"]
     for y, mask, c, lab in zip([y1, y2, y3], [m1, m2, m3], colors, labels):
-        ax.loglog(x, y, ls="--", lw=1.0, color=c, alpha=0.35)
+        ax.loglog(x, y, ls="--", lw=2.0, color=c, alpha=0.35)
         ax.loglog(x[mask], y[mask], ls="-", lw=2.2, color=c, label=lab)
 
-    ax.loglog(x, Xi, lw=1.2, color="0.55", ls=":", label=r"$\Xi_i(R)$ (Eq. 144)")
-    ax.axvline(r_phi / r_i, color="0.6", lw=1.0, ls="--")
-    ax.axvline(L / r_i, color="0.4", lw=1.0, ls="-.")
+    ax.loglog(x, Xi, lw=2.2, color="0.55", ls=":", label=r"$\Xi_i(R)$ (Eq. 144)")
+    ax.axvline(r_phi / r_i, color="0.6", lw=2.0, ls="--")
+    ax.axvline(L / r_i, color="0.4", lw=2.0, ls="-.")
 
     ax.set_xlabel(r"$R/r_i$")
     ax.set_ylabel(r"$\xi_P(R)$")
@@ -165,26 +165,26 @@ def plot_one_screen(screen_type, params, outfile_png):
     ymin = max(1e-12, y_pos.min() * 0.5)
     ymax = min(2.0, y_pos.max() * 1.2)
 
-    ax.grid(True, which="both", ls=":", lw=0.5, alpha=0.4)
+    # ax.grid(True, which="both", ls=":", lw=0.5, alpha=0.4)
     ax.legend(loc="best", fontsize=14)
     ax.set_ylim(1e-12, ymax*10)
     ax.set_xlim(min(x), max(x))
     
     ax.text(r_phi / r_i, ax.get_ylim()[1]*0.6, r"$r_\phi$", rotation=90,
-            va="top", ha="right",  fontsize=20)
+            va="top", ha="right",  fontsize=24)
     ax.text(L / r_i, ax.get_ylim()[1]*0.6, r"$L$", rotation=90,
-            va="top", ha="right", fontsize=20)
+            va="top", ha="right", fontsize=24)
     
     ax = ax2
     ax.loglog(x, Dnum, "o", ms=3.0, color="k", label=r"$D_{\Delta\Phi}$ Numerical (Eq. 146)")
     
     colors = ["C0", "C2", "C1"]
     for D, mask, c, lab in zip([D1, D2, D3], [m1, m2, m3], colors, labels):
-        ax.loglog(x, D, ls="--", lw=1.0, color=c, alpha=0.35)
+        ax.loglog(x, D, ls="--", lw=2.0, color=c, alpha=0.35)
         ax.loglog(x[mask], D[mask], ls="-", lw=2.2, color=c, label=lab)
     
-    ax.axvline(r_phi / r_i, color="0.6", lw=1.0, ls="--")
-    ax.axvline(L / r_i, color="0.4", lw=1.0, ls="-.")
+    ax.axvline(r_phi / r_i, color="0.6", lw=2.0, ls="--")
+    ax.axvline(L / r_i, color="0.4", lw=2.0, ls="-.")
     
     ax.set_xlabel(r"$R/r_i$")
     ax.set_ylabel(r"$D_{\Delta\Phi}(R)$")
@@ -195,19 +195,19 @@ def plot_one_screen(screen_type, params, outfile_png):
     Dmin = max(1e-10, D_pos.min() * 0.5)
     Dmax = D_pos.max() * 3
     
-    ax.grid(True, which="both", ls=":", lw=0.5, alpha=0.4)
-    ax.legend(loc="best", fontsize=14)
+    # ax.grid(True, which="both", ls=":", lw=0.5, alpha=0.4)
+    ax.legend(loc="best", fontsize=16)
     ax.set_ylim(Dmin, Dmax)
     ax.set_xlim(min(x), max(x))
     
     ax.text(r_phi / r_i, ax.get_ylim()[1]*0.6, r"$r_\phi$", rotation=90,
-            va="top", ha="right",  fontsize=20)
+            va="top", ha="right",  fontsize=24)
     ax.text(L / r_i, ax.get_ylim()[1]*0.6, r"$L$", rotation=90,
-            va="top", ha="right",  fontsize=20)
+            va="top", ha="right",  fontsize=24)
     
     fig.tight_layout()
-    fig.savefig(outfile_png, dpi=160)
-    print(f"Saved: {outfile_png}")
+    fig.savefig(outfile_pdf, dpi=160)
+    print(f"Saved: {outfile_pdf}")
     # plt.show()
 
 
@@ -241,6 +241,8 @@ def main():
 
     plot_one_screen("thin",  params_thin,  "xiP_separated_thin.pdf")
     plot_one_screen("thick", params_thick, "xiP_separated_thick.pdf")
+    plot_one_screen("thin",  params_thin,  "xiP_separated_thin.png")
+    plot_one_screen("thick", params_thick, "xiP_separated_thick.png")
 
 
 if __name__ == "__main__":

@@ -1,6 +1,20 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+
+plt.rcParams['text.usetex'] = True
+plt.rcParams['font.family'] = 'serif'
+plt.rcParams["legend.frameon"] = False
+# Publication-ready font sizes
+plt.rcParams['font.size'] = 22
+plt.rcParams['axes.labelsize'] = 22
+plt.rcParams['axes.titlesize'] = 22
+plt.rcParams['xtick.labelsize'] = 22
+plt.rcParams['ytick.labelsize'] = 22
+plt.rcParams['legend.fontsize'] = 22
+plt.rcParams['figure.titlesize'] = 22
+
+
 def xi_sat(R, dz, r0, m, sigma2=1.0):
     r = np.sqrt(R*R + dz*dz)
     return sigma2 * (r0**m) / (r0**m + r**m)
@@ -124,12 +138,13 @@ def main():
 
     ax.set_xlabel(r"$R/r_i$")
     ax.set_ylabel(r"$\xi_P(R)$")
-    ax.set_title(r"Dependence on $m$ and $r_\phi$  (same $\mathcal{L}_{\sigma_\phi}$)")
+    ax.set_title(r"Dependence on $m$ and $r_\phi$")
     ax.set_ylim(1e-4, 1e1)
     ax.grid(True, which="both", ls=":", alpha=0.3)
 
     plt.tight_layout()
     plt.savefig("figure4_reproduction.png", bbox_inches="tight")
+    plt.savefig("figure4_reproduction.pdf", bbox_inches="tight")
     plt.show()
 
 if __name__ == "__main__":
