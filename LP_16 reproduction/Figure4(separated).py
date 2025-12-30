@@ -225,10 +225,10 @@ def main():
 
     params_thick = dict(base)
     params_thick.update(
-        r_phi=10.0,
+        r_phi=50.0,
         L=10000.0,
         lam=1.0,
-        sigma_phi2=0.000001,
+        sigma_phi2=0.0000004,
     )
 
     params_thin = dict(base)
