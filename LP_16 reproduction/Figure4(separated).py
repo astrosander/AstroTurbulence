@@ -96,7 +96,7 @@ def plot_one_screen(screen_type, params, outfile_png):
         title = "Thick Faraday screen ($L > r_\\phi$), separated regions (Appendix C)"
         
         R_match1 = 0.1 * r_phi
-        R_match2 = np.sqrt(r_phi * L)
+        R_match2 = L#np.sqrt(r_phi * L)
         R_match3 = Rmax#10.0 * L
     else:
         D1, D2, D3 = D_asym_thin(R, L=L, r_phi=r_phi, m_phi=m_phi, sigma2=sigma2)
@@ -116,7 +116,7 @@ def plot_one_screen(screen_type, params, outfile_png):
     
     if screen_type == "thick":
         fit1 = (R < 0.3*r_phi)
-        fit2 = (R > 3*r_phi) & (R < 0.3*L)
+        fit2 = (R > 0.2*L) & (R < 0.3*L)
         fit3 = (R > 50*L)
     else:
         fit1 = (R < 0.3*L)
@@ -141,7 +141,9 @@ def plot_one_screen(screen_type, params, outfile_png):
     y2 = xiP_from_D(Xi, D2, lam=lam)
     y3 = xiP_from_D(Xi, D3, lam=lam)
 
-    fig, ax = plt.subplots(figsize=(7.2, 5.0))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14.4, 5.0))
+    
+    ax = ax1
 
     ax.loglog(x, y_num, "o", ms=3.0, color="k", label="Numerical (Eq. 146 integral)")
 
@@ -172,6 +174,37 @@ def plot_one_screen(screen_type, params, outfile_png):
             va="top", ha="right", color="0.35", fontsize=12)
     ax.text(L / r_i, ax.get_ylim()[1]*0.6, r"$L$", rotation=90,
             va="top", ha="right", color="0.35", fontsize=12)
+    
+    ax = ax2
+    ax.loglog(x, Dnum, "o", ms=3.0, color="k", label=r"$D_{\Delta\Phi}$ Numerical (Eq. 146)")
+    
+    colors = ["C0", "C2", "C1"]
+    for D, mask, c, lab in zip([D1, D2, D3], [m1, m2, m3], colors, labels):
+        ax.loglog(x, D, ls="--", lw=1.0, color=c, alpha=0.35)
+        ax.loglog(x[mask], D[mask], ls="-", lw=2.2, color=c, label=lab)
+    
+    ax.axvline(r_phi / r_i, color="0.6", lw=1.0, ls="--")
+    ax.axvline(L / r_i, color="0.4", lw=1.0, ls="-.")
+    
+    ax.set_xlabel(r"$R/r_i$")
+    ax.set_ylabel(r"$D_{\Delta\Phi}(R)$")
+    ax.set_title(r"$D_{\Delta\Phi}$ comparison (before $\exp(-4\lambda^4 D)$)")
+    
+    D_all = np.concatenate([Dnum, D1, D2, D3])
+    D_pos = D_all[np.isfinite(D_all) & (D_all > 0)]
+    Dmin = max(1e-10, D_pos.min() * 0.5)
+    Dmax = D_pos.max() * 1.2
+    
+    ax.grid(True, which="both", ls=":", lw=0.5, alpha=0.4)
+    ax.legend(loc="best", fontsize=9)
+    ax.set_ylim(Dmin, Dmax)
+    ax.set_xlim(min(x), max(x))
+    
+    ax.text(r_phi / r_i, ax.get_ylim()[1]*0.6, r"$r_\phi$", rotation=90,
+            va="top", ha="right", color="0.35", fontsize=12)
+    ax.text(L / r_i, ax.get_ylim()[1]*0.6, r"$L$", rotation=90,
+            va="top", ha="right", color="0.35", fontsize=12)
+    
     fig.tight_layout()
     fig.savefig(outfile_png, dpi=160)
     print(f"Saved: {outfile_png}")
