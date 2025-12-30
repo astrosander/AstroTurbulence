@@ -157,7 +157,7 @@ def plot_Pdir_with_asymptotics(
         kN_far = np.clip(kN_far, kmin, kmax)
     
     if np.isfinite(k_I_lo) and (kmin < k_I_lo < kmax):
-        kN_int = np.sqrt(kx * k_I_lo)
+        kN_int = k_I_lo
         kN_int = np.clip(kN_int, kmin, kmax)
 
     P_far_as = None
@@ -224,7 +224,7 @@ def plot_Pdir_with_asymptotics(
         rf"$F={dominance_factor:g}$"
     )
     
-    ax.set_ylim(1e-12, 1e-3)
+    ax.set_ylim(1e-10, 1e-2)
     ax.set_xlim(1e1, lo)
     
     y_top = ax.get_ylim()[1]
@@ -287,7 +287,7 @@ def main():
 
     kx_target = 1e4
     chi = chi_for_target_kx(A_P, R0, m_psi, r_phi, m_phi, kx_target)
-    chi=10
+    chi=5
 
     plot_Pdir_with_asymptotics(
         A_P=A_P, R0=R0, m_psi=m_psi,
