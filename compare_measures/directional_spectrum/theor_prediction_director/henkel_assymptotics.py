@@ -189,7 +189,7 @@ def plot_Pdir_with_asymptotics(
                 transform=ax.transAxes)
     
     ax.axvline(scales["k_inert_min"], color="red", ls=":", lw=1.2)
-    ax.axvline(scales["kx"], color="green", ls="-.", lw=1.2)
+    ax.axvline(scales["kx"], color="green", ls="-.", lw=1.2, label=r"$k_\times$")
     
     F = scales["dominance_factor"]
     delta = scales["delta"]
@@ -224,26 +224,26 @@ def plot_Pdir_with_asymptotics(
         rf"$F={dominance_factor:g}$"
     )
     
-    ax.set_ylim(1e-12, 1e-2)
+    ax.set_ylim(1e-12, 1e-3)
     ax.set_xlim(1e1, lo)
     
     y_top = ax.get_ylim()[1]
-    ax.text(scales["k_inert_min"], y_top*0.8, r"$k_{\rm inert,min}$", color="red",
-            rotation=90, va="top", ha="right", fontsize=10)
-    ax.text(scales["kx"], y_top*0.8, r"$k_\times$", color="green",
-            rotation=90, va="top", ha="right", fontsize=10)
+    # ax.text(scales["k_inert_min"], y_top*0.8, r"$k_{\rm inert,min}$", color="red",
+    #         rotation=90, va="top", ha="right", fontsize=10)
+    # ax.text(scales["kx"], y_top*0.8, r"$k_\times$", color="green",
+    #         rotation=90, va="top", ha="right", fontsize=10)
     
     b = sorted([v for v in boundaries if np.isfinite(v)])
     if len(b) >= 2:
         below = max([v for v in b if v < scales["kx"]], default=None)
         above = min([v for v in b if v > scales["kx"]], default=None)
         
-        if below is not None:
-            ax.text(below, y_top*0.6, rf"$W(k)={F:g}$ or $1/{F:g}$", color="blue",
-                    rotation=90, va="top", ha="right", fontsize=9)
-        if above is not None:
-            ax.text(above, y_top*0.6, rf"$W(k)={F:g}$ or $1/{F:g}$", color="blue",
-                    rotation=90, va="top", ha="right", fontsize=9)
+        # if below is not None:
+        #     ax.text(below, y_top*0.6, rf"$W(k)={F:g}$ or $1/{F:g}$", color="blue",
+        #             rotation=90, va="top", ha="right", fontsize=9)
+        # if above is not None:
+        #     ax.text(above, y_top*0.6, rf"$W(k)={F:g}$ or $1/{F:g}$", color="blue",
+        #             rotation=90, va="top", ha="right", fontsize=9)
     
     ax.grid(True, which="both", ls=":", lw=0.5, alpha=0.4)
     ax.legend(fontsize=9, loc="best")
