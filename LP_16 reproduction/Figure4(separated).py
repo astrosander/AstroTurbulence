@@ -95,9 +95,9 @@ def plot_one_screen(screen_type, params, outfile_png):
         labels = [r"Eq. (148)", r"Eq. (149)", r"Eq. (150)"]
         title = "Thick Faraday screen ($L > r_\\phi$), separated regions (Appendix C)"
         
-        R_match1 = Rmin
-        R_match2 = r_phi
-        R_match3 = Rmax
+        R_match1 = 0.1 * r_phi
+        R_match2 = np.sqrt(r_phi * L)
+        R_match3 = Rmax#10.0 * L
     else:
         D1, D2, D3 = D_asym_thin(R, L=L, r_phi=r_phi, m_phi=m_phi, sigma2=sigma2)
         m1 = R < L
@@ -106,26 +106,32 @@ def plot_one_screen(screen_type, params, outfile_png):
         labels = [r"Eq. (151)", r"Eq. (152)", r"Eq. (153)"]
         title = "Thin Faraday screen ($L < r_\\phi$), separated regions (Appendix C)"
         
-        R_match1 = Rmin
-        R_match2 = L
-        R_match3 = Rmax
+        R_match1 = 0.1 * L
+        R_match2 = np.sqrt(L * r_phi)
+        R_match3 = Rmax#10.0 * r_phi
     
-    Dnum_match1 = D_DeltaPhi_numeric(np.array([R_match1]), L=L, r_phi=r_phi, m_phi=m_phi, sigma2=sigma2, Nu=6000)[0]
-    Dnum_match2 = D_DeltaPhi_numeric(np.array([R_match2]), L=L, r_phi=r_phi, m_phi=m_phi, sigma2=sigma2, Nu=6000)[0]
-    Dnum_match3 = D_DeltaPhi_numeric(np.array([R_match3]), L=L, r_phi=r_phi, m_phi=m_phi, sigma2=sigma2, Nu=6000)[0]
+    R_match1 = np.clip(R_match1, Rmin, Rmax)
+    R_match2 = np.clip(R_match2, Rmin, Rmax)
+    R_match3 = np.clip(R_match3, Rmin, Rmax)
     
     if screen_type == "thick":
-        D1_asym_match, _, _ = D_asym_thick(np.array([R_match1]), L=L, r_phi=r_phi, m_phi=m_phi, sigma2=sigma2)
-        _, D2_asym_match, _ = D_asym_thick(np.array([R_match2]), L=L, r_phi=r_phi, m_phi=m_phi, sigma2=sigma2)
-        _, _, D3_asym_match = D_asym_thick(np.array([R_match3]), L=L, r_phi=r_phi, m_phi=m_phi, sigma2=sigma2)
+        fit1 = (R < 0.3*r_phi)
+        fit2 = (R > 3*r_phi) & (R < 0.3*L)
+        fit3 = (R > 50*L)
     else:
-        D1_asym_match, _, _ = D_asym_thin(np.array([R_match1]), L=L, r_phi=r_phi, m_phi=m_phi, sigma2=sigma2)
-        _, D2_asym_match, _ = D_asym_thin(np.array([R_match2]), L=L, r_phi=r_phi, m_phi=m_phi, sigma2=sigma2)
-        _, _, D3_asym_match = D_asym_thin(np.array([R_match3]), L=L, r_phi=r_phi, m_phi=m_phi, sigma2=sigma2)
+        fit1 = (R < 0.3*L)
+        fit2 = (R > 3*L) & (R < 0.3*r_phi)
+        fit3 = (R > 100*r_phi)
     
-    norm1 = Dnum_match1 / D1_asym_match[0] if D1_asym_match[0] > 0 else 1.0
-    norm2 = Dnum_match2 / D2_asym_match[0] if D2_asym_match[0] > 0 else 1.0
-    norm3 = Dnum_match3 / D3_asym_match[0] if D3_asym_match[0] > 0 else 1.0
+    def fit_norm(Dnum, Dasym, mask):
+        sel = mask & np.isfinite(Dnum) & np.isfinite(Dasym) & (Dnum > 0) & (Dasym > 0)
+        if sel.sum() < 10:
+            return 1.0
+        return np.exp(np.mean(np.log(Dnum[sel]) - np.log(Dasym[sel])))
+    
+    norm1 = fit_norm(Dnum, D1, fit1)
+    norm2 = fit_norm(Dnum, D2, fit2)
+    norm3 = fit_norm(Dnum, D3, fit3)
     
     D1 = D1 * norm1
     D2 = D2 * norm2
@@ -142,7 +148,7 @@ def plot_one_screen(screen_type, params, outfile_png):
     colors = ["C0", "C2", "C1"]
     for y, mask, c, lab in zip([y1, y2, y3], [m1, m2, m3], colors, labels):
         ax.loglog(x, y, ls="--", lw=1.0, color=c, alpha=0.35)
-        # ax.loglog(x[mask], y[mask], ls="-", lw=2.2, color=c, label=lab)
+        ax.loglog(x[mask], y[mask], ls="-", lw=2.2, color=c, label=lab)
 
     ax.loglog(x, Xi, lw=1.2, color="0.55", ls=":", label=r"$\Xi_i(R)$ (Eq. 144)")
     ax.axvline(r_phi / r_i, color="0.6", lw=1.0, ls="--")
@@ -187,17 +193,17 @@ def main():
     params_thick = dict(base)
     params_thick.update(
         r_phi=10.0,
-        L=1000.0,
+        L=10000.0,
         lam=1.0,
-        sigma_phi2=0.00003,
+        sigma_phi2=0.000001,
     )
 
     params_thin = dict(base)
     params_thin.update(
-        r_phi=100.0,
-        L=3.0,
+        r_phi=1000.0,
+        L=10.0,
         lam=1.5,
-        sigma_phi2=0.1,
+        sigma_phi2=0.008,
     )
 
     plot_one_screen("thin",  params_thin,  "xiP_separated_thin.png")
