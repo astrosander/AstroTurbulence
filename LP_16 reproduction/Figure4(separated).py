@@ -5,13 +5,13 @@ plt.rcParams['text.usetex'] = True
 plt.rcParams['font.family'] = 'serif'
 plt.rcParams["legend.frameon"] = False
 # Publication-ready font sizes
-plt.rcParams['font.size'] = 14
-plt.rcParams['axes.labelsize'] = 14
-plt.rcParams['axes.titlesize'] = 14
-plt.rcParams['xtick.labelsize'] = 14
-plt.rcParams['ytick.labelsize'] = 14
-plt.rcParams['legend.fontsize'] = 14
-plt.rcParams['figure.titlesize'] = 14
+plt.rcParams['font.size'] = 18
+plt.rcParams['axes.labelsize'] = 18
+plt.rcParams['axes.titlesize'] = 18
+plt.rcParams['xtick.labelsize'] = 18
+plt.rcParams['ytick.labelsize'] = 18
+plt.rcParams['legend.fontsize'] = 18
+plt.rcParams['figure.titlesize'] = 18
 
 def Xi_i(R, Xi0=1.0, Ri=1.0, Mi=2/3):
     return Xi0 / (1.0 + (R / Ri) ** Mi)
@@ -93,7 +93,7 @@ def plot_one_screen(screen_type, params, outfile_png):
         m2 = (R >= r_phi) & (R < L)
         m3 = R >= L
         labels = [r"Eq. (148)", r"Eq. (149)", r"Eq. (150)"]
-        title = "Thick Faraday screen ($L > r_\\phi$), separated regions (Appendix C)"
+        title = "Thick Faraday screen ($L > r_\\phi$), separated regions"
         
         R_match1 = 0.1 * r_phi
         R_match2 = L#np.sqrt(r_phi * L)
@@ -104,7 +104,7 @@ def plot_one_screen(screen_type, params, outfile_png):
         m2 = (R >= L) & (R < r_phi)
         m3 = R >= r_phi
         labels = [r"Eq. (151)", r"Eq. (152)", r"Eq. (153)"]
-        title = "Thin Faraday screen ($L < r_\\phi$), separated regions (Appendix C)"
+        title = "Thin Faraday screen ($L < r_\\phi$), separated regions"
         
         R_match1 = 0.1 * L
         R_match2 = np.sqrt(L * r_phi)
@@ -166,14 +166,14 @@ def plot_one_screen(screen_type, params, outfile_png):
     ymax = min(2.0, y_pos.max() * 1.2)
 
     ax.grid(True, which="both", ls=":", lw=0.5, alpha=0.4)
-    ax.legend(loc="best", fontsize=9)
+    ax.legend(loc="best", fontsize=14)
     ax.set_ylim(1e-12, ymax*10)
     ax.set_xlim(min(x), max(x))
     
     ax.text(r_phi / r_i, ax.get_ylim()[1]*0.6, r"$r_\phi$", rotation=90,
-            va="top", ha="right", color="0.35", fontsize=12)
+            va="top", ha="right",  fontsize=20)
     ax.text(L / r_i, ax.get_ylim()[1]*0.6, r"$L$", rotation=90,
-            va="top", ha="right", color="0.35", fontsize=12)
+            va="top", ha="right", fontsize=20)
     
     ax = ax2
     ax.loglog(x, Dnum, "o", ms=3.0, color="k", label=r"$D_{\Delta\Phi}$ Numerical (Eq. 146)")
@@ -188,22 +188,22 @@ def plot_one_screen(screen_type, params, outfile_png):
     
     ax.set_xlabel(r"$R/r_i$")
     ax.set_ylabel(r"$D_{\Delta\Phi}(R)$")
-    ax.set_title(r"$D_{\Delta\Phi}$ comparison (before $\exp(-4\lambda^4 D)$)")
+    ax.set_title(r"$D_{\Delta\Phi}$ comparison")
     
-    D_all = np.concatenate([Dnum, D1, D2, D3])
+    D_all = Dnum#np.concatenate([Dnum, D1, D2, D3])
     D_pos = D_all[np.isfinite(D_all) & (D_all > 0)]
     Dmin = max(1e-10, D_pos.min() * 0.5)
-    Dmax = D_pos.max() * 1.2
+    Dmax = D_pos.max() * 3
     
     ax.grid(True, which="both", ls=":", lw=0.5, alpha=0.4)
-    ax.legend(loc="best", fontsize=9)
+    ax.legend(loc="best", fontsize=14)
     ax.set_ylim(Dmin, Dmax)
     ax.set_xlim(min(x), max(x))
     
     ax.text(r_phi / r_i, ax.get_ylim()[1]*0.6, r"$r_\phi$", rotation=90,
-            va="top", ha="right", color="0.35", fontsize=12)
+            va="top", ha="right",  fontsize=20)
     ax.text(L / r_i, ax.get_ylim()[1]*0.6, r"$L$", rotation=90,
-            va="top", ha="right", color="0.35", fontsize=12)
+            va="top", ha="right",  fontsize=20)
     
     fig.tight_layout()
     fig.savefig(outfile_png, dpi=160)
@@ -239,8 +239,8 @@ def main():
         sigma_phi2=0.008,
     )
 
-    plot_one_screen("thin",  params_thin,  "xiP_separated_thin.png")
-    plot_one_screen("thick", params_thick, "xiP_separated_thick.png")
+    plot_one_screen("thin",  params_thin,  "xiP_separated_thin.pdf")
+    plot_one_screen("thick", params_thick, "xiP_separated_thick.pdf")
 
 
 if __name__ == "__main__":
