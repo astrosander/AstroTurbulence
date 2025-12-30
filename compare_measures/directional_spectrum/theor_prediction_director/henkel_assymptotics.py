@@ -224,8 +224,8 @@ def plot_Pdir_with_asymptotics(
         rf"$F={dominance_factor:g}$"
     )
     
-    ax.set_ylim(1e-10, 1e-2)
-    ax.set_xlim(1e1, lo)
+    ax.set_ylim(1e-10, 1e-3)
+    ax.set_xlim(kmin, lo)
     
     y_top = ax.get_ylim()[1]
     # ax.text(scales["k_inert_min"], y_top*0.8, r"$k_{\rm inert,min}$", color="red",
@@ -293,7 +293,7 @@ def main():
         A_P=A_P, R0=R0, m_psi=m_psi,
         r_phi=r_phi, m_phi=m_phi,
         chi=chi,
-        kmin=1e1, kmax=1e6, Nk=380,#2.5e4
+        kmin=5e1, kmax=1e6, Nk=380,#2.5e4
         dominance_factor=6.0,
         eta_inert=10.0,
         save_npz="Pdir_demo.npz",
