@@ -122,7 +122,7 @@ def plot_derivative_measure(screen_type, params, outfile):
     Rmin_rel = params["Rmin"]
     Rmax_rel = params["Rmax"]
 
-    Rmax_abs = Rmax_rel * r_i
+    Rmax_abs = Rmax_rel * r_i *0.01
     Rmin_100 = 100.0 * Rmin_rel * r_i
     
     Rmax_abs = max(R[0], min(R[-1], Rmax_abs))
@@ -142,7 +142,7 @@ def plot_derivative_measure(screen_type, params, outfile):
     ax.loglog(R[1:] / r_i, SF_far[1:], ls="-.", lw=2.0, color="C1",
               label=r"Faraday term (LP16 Eqs. 162–164)")
 
-    ax.set_xlim(params["Rmin"]*100, params["Rmax"])
+    ax.set_xlim(params["Rmin"]*100, params["Rmax"]*0.1)
     ax.set_ylim(1e-12, 1e-5)
 
     ax.set_title(title + rf"\n($\lambda={lam}$, $m_i={m_i}$, $m_\phi={m_phi}$)")
@@ -165,8 +165,8 @@ def main():
         m_phi=2/3,
         sigma_phi2=5e-10,
         lam=100.0,
-        Rmin=1e-11,
-        Rmax=1e-4,
+        Rmin=1e-12,
+        Rmax=1e-3,
         NR=520,
         Nu=7000,
     )
