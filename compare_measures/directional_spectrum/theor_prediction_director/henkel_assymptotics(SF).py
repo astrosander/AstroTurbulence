@@ -2,6 +2,18 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 
+plt.rcParams['text.usetex'] = True
+plt.rcParams['font.family'] = 'serif'
+plt.rcParams["legend.frameon"] = False
+# Publication-ready font sizes
+plt.rcParams['font.size'] = 22
+plt.rcParams['axes.labelsize'] = 22
+plt.rcParams['axes.titlesize'] = 22
+plt.rcParams['xtick.labelsize'] = 22
+plt.rcParams['ytick.labelsize'] = 22
+plt.rcParams['legend.fontsize'] = 22
+plt.rcParams['figure.titlesize'] = 22
+
 
 def Xi_i(R, A_P=1.0, R0=1.0, m_psi=2/3):
     return A_P / (1.0 + (R / R0) ** m_psi)
@@ -166,32 +178,32 @@ def run_and_plot(params,
 
     fig1, ax1 = plt.subplots(figsize=(7.6, 5.0))
     ax1.loglog(R, Du2, "k.", lw=2.2, label=r"$D_u(R;\lambda)/2$")
-    ax1.loglog(R, Xi, color="1", ls=":", lw=1.5, label=r"$\Xi_i(R)$")
-    ax1.loglog(R, xi, color="0.25", ls="--", lw=1.0, alpha=0.8, label=r"$\xi_P(R)$")
+    ax1.loglog(R, Xi, color="1", ls=":", lw=2.5, label=r"$\Xi_i(R)$")
+    ax1.loglog(R, xi, color="0.25", ls="--", lw=2.0, alpha=0.8, label=r"$\xi_P(R)$")
 
     chi2 = scales["chi2"]
     Du2_int = A_P * (R / R0) ** m_psi
     Du2_far = A_P * chi2 * (R / r_phi) ** m_phi
-    ax1.loglog(R, Du2_int, ls="--", lw=1.2, alpha=0.65, label=rf"small-$R$: $\propto R^{{m_\psi}}$")
-    ax1.loglog(R, Du2_far, ls="--", lw=1.2, alpha=0.65, label=rf"small-$R$: $\propto R^{{m_\Phi}}$")
+    ax1.loglog(R, Du2_int, ls="--", lw=2.2, alpha=0.65, label=rf"small-$R$: $\propto R^{{m_\psi}}$")
+    ax1.loglog(R, Du2_far, ls="--", lw=2.2, alpha=0.65, label=rf"small-$R$: $\propto R^{{m_\Phi}}$")
 
     ax1.set_xlim(Rmin, Rmax)
     ax1.set_ylim(1e-4, 2e0)
     
     def mark_R(v, color, ls, text):
         if np.isfinite(v) and (Rmin < v < Rmax):
-            ax1.axvline(v, color=color, ls=ls, lw=1.2)
+            ax1.axvline(v, color=color, ls=ls, lw=2.2)
             ax1.text(v, ax1.get_ylim()[1] / 1.4, text, rotation=90,
                      va="top", ha="right", color=color)
 
-    mark_R(R0, "C0", "-.", r"$R_0$")
+    # mark_R(R0, "C0", "-.", r"$R_0$")
     mark_R(r_phi, "C2", "-.", r"$r_\phi$")
     mark_R(scales["R_asym"], "red", ":", r"$R_{\rm asym}$")
     mark_R(scales["R_x"], "green", ":", r"$R_\times$")
     
     ax1.set_xlabel(r"$R$")
-    ax1.set_ylabel(r"correlations / structure function")
-    ax1.set_title("Real-space (no Hankel transforms)")
+    ax1.set_ylabel(r"structure function")
+    # ax1.set_title("Real-space (no Hankel transforms)")
     ax1.grid(True, which="both", ls=":", lw=0.5, alpha=0.45)
     ax1.legend(loc="best", fontsize=8)
     fig1.tight_layout()
@@ -213,10 +225,10 @@ def run_and_plot(params,
     ax2.set_xlim(kmin, kmax)
     ax2.set_ylim(1e-4, 2e0)
     
-    ax2.axvline(scales["k_inert_min"], color="red", ls=":", lw=1.2, label=r"$k_{\rm inert,min}$")
-    ax2.axvline(scales["k_asym"],      color="red", ls="--", lw=1.2, label=r"$k_{\rm asym}$")
+    ax2.axvline(scales["k_inert_min"], color="red", ls=":", lw=2.2, label=r"$k_{\rm inert,min}$")
+    ax2.axvline(scales["k_asym"],      color="red", ls="--", lw=2.2, label=r"$k_{\rm asym}$")
     if np.isfinite(scales["k_x"]):
-        ax2.axvline(scales["k_x"], color="green", ls="-.", lw=1.2, label=r"$k_\times$")
+        ax2.axvline(scales["k_x"], color="green", ls="-.", lw=2.2, label=r"$k_\times$")
 
     for name, (lo, hi) in [("Faraday sure", scales["k_far_sure"]),
                            ("Intrinsic sure", scales["k_int_sure"])]:
