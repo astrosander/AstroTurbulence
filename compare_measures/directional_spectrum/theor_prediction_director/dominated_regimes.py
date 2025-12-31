@@ -1,6 +1,18 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+plt.rcParams['text.usetex'] = True
+plt.rcParams['font.family'] = 'serif'
+plt.rcParams["legend.frameon"] = False
+# Publication-ready font sizes
+plt.rcParams['font.size'] = 22
+plt.rcParams['axes.labelsize'] = 22
+plt.rcParams['axes.titlesize'] = 22
+plt.rcParams['xtick.labelsize'] = 22
+plt.rcParams['ytick.labelsize'] = 22
+plt.rcParams['legend.fontsize'] = 22
+plt.rcParams['figure.titlesize'] = 22
+
 def xi_i(R, Xi0=1.0, r_i=1.0, m_i=2/3):
     x = (R / r_i) ** m_i
     return Xi0 / (1.0 + x)
@@ -58,19 +70,18 @@ def asymptotic_terms_derivative(screen_type, R, r_i, m_i, L, r_phi, m_phi):
     if screen_type == "thick":
         pref = (r_phi / L) ** (1.0 - mtil)
         term_far = pref * (R / r_phi) ** (1.0 + mtil)
-        return term_int, term_far, None
+        return term_int, term_far
 
     if screen_type == "thin":
-        term_far1 = np.full_like(R, np.nan, dtype=float)
-        term_far2 = np.full_like(R, np.nan, dtype=float)
+        term_far = np.full_like(R, np.nan, dtype=float)
 
         m1 = R < L
         m2 = (R >= L) & (R < r_phi)
 
-        term_far1[m1] = (r_phi / L) * (R[m1] / r_phi) ** (1.0 + mtil)
-        term_far2[m2] = (R[m2] / r_phi) ** (mtil)
+        term_far[m1] = (r_phi / L) * (R[m1] / r_phi) ** (1.0 + mtil)
+        term_far[m2] = (R[m2] / r_phi) ** (mtil)
 
-        return term_int, term_far1, term_far2
+        return term_int, term_far
 
     raise ValueError("screen_type must be 'thick' or 'thin'")
 
@@ -108,7 +119,7 @@ def plot_derivative_measure(screen_type, params, outfile):
     )
     SF_num = SF_from_corr(xiPp)
 
-    term_int, term_far, term_far2 = asymptotic_terms_derivative(screen_type, R, r_i, m_i, L, r_phi, m_phi)
+    term_int, term_far = asymptotic_terms_derivative(screen_type, R, r_i, m_i, L, r_phi, m_phi)
 
     if screen_type == "thick":
         R_match = min(0.2 * r_phi, 5.0 * r_i)
@@ -117,83 +128,40 @@ def plot_derivative_measure(screen_type, params, outfile):
         R_match = min(0.2 * L, 5.0 * r_i)
         title = r"Separated screen, thin Faraday screen ($L<r_\phi$): $P'\equiv dP/d\lambda^2$"
 
+    term_far_safe = np.where(np.isfinite(term_far), term_far, 0.0)
+    SF_asym_raw = term_int + term_far_safe
+
     Rmin_rel = params["Rmin"]
     Rmax_rel = params["Rmax"]
 
-    Rmax_abs = Rmax_rel * r_i * 0.01
+    Rmax_abs = Rmax_rel * r_i *0.01
     Rmin_100 = 100.0 * Rmin_rel * r_i
     
     Rmax_abs = max(R[0], min(R[-1], Rmax_abs))
     Rmin_100 = max(R[0], min(R[-1], Rmin_100))
+    
+    SF_asym, fac_asym = normalize_asymptotic_to_numeric(R, SF_num, SF_asym_raw, Rmin_100)
+    SF_far, fac_far = normalize_asymptotic_to_numeric(R, SF_num, term_far_safe, Rmax_abs)
+    SF_int = term_int * fac_asym
 
     fig, ax = plt.subplots(figsize=(8.2, 5.4))
     ax.loglog(R[1:] / r_i, SF_num[1:], color="k", lw=2.2, label=r"Numerical from LP16 Eq. (159)")
 
-    if screen_type == "thick":
-        term_far_safe = np.where(np.isfinite(term_far), term_far, 0.0)
-        SF_asym_raw = term_int + term_far_safe
-        
-        SF_asym, fac_asym = normalize_asymptotic_to_numeric(R, SF_num, SF_asym_raw, Rmin_100)
-        SF_far, fac_far = normalize_asymptotic_to_numeric(R, SF_num, term_far_safe, Rmax_abs)
-        SF_int = term_int * fac_asym
-
-        ax.loglog(R[1:] / r_i, SF_asym[1:], ls="--", lw=2.0, color="C0",
-                  label=r"Asymptotic sum (LP16 Eqs. 162–164, normalized)")
-        ax.loglog(R[1:] / r_i, SF_int[1:], ls=":", lw=2.0, color="C2",
-                  label=r"Intrinsic term $\propto (R/r_i)^{m_i}$")
-        ax.loglog(R[1:] / r_i, SF_far[1:], ls="-.", lw=2.0, color="C1",
-                  label=r"Faraday term (LP16 Eqs. 162–164)")
-    else:
-        term_far1_safe = np.where(np.isfinite(term_far), term_far, 0.0)
-        term_far2_safe = np.where(np.isfinite(term_far2), term_far2, 0.0)
-        SF_asym_raw = term_int + term_far1_safe + term_far2_safe
-        
-        mtil = min(m_phi, 1.0)
-        R_norm_far1 = min(0.5 * L, Rmax_abs) if L > 0 else Rmax_abs
-        R_norm_far2 = Rmax_abs
-        R_norm_far1 = max(R[0], min(R[-1], R_norm_far1))
-        R_norm_far2 = max(R[0], min(R[-1], R_norm_far2))
-        
-        SF_asym, fac_asym = normalize_asymptotic_to_numeric(R, SF_num, SF_asym_raw, Rmin_100)
-        SF_int = term_int * fac_asym
-
-        idx_far1 = np.argmin(np.abs(R - R_norm_far1))
-        idx_far2 = np.argmin(np.abs(R - R_norm_far2))
-        
-        SF_norm_far1 = SF_num[idx_far1] if idx_far1 < len(SF_num) else SF_num[-1]
-        SF_norm_far2 = SF_num[idx_far2] if idx_far2 < len(SF_num) else SF_num[-1]
-
-        R_plot = R[1:] / r_i
-        mask_far1 = R[1:] < L
-        mask_far2 = (R[1:] >= L) & (R[1:] < r_phi)
-        R_far1_abs = R[1:][mask_far1]
-        R_far2_abs = R[1:][mask_far2]
-        
-        if len(R_far1_abs) > 0:
-            slope_far1 = 1.0 + mtil
-            SF_far1_line = SF_norm_far1 * (R_far1_abs / R_norm_far1) ** slope_far1
-            ax.loglog(R_far1_abs / r_i, SF_far1_line, ls="-.", lw=2.0, color="C1",
-                      label=r"Faraday term (R < L, LP16 Eq. 163)")
-        
-        if len(R_far2_abs) > 0:
-            slope_far2 = mtil
-            SF_far2_line = SF_norm_far2 * (R_far2_abs / R_norm_far2) ** slope_far2
-            ax.loglog(R_far2_abs / r_i, SF_far2_line, ls="-.", lw=2.0, color="C3",
-                      label=r"Faraday term (L < R < r_φ, LP16 Eq. 164)")
-
-        ax.loglog(R[1:] / r_i, SF_asym[1:], ls="--", lw=2.0, color="C0",
-                  label=r"Asymptotic sum (LP16 Eqs. 162–164, normalized)")
-        ax.loglog(R[1:] / r_i, SF_int[1:], ls="-.", lw=2.0, color="C2",
-                  label=r"Intrinsic term $\propto (R/r_i)^{m_i}$")
+    # ax.loglog(R[1:] / r_i, SF_asym[1:], ls="--", lw=2.0, color="C0",
+    #           label=r"Asymptotic sum (LP16 Eqs. 162–164, normalized)")
+    ax.loglog(R[1:] / r_i, SF_int[1:], ls=":", lw=2.0, color="C2",
+              label=r"Intrinsic term $\propto (R/r_i)^{m_i}$")
+    ax.loglog(R[1:] / r_i, SF_far[1:], ls="-.", lw=2.0, color="C1",
+              label=r"Faraday term (LP16 Eqs. 162–164)")
 
     ax.set_xlim(params["Rmin"]*100, params["Rmax"]*0.1)
-    ax.set_ylim(1e-15, 1e-7)
+    ax.set_ylim(1e-12, 1e-5)
 
-    ax.set_title(title + rf"\n($\lambda={lam}$, $m_i={m_i}$, $m_\phi={m_phi}$)")
+    ax.set_title("$dP/d\\lambda^2$, thick")
     ax.set_xlabel(r"$R/r_i$")
     ax.set_ylabel(r"$\left\langle\left|P'(X)-P'(X+R)\right|^2\right\rangle$")
     ax.grid(True, which="both", ls=":", lw=0.6, alpha=0.5)
-    ax.legend(loc="best", fontsize=9)
+    ax.legend(loc="best", fontsize=14)
     fig.tight_layout()
     fig.savefig(outfile, dpi=200)
     print(f"Saved: {outfile}")
@@ -217,20 +185,20 @@ def main():
 
     params_thin = dict(
         Xi0=1.0,
-        r_i=1000.0,
+        r_i=1.0,
         m_i=2/3,
-        r_phi=900.0,
-        L=1.0,
-        m_phi=1/3,
-        sigma_phi2=5e-10,
-        lam=100.0,
-        Rmin=1e-10,
-        Rmax=1e0,
+        L=3.0,
+        r_phi=100.0,
+        m_phi=2/3,
+        sigma_phi2=1e-2,
+        lam=1.0,
+        Rmin=1e-2,
+        Rmax=1e6,
         NR=520,
         Nu=7000,
     )
 
     plot_derivative_measure("thick", params_thick, "LP16_sep_derivativeSF_thick.png")
-    plot_derivative_measure("thin", params_thin, "LP16_sep_derivativeSF_thin.png")
+
 if __name__ == "__main__":
     main()
