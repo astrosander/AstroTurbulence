@@ -3,6 +3,19 @@ import matplotlib.pyplot as plt
 from scipy.special import j0
 
 
+plt.rcParams['text.usetex'] = True
+plt.rcParams['font.family'] = 'serif'
+plt.rcParams["legend.frameon"] = False
+# Publication-ready font sizes
+plt.rcParams['font.size'] = 22
+plt.rcParams['axes.labelsize'] = 22
+plt.rcParams['axes.titlesize'] = 22
+plt.rcParams['xtick.labelsize'] = 22
+plt.rcParams['ytick.labelsize'] = 22
+plt.rcParams['legend.fontsize'] = 22
+plt.rcParams['figure.titlesize'] = 22
+
+
 def f_powerlaw(R, r0, m):
     x = (R / r0) ** m
     return x / (1.0 + x)
@@ -177,18 +190,18 @@ def plot_Pdir_with_asymptotics(
     ax.loglog(k, Pabs, "o", ms=3.0, color="k", label=r"$|P_{\rm dir}(k)|$")
 
     if P_int_as is not None:
-        ax.loglog(k, P_int_as, lw=2.4, label=rf"Intrinsic slope $k^{{-(m_\Psi+2)}}$, $m_\Psi={m_psi:.2f}$")
-    else:
-        ax.text(0.03, 0.07, "No intrinsic 'sure' window in this k-range",
-                transform=ax.transAxes)
+        ax.loglog(k, P_int_as, lw=2.4, label=rf"$k^{{-(m_\Psi+2)}}$")
+    # else:
+    #     ax.text(0.03, 0.07, "No intrinsic 'sure' window in this k-range",
+    #             transform=ax.transAxes)
 
     if P_far_as is not None:
-        ax.loglog(k, P_far_as, lw=2.4, label=rf"Faraday slope $k^{{-(m_\Phi+2)}}$, $m_\Phi={m_phi:.2f}$")
-    else:
-        ax.text(0.03, 0.03, "No Faraday 'sure' window in this k-range",
-                transform=ax.transAxes)
+        ax.loglog(k, P_far_as, lw=2.4, label=rf"$k^{{-(m_\Phi+2)}}$")
+    # else:
+    #     ax.text(0.03, 0.03, "No Faraday 'sure' window in this k-range",
+    #             transform=ax.transAxes)
     
-    ax.axvline(scales["k_inert_min"], color="red", ls=":", lw=1.2)
+    # ax.axvline(scales["k_inert_min"], color="red", ls=":", lw=1.2)
     ax.axvline(scales["kx"], color="green", ls="-.", lw=1.2, label=r"$k_\times$")
     
     F = scales["dominance_factor"]
@@ -197,9 +210,9 @@ def plot_Pdir_with_asymptotics(
     k_I_lo, k_I_hi = scales["k_int_sure"]
     
     boundaries = []
-    for v in [k_F_lo, k_F_hi, k_I_lo, k_I_hi]:
-        if np.isfinite(v) and (kmin < v < kmax):
-            boundaries.append(v)
+    # for v in [k_F_lo, k_F_hi, k_I_lo, k_I_hi]:
+    #     if np.isfinite(v) and (kmin < v < kmax):
+    #         boundaries.append(v)
     
     for v in sorted(set(boundaries)):
         ax.axvline(v, color="blue", ls="--", lw=0.9)
@@ -208,20 +221,19 @@ def plot_Pdir_with_asymptotics(
     lo = max(lo, kmin)
     hi = min(hi if np.isfinite(hi) else kmax, kmax)
     if lo < hi:
-        ax.axvspan(hi, scales["kx"], color="blue", alpha=0.08, label=rf"Faraday-dominated: $W\geq {F:g}$")
+        ax.axvspan(hi, scales["kx"], color="blue", alpha=0.08, label=rf"Faraday-dominated")
     
     lo, hi = scales["k_int_sure"]
     lo = max(lo, kmin)
     hi = min(hi if np.isfinite(hi) else kmax, kmax)
     if lo < hi:
-        ax.axvspan(scales["kx"], lo, color="gray", alpha=0.08, label=rf"Intrinsic-dominated: $W\leq 1/{F:g}$")
+        ax.axvspan(scales["kx"], lo, color="gray", alpha=0.08, label=rf"Intrinsic-dominated")
 
     ax.set_xlabel(r"$k\,R_0$")
     ax.set_ylabel(r"$|P_{\rm dir}(k)|$")
     ax.set_title(
-        rf"Directional spectrum: $\chi={chi:.3g}$, "
-        rf"$m_\Psi={m_psi:.2f}$, $m_\Phi={m_phi:.2f}$, "
-        rf"$F={dominance_factor:g}$"
+        rf"$\chi={chi:.3g}$, "
+        rf"$m_\Psi={m_psi:.2f}$, $m_\Phi={m_phi:.2f}$"
     )
     
     ax.set_ylim(1e-10, 1e-3)
@@ -246,7 +258,7 @@ def plot_Pdir_with_asymptotics(
         #             rotation=90, va="top", ha="right", fontsize=9)
     
     ax.grid(True, which="both", ls=":", lw=0.5, alpha=0.4)
-    ax.legend(fontsize=9, loc="best")
+    ax.legend(fontsize=16, loc="best")
     fig.tight_layout()
 
     if save_npz is not None:
