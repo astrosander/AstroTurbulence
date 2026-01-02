@@ -177,15 +177,15 @@ def run_and_plot(params,
     )
 
     fig1, ax1 = plt.subplots(figsize=(7.6, 5.0))
-    ax1.loglog(R, Du2, "k.", lw=2.2, label=r"$D_u(R;\lambda)/2$")
+    ax1.loglog(R, Du2, "k.", lw=2.2, label=r"$\frac{D_u(R;\lambda)}{2}$")
     ax1.loglog(R, Xi, color="1", ls=":", lw=2.5, label=r"$\Xi_i(R)$")
     ax1.loglog(R, xi, color="0.25", ls="--", lw=2.0, alpha=0.8, label=r"$\xi_P(R)$")
 
     chi2 = scales["chi2"]
     Du2_int = A_P * (R / R0) ** m_psi
     Du2_far = A_P * chi2 * (R / r_phi) ** m_phi
-    ax1.loglog(R, Du2_int, ls="--", lw=2.2, alpha=0.65, label=rf"small-$R$: $\propto R^{{m_\psi}}$")
-    ax1.loglog(R, Du2_far, ls="--", lw=2.2, alpha=0.65, label=rf"small-$R$: $\propto R^{{m_\Phi}}$")
+    ax1.loglog(R, Du2_int, ls="--", lw=2.2, alpha=0.65, label=rf"$\propto R^{{m_\psi}}$")
+    ax1.loglog(R, Du2_far, ls="--", lw=2.2, alpha=0.65, label=rf"$\propto R^{{m_\Phi}}$")
 
     ax1.set_xlim(Rmin, Rmax)
     ax1.set_ylim(1e-4, 2e0)
@@ -193,7 +193,8 @@ def run_and_plot(params,
     def mark_R(v, color, ls, text):
         if np.isfinite(v) and (Rmin < v < Rmax):
             ax1.axvline(v, color=color, ls=ls, lw=2.2)
-            ax1.text(v, ax1.get_ylim()[1] / 1.4, text, rotation=90,
+            # print(text)
+            ax1.text(v, ax1.get_ylim()[0] * 1000, text, rotation=90,
                      va="top", ha="right", color=color)
 
     # mark_R(R0, "C0", "-.", r"$R_0$")
@@ -204,8 +205,8 @@ def run_and_plot(params,
     ax1.set_xlabel(r"$R$")
     ax1.set_ylabel(r"structure function")
     # ax1.set_title("Real-space (no Hankel transforms)")
-    ax1.grid(True, which="both", ls=":", lw=0.5, alpha=0.45)
-    ax1.legend(loc="best", fontsize=8)
+    # ax1.grid(True, which="both", ls=":", lw=0.5, alpha=0.45)
+    ax1.legend(loc="best", fontsize=20)
     fig1.tight_layout()
     fig1.savefig(f"{out_prefix}_realspace.png", dpi=220)
     fig1.savefig(f"{out_prefix}_realspace.svg", dpi=220)
@@ -247,7 +248,8 @@ def run_and_plot(params,
     print(f"Saved {out_prefix}_kproxy.svg")
 
     if show:
-        plt.show()
+        pass
+        # plt.show()
     else:
         plt.close(fig1)
         plt.close(fig2)
@@ -269,7 +271,7 @@ if __name__ == "__main__":
 
     scales = run_and_plot(
         params,
-        Rmin=1e-4, Rmax=1e3, NR=1400,
+        Rmin=1e-4, Rmax=1e1, NR=1400,
         Nk=900,
         eps=0.1,
         F=30.0,

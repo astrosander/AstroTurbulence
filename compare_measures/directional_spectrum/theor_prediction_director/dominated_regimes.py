@@ -145,23 +145,23 @@ def plot_derivative_measure(screen_type, params, outfile):
     SF_int = term_int * fac_asym
 
     fig, ax = plt.subplots(figsize=(8.2, 5.4))
-    ax.loglog(R[1:] / r_i, SF_num[1:], color="k", lw=2.2, label=r"Numerics Eq. (159)")
+    ax.loglog(R[1:] / r_i, SF_num[1:], color="k", lw=2.2, label=r"Numerical from LP16 Eq. (159)")
 
     # ax.loglog(R[1:] / r_i, SF_asym[1:], ls="--", lw=2.0, color="C0",
     #           label=r"Asymptotic sum (LP16 Eqs. 162–164, normalized)")
     ax.loglog(R[1:] / r_i, SF_int[1:], ls=":", lw=2.0, color="C2",
-              label=r"$\propto (R/r_i)^{m_i}$")
+              label=r"Intrinsic term $\propto (R/r_i)^{m_i}$")
     ax.loglog(R[1:] / r_i, SF_far[1:], ls="-.", lw=2.0, color="C1",
-              label=r"Faraday term (Eqs. 162–164)")
+              label=r"Faraday term (LP16 Eqs. 162–164)")
 
     ax.set_xlim(params["Rmin"]*100, params["Rmax"]*0.1)
-    ax.set_ylim(1e-15, 1e-9)
+    ax.set_ylim(1e-12, 1e-5)
 
-    ax.set_title("$dP/d\\lambda^2$, thin")
+    ax.set_title("$dP/d\\lambda^2$, thick")
     ax.set_xlabel(r"$R/r_i$")
     ax.set_ylabel(r"$\left\langle\left|P'(X)-P'(X+R)\right|^2\right\rangle$")
     # ax.grid(True, which="both", ls=":", lw=0.6, alpha=0.5)
-    ax.legend(loc="best", fontsize=17)
+    ax.legend(loc="best", fontsize=18)
     fig.tight_layout()
     fig.savefig(outfile, dpi=200)
     print(f"Saved: {outfile}")
@@ -185,23 +185,20 @@ def main():
 
     params_thin = dict(
         Xi0=1.0,
-        r_i=1000.0,
+        r_i=1.0,
         m_i=2/3,
-        r_phi=900.0,
-        L=1.0,
-        m_phi=1/3,
-        sigma_phi2=5e-10,
-        lam=100.0,
-        Rmin=1e-10,
-        Rmax=1e0,
+        L=3.0,
+        r_phi=100.0,
+        m_phi=2/3,
+        sigma_phi2=1e-2,
+        lam=1.0,
+        Rmin=1e-2,
+        Rmax=1e6,
         NR=520,
         Nu=7000,
     )
 
-
-
-    # plot_derivative_measure("thick", params_thick, "LP16_sep_derivativeSF_thick.png")
-    plot_derivative_measure("thin", params_thin, "LP16_sep_derivativeSF_thin.png")
+    plot_derivative_measure("thick", params_thick, "LP16_sep_derivativeSF_thick.png")
 
 if __name__ == "__main__":
     main()
