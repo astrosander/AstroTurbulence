@@ -1,14 +1,15 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.widgets import Slider
 
 init_A_P  = 1.0
-init_chi  = 0.14#4472135954999579#0.1
+init_chi  = 0.14
 init_R0   = 1.0
 init_r_phi = 1
 init_m_psi = 4/3
 init_m_phi = 2/3
 init_L    = 200.0
-Nu        = 7000
+Nu        = 1000
 Xi0       = 1.0
 
 def compute_sigma_phi2_and_lambda(chi, lambda_fixed=100.0):
@@ -189,85 +190,102 @@ def compute_all_curves(A_P, chi, R0, r_phi, m_psi, m_phi, L):
             R_match_int, R_match_far, fac_int, fac_far, R_x_SF,
             has_numerical, has_asymptotics)
 
-(F_vals, F_psi, F_phi, R_x_F,
- SF_num, SF_int, SF_far,
- R_match_int, R_match_far, fac_int, fac_far, R_x_SF,
- has_numerical, has_asymptotics) = compute_all_curves(
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
+plt.subplots_adjust(bottom=0.25)
+
+def update_plot(chi, r_phi, m_psi, m_phi):
+    F_vals, F_psi, F_phi, R_x_F, SF_num, SF_int, SF_far, R_match_int, R_match_far, fac_int, fac_far, R_x_SF, has_numerical, has_asymptotics = compute_all_curves(
+        init_A_P, chi, init_R0, r_phi, m_psi, m_phi, init_L
+    )
+    
+    ax1.clear()
+    ax2.clear()
+    
+    ax1.loglog(R, F_vals, label="Directional SF: $D_u/2$", lw=3)
+    ax1.loglog(R, F_psi, "--", label=r"small-R: $A_P (R/R_0)^{m_\psi}$", lw=2, alpha=1)
+    ax1.loglog(R, F_phi, "--", label=r"small-R: $A_P\chi^2 (R/r_\phi)^{m_\Phi}$", lw=2, alpha=1)
+    
+    if R_x_F is not None and np.isfinite(R_x_F) and (R.min() < R_x_F < R.max()):
+        ax1.axvline(R_x_F, linestyle="-.", linewidth=2, color="red")
+        y0, y1 = ax1.get_ylim()
+        ax1.text(R_x_F, y0 * 10, r"$R_{\times,F}$", rotation=90, va="bottom", ha="right", color="red")
+    
+    ax1.set_ylabel("F(R)")
+    ax1.legend(fontsize=12)
+    
+    x_all = np.concatenate([R, R[1:]])
+    x_min, x_max = x_all.min(), x_all.max()
+    
+    y1_all = np.concatenate([F_vals, F_psi, F_phi])
+    y1_all = y1_all[np.isfinite(y1_all) & (y1_all > 0)]
+    if len(y1_all) > 0:
+        ax1.set_xlim(x_min, x_max)
+        ax1.set_ylim(y1_all.min(), y1_all.max())
+    
+    if has_numerical and (SF_num is not None):
+        ax2.loglog(R[1:], SF_num[1:], color="k", lw=3.2, label=r"PSA: numerical")
+    
+    if has_asymptotics:
+        if SF_int is not None:
+            ax2.loglog(R[1:], SF_int[1:], ls="-.", lw=2.0, label=r"PSA: $\propto (R/r_i)^{m_i}$")
+        if SF_far is not None:
+            ax2.loglog(R[1:], SF_far[1:], ls="-.", lw=2.0, label=r"PSA: $\propto$ Faraday term")
+        
+        if (R_x_SF is not None) and np.isfinite(R_x_SF) and (R.min() < R_x_SF < R.max()):
+            ax2.axvline(R_x_SF, linestyle="-.", linewidth=2, color="red")
+            y_cross = fac_int * (R_x_SF / init_R0) ** m_psi
+            y0, y1 = ax2.get_ylim()
+            ax2.text(R_x_SF, y0 * 10, r"$R_{\times,SF}$", rotation=90, va="bottom", ha="right", color="red")
+    
+    ax2.set_xlabel("R")
+    ax2.set_ylabel("SF(R)")
+    ax2.legend(fontsize=12)
+    
+    y2_all_list = []
+    if has_numerical and (SF_num is not None):
+        y2_all_list.append(SF_num[1:])
+    
+    if len(y2_all_list) > 0:
+        y2_all = np.concatenate(y2_all_list)
+        y2_all = y2_all[np.isfinite(y2_all) & (y2_all > 0)]
+        if len(y2_all) > 0:
+            ax2.set_xlim(x_min, x_max)
+            ax2.set_ylim(y2_all.min()*0.5, y2_all.max()*2)
+    
+    fig.canvas.draw_idle()
+
+initial_F_vals, initial_F_psi, initial_F_phi, initial_R_x_F, initial_SF_num, initial_SF_int, initial_SF_far, initial_R_match_int, initial_R_match_far, initial_fac_int, initial_fac_far, initial_R_x_SF, initial_has_numerical, initial_has_asymptotics = compute_all_curves(
     init_A_P, init_chi, init_R0, init_r_phi, init_m_psi, init_m_phi, init_L
 )
 
-fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
+update_plot(init_chi, init_r_phi, init_m_psi, init_m_phi)
 
-ax1.loglog(R, F_vals, label="Directional SF: $D_u/2$", lw=3)
-ax1.loglog(R, F_psi, "--", label=r"small-R: $A_P (R/R_0)^{m_\psi}$",lw=2, alpha=1)
-ax1.loglog(R, F_phi, "--", label=r"small-R: $A_P\chi^2 (R/r_\phi)^{m_\Phi}$",lw=2, alpha=1)
+ax_chi = plt.axes([0.15, 0.15, 0.3, 0.03])
+ax_r_phi = plt.axes([0.15, 0.11, 0.3, 0.03])
+ax_m_psi = plt.axes([0.15, 0.07, 0.3, 0.03])
+ax_m_phi = plt.axes([0.15, 0.03, 0.3, 0.03])
 
-if R_x_F is not None and np.isfinite(R_x_F) and (R.min() < R_x_F < R.max()):
-    ax1.axvline(R_x_F, linestyle="-.", linewidth=2, color="red")
-    y0, y1 = ax1.get_ylim()
-    ax1.text(R_x_F, y0 * 10, r"$R_{\times,F}$", rotation=90, va="bottom", ha="right", color="red")
+slider_chi = Slider(ax_chi, r'$\chi$', 0.01, 2.0, valinit=init_chi, valstep=0.01)
+slider_r_phi = Slider(ax_r_phi, r'$r_\phi$', 0.1, 10.0, valinit=init_r_phi, valstep=0.1)
+slider_m_psi = Slider(ax_m_psi, r'$m_\psi$', 0.1, 5.0, valinit=init_m_psi, valstep=0.1)
+slider_m_phi = Slider(ax_m_phi, r'$m_\Phi$', 0.1, 5.0, valinit=init_m_phi, valstep=0.1)
 
-ax1.set_ylabel("F(R)")
-# ax1.grid(True, which="both", linestyle="-.", alpha=0.3)
-ax1.legend(fontsize=16)
+def update(val):
+    chi = slider_chi.val
+    r_phi = slider_r_phi.val
+    m_psi = slider_m_psi.val
+    m_phi = slider_m_phi.val
+    update_plot(chi, r_phi, m_psi, m_phi)
 
-x_all = np.concatenate([R, R[1:]])
-x_min, x_max = x_all.min(), x_all.max()
+slider_chi.on_changed(update)
+slider_r_phi.on_changed(update)
+slider_m_psi.on_changed(update)
+slider_m_phi.on_changed(update)
 
-y1_all = np.concatenate([F_vals, F_psi, F_phi])
-y1_all = y1_all[np.isfinite(y1_all) & (y1_all > 0)]
-if len(y1_all) > 0:
-    ax1.set_xlim(x_min, x_max)
-    ax1.set_ylim(y1_all.min(), y1_all.max())
-
-if has_numerical and (SF_num is not None):
-    ax2.loglog(R[1:], SF_num[1:], color="k", lw=3.2, label=r"PSA: numerical")
-
-if has_asymptotics:
-    if SF_int is not None:
-        ax2.loglog(R[1:], SF_int[1:], ls="-.", lw=2.0, label=r"PSA: $\propto (R/r_i)^{m_i}$")
-    if SF_far is not None:
-        ax2.loglog(R[1:], SF_far[1:], ls="-.", lw=2.0, label=r"PSA: $\propto$ Faraday term")
-
-    if (R_match_int is not None) and np.isfinite(R_match_int):
-        idx = np.argmin(np.abs(np.log(R) - np.log(R_match_int)))
-        # if np.isfinite(SF_num[idx]) and (SF_num[idx] > 0):
-        #     ax2.scatter([R[idx]], [SF_num[idx]], s=35, marker="o", zorder=5, label="match (int)")
-
-    if (R_match_far is not None) and np.isfinite(R_match_far):
-        idx = np.argmin(np.abs(np.log(R) - np.log(R_match_far)))
-        # if np.isfinite(SF_num[idx]) and (SF_num[idx] > 0):
-        #     ax2.scatter([R[idx]], [SF_num[idx]], s=35, marker="s", zorder=5, label="match (far)")
-
-    if (R_x_SF is not None) and np.isfinite(R_x_SF) and (R.min() < R_x_SF < R.max()):
-        ax2.axvline(R_x_SF, linestyle="-.", linewidth=2, color="red")
-        y_cross = fac_int * (R_x_SF / init_R0) ** init_m_psi
-        # if np.isfinite(y_cross) and y_cross > 0:
-        #     ax2.scatter([R_x_SF], [y_cross], s=55, marker="x", zorder=6, label=r"$R_{\times,SF}$")
-        y0, y1 = ax2.get_ylim()
-        ax2.text(R_x_SF, y0 * 10, r"$R_{\times,SF}$", rotation=90, va="bottom", ha="right", color="red")
-
-ax2.set_xlabel("R")
-ax2.set_ylabel("SF(R)")
-# ax2.grid(True, which="both", linestyle="-.", alpha=0.3)
-ax2.legend(fontsize=16)
-
-y2_all_list = []
-if has_numerical and (SF_num is not None):
-    y2_all_list.append(SF_num[1:])
-
-if len(y2_all_list) > 0:
-    y2_all = np.concatenate(y2_all_list)
-    y2_all = y2_all[np.isfinite(y2_all) & (y2_all > 0)]
-    if len(y2_all) > 0:
-        ax2.set_xlim(x_min, x_max)
-        ax2.set_ylim(y2_all.min()*0.5, y2_all.max()*2)
-
-plt.tight_layout()
 plt.show()
 
-print("=== Parameters ===")
+print("=== Initial Parameters ===")
 print(f"A_P={init_A_P}, chi={init_chi}, R0={init_R0}, r_phi={init_r_phi}, m_psi={init_m_psi}, m_phi={init_m_phi}, L={init_L}, Nu={Nu}")
-print(f"F crossover R_x_F = {R_x_F}")
-print(f"SF match points: R_match_int={R_match_int}, R_match_far={R_match_far}")
-print(f"SF crossover R_x_SF (thick screen, after matching) = {R_x_SF}")
+print(f"F crossover R_x_F = {initial_R_x_F}")
+print(f"SF match points: R_match_int={initial_R_match_int}, R_match_far={initial_R_match_far}")
+print(f"SF crossover R_x_SF (thick screen, after matching) = {initial_R_x_SF}")
