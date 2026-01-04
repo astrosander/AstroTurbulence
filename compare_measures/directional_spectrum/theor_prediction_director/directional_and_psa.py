@@ -216,8 +216,8 @@ def update_plot(chi, r_phi, m_psi, m_phi):
     ax2.clear()
     
     ax1.loglog(R, F_vals, label="Directional SF: $D_u/2$", lw=3)
-    ax1.loglog(R, F_psi, "--", label=r"small-R: $A_P (R/R_0)^{m_\psi}$", lw=2, alpha=1)
-    ax1.loglog(R, F_phi, "--", label=r"small-R: $A_P\chi^2 (R/r_\phi)^{m_\Phi}$", lw=2, alpha=1)
+    ax1.loglog(R, F_psi, "--", label=r"INTRISTIC", color="orange", lw=2, alpha=1)
+    ax1.loglog(R, F_phi, "--", label=r"FARADAY", color="green", lw=2, alpha=1)
     
     if R_x_F is not None and np.isfinite(R_x_F) and (R.min() < R_x_F < R.max()):
         ax1.axvline(R_x_F, linestyle="-.", linewidth=2, color="red")
@@ -230,7 +230,7 @@ def update_plot(chi, r_phi, m_psi, m_phi):
     x_all = np.concatenate([R, R[1:]])
     x_min, x_max = x_all.min(), x_all.max()
     
-    y1_all = np.concatenate([F_vals, F_psi, F_phi])
+    y1_all = np.concatenate([F_vals])#, F_psi, F_phi])
     y1_all = y1_all[np.isfinite(y1_all) & (y1_all > 0)]
     if len(y1_all) > 0:
         ax1.set_xlim(x_min, x_max)
@@ -241,9 +241,9 @@ def update_plot(chi, r_phi, m_psi, m_phi):
     
     if has_asymptotics:
         if SF_int is not None:
-            ax2.loglog(R[1:], SF_int[1:], ls="-.", lw=2.0, label=r"PSA: $\propto (R/r_i)^{m_i}$")
+            ax2.loglog(R[1:], SF_int[1:], ls="-.", lw=2.0, color="orange", label=r"INTRISTIC")
         if SF_far is not None:
-            ax2.loglog(R[1:], SF_far[1:], ls="-.", lw=2.0, label=r"PSA: $\propto$ Faraday term")
+            ax2.loglog(R[1:], SF_far[1:], ls="-.", lw=2.0, color="green", label=r"FARADAY")
         
         if (R_x_SF is not None) and np.isfinite(R_x_SF) and (R.min() < R_x_SF < R.max()):
             ax2.axvline(R_x_SF, linestyle="-.", linewidth=2, color="red")
@@ -264,7 +264,7 @@ def update_plot(chi, r_phi, m_psi, m_phi):
         y2_all = y2_all[np.isfinite(y2_all) & (y2_all > 0)]
         if len(y2_all) > 0:
             ax2.set_xlim(x_min, x_max)
-            ax2.set_ylim(y2_all.min()*0.5, y2_all.max()*2)
+            ax2.set_ylim(5e-12, y2_all.max())
     
     fig.canvas.draw_idle()
 
