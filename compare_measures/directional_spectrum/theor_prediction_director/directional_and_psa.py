@@ -9,8 +9,22 @@ init_r_phi = 1
 init_m_psi = 4/3
 init_m_phi = 2/3
 init_L    = 200.0
-Nu        = 1000
+Nu        = 100
 Xi0       = 1.0
+
+# plt.rcParams['text.usetex'] = True
+plt.rcParams['font.family'] = 'serif'
+plt.rcParams["legend.frameon"] = False
+# Publication-ready font sizes
+
+plt.rcParams['font.size'] = 16
+plt.rcParams['axes.labelsize'] = 16
+plt.rcParams['axes.titlesize'] = 16
+plt.rcParams['xtick.labelsize'] = 16
+plt.rcParams['ytick.labelsize'] = 16
+plt.rcParams['legend.fontsize'] = 16
+plt.rcParams['figure.titlesize'] = 16
+
 
 def compute_sigma_phi2_and_lambda(chi, lambda_fixed=100.0):
     sigma_phi = chi / (2.0 * lambda_fixed**2)
