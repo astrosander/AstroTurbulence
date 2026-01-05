@@ -132,6 +132,9 @@ def F_small_piece_psi(R, A_P, R0, m_psi):
 def F_small_piece_phi(R, A_P, chi, r_phi, m_phi):
     return A_P * (chi**2) * (R / r_phi) ** m_phi
 
+def F_small_2term(R, A_P, chi, R0, r_phi, m_psi, m_phi):
+    return A_P * ((R / R0) ** m_psi + (chi**2) * (R / r_phi) ** m_phi)
+
 def compute_R_x_F(chi, R0, r_phi, m_psi, m_phi):
     if abs(m_psi - m_phi) > 1e-12:
         return ((chi**2) * (R0**m_psi) / (r_phi**m_phi)) ** (1.0 / (m_psi - m_phi))
@@ -164,7 +167,19 @@ def compute_all_curves(A_P, chi, R0, r_phi, m_psi, m_phi, L):
     F_vals = F(R, A_P, chi, R0, r_phi, m_psi, m_phi)
     F_psi  = F_small_piece_psi(R, A_P, R0, m_psi)
     F_phi  = F_small_piece_phi(R, A_P, chi, r_phi, m_phi)
+    F_2term = F_small_2term(R, A_P, chi, R0, r_phi, m_psi, m_phi)
     R_x_F  = compute_R_x_F(chi, R0, r_phi, m_psi, m_phi)
+    
+    if R_x_F is not None and np.isfinite(R_x_F) and (R.min() < R_x_F < R.max()):
+        R_match = R_x_F
+    else:
+        R_match = R[10]
+    
+    idx = np.argmin(np.abs(np.log(R) - np.log(R_match)))
+    fac_2term = F_vals[idx] / max(F_2term[idx], 1e-300)
+    if not np.isfinite(fac_2term) or fac_2term <= 0:
+        fac_2term = 1.0
+    F_2term_matched = F_2term * fac_2term
 
     SF_num = SF_int = SF_far = None
     fac_int = fac_far = 1.0
@@ -199,7 +214,7 @@ def compute_all_curves(A_P, chi, R0, r_phi, m_psi, m_phi, L):
     except Exception as e:
         pass
 
-    return (F_vals, F_psi, F_phi, R_x_F,
+    return (F_vals, F_psi, F_phi, F_2term_matched, R_x_F,
             SF_num, SF_int, SF_far,
             R_match_int, R_match_far, fac_int, fac_far, R_x_SF,
             has_numerical, has_asymptotics)
@@ -208,18 +223,19 @@ fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
 plt.subplots_adjust(bottom=0.20, top=0.98, left=0.08, right=0.98, hspace=0.05)
 
 def update_plot(chi, r_phi, m_psi, m_phi):
-    F_vals, F_psi, F_phi, R_x_F, SF_num, SF_int, SF_far, R_match_int, R_match_far, fac_int, fac_far, R_x_SF, has_numerical, has_asymptotics = compute_all_curves(
+    F_vals, F_psi, F_phi, F_2term_matched, R_x_F, SF_num, SF_int, SF_far, R_match_int, R_match_far, fac_int, fac_far, R_x_SF, has_numerical, has_asymptotics = compute_all_curves(
         init_A_P, chi, init_R0, r_phi, m_psi, m_phi, init_L
     )
     
     ax1.clear()
     ax2.clear()
     
-    ax1.loglog(R, F_vals, label="Directional SF: $D_u/2$", lw=3)
+    ax1.loglog(R, F_vals, label="Directional SF: $D_u/2$", color="black",lw=3)
+    ax1.loglog(R, F_2term_matched, "--", label=r"$(R / R_0)^{m_\psi} + \chi^2 (R / r_\phi)^{m_\phi}$", color="red", lw=2, alpha=1)
     ax1.loglog(R, F_psi, "--", label=r"INTRISTIC", color="orange", lw=2, alpha=1)
-    ax1.loglog(R, F_phi, "--", label=r"FARADAY", color="green", lw=2, alpha=1)
+    ax1.loglog(R, F_phi, "--", label=r"FARADAY", color="blue", lw=2, alpha=1)
     
-    ax1.set_ylabel("F(R)", labelpad=2)
+    ax1.set_ylabel("Directional SF", labelpad=2)
     ax1.legend(fontsize=12, borderpad=0.3, handlelength=1.5)
     ax1.tick_params(pad=2)
     
@@ -236,9 +252,9 @@ def update_plot(chi, r_phi, m_psi, m_phi):
         ax1.set_ylim(y1_all.min()/2, y1_all.max()*2)
     
     if R_x_F is not None and np.isfinite(R_x_F) and (x_min_plot < R_x_F < x_max_plot):
-        ax1.axvline(R_x_F, linestyle="-.", linewidth=2, color="red")
+        ax1.axvline(R_x_F, linestyle="-.", linewidth=2, color="gray")
         y0, y1 = ax1.get_ylim()
-        ax1.text(R_x_F, 2 * y0, r"$R_{\times,F}$", rotation=90, va="bottom", ha="right", color="red", fontsize=12)
+        ax1.text(R_x_F, 2 * y0, r"$R_{\times,F}$", rotation=90, va="bottom", ha="right", color="gray", fontsize=12)
     
     if has_numerical and (SF_num is not None):
         ax2.loglog(R[1:], SF_num[1:], color="k", lw=3.2, label=r"PSA: numerical")
@@ -247,10 +263,10 @@ def update_plot(chi, r_phi, m_psi, m_phi):
         if SF_int is not None:
             ax2.loglog(R[1:], SF_int[1:], ls="-.", lw=2.0, color="orange", label=r"INTRISTIC")
         if SF_far is not None:
-            ax2.loglog(R[1:], SF_far[1:], ls="-.", lw=2.0, color="green", label=r"FARADAY")
+            ax2.loglog(R[1:], SF_far[1:], ls="-.", lw=2.0, color="blue", label=r"FARADAY")
     
     ax2.set_xlabel("R", labelpad=2)
-    ax2.set_ylabel("SF(R)", labelpad=2)
+    ax2.set_ylabel("$dP/d\\lambda^2$ SF", labelpad=2)
     ax2.legend(fontsize=12, borderpad=0.3, handlelength=1.5)
     ax2.tick_params(pad=2)
     
@@ -269,14 +285,14 @@ def update_plot(chi, r_phi, m_psi, m_phi):
             ax2.set_ylim(y2_all.min()/2, y2_all.max()*2)
     
     if (R_x_SF is not None) and np.isfinite(R_x_SF) and (x_min_plot < R_x_SF < x_max_plot):
-        ax2.axvline(R_x_SF, linestyle="-.", linewidth=2, color="red")
+        ax2.axvline(R_x_SF, linestyle="-.", linewidth=2, color="gray")
         y_cross = fac_int * (R_x_SF / init_R0) ** m_psi
         y0, y1 = ax2.get_ylim()
-        ax2.text(R_x_SF, 2 * y0, r"$R_{\times,SF}$", rotation=90, va="bottom", ha="right", color="red", fontsize=12)
+        ax2.text(R_x_SF, 2 * y0, r"$R_{\times,SF}$", rotation=90, va="bottom", ha="right", color="gray", fontsize=12)
     
     fig.canvas.draw_idle()
 
-initial_F_vals, initial_F_psi, initial_F_phi, initial_R_x_F, initial_SF_num, initial_SF_int, initial_SF_far, initial_R_match_int, initial_R_match_far, initial_fac_int, initial_fac_far, initial_R_x_SF, initial_has_numerical, initial_has_asymptotics = compute_all_curves(
+initial_F_vals, initial_F_psi, initial_F_phi, initial_F_2term_matched, initial_R_x_F, initial_SF_num, initial_SF_int, initial_SF_far, initial_R_match_int, initial_R_match_far, initial_fac_int, initial_fac_far, initial_R_x_SF, initial_has_numerical, initial_has_asymptotics = compute_all_curves(
     init_A_P, init_chi, init_R0, init_r_phi, init_m_psi, init_m_phi, init_L
 )
 
@@ -287,10 +303,10 @@ ax_r_phi = plt.axes([0.15, 0.11, 0.3, 0.02])
 ax_m_psi = plt.axes([0.15, 0.08, 0.3, 0.02])
 ax_m_phi = plt.axes([0.15, 0.05, 0.3, 0.02])
 
-slider_chi = Slider(ax_chi, r'$\chi$', 0.01, 2.0, valinit=init_chi, valstep=0.01)
-slider_r_phi = Slider(ax_r_phi, r'$r_\phi$', 0.1, 10.0, valinit=init_r_phi, valstep=0.1)
-slider_m_psi = Slider(ax_m_psi, r'$m_\psi$', 0.1, 5.0, valinit=init_m_psi, valstep=0.1)
-slider_m_phi = Slider(ax_m_phi, r'$m_\Phi$', 0.1, 5.0, valinit=init_m_phi, valstep=0.1)
+slider_chi = Slider(ax_chi, r'$\chi$', 0.01, 2.0, valinit=init_chi, valstep=0.01, color="black")
+slider_r_phi = Slider(ax_r_phi, r'$r_\phi$', 0.1, 10.0, valinit=init_r_phi, valstep=0.1, color="black")
+slider_m_psi = Slider(ax_m_psi, r'INTRISTIC: $m_\psi$', 0.1, 5.0, valinit=init_m_psi, valstep=0.1, color="orange")
+slider_m_phi = Slider(ax_m_phi, r'FARADAY: $m_\Phi$', 0.1, 5.0, valinit=init_m_phi, valstep=0.1, color="blue")
 
 def update(val):
     chi = slider_chi.val
