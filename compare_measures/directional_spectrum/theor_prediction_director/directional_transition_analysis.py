@@ -2,11 +2,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 A_P  = 1.0
-chi  = 0.1#4
+chi  = 0.05#4
 R0   = 1.0
 r_phi = 1.0
 m_psi = 4/3
 m_phi = 2/3
+k_trans = 10.0
 
 def fpsi(R):
     x = (R / R0) ** m_psi
@@ -41,6 +42,12 @@ y_exact = Du_over2(R)
 
 Rx = Rx_u()
 
+dm = abs(m_psi - m_phi)
+R_left = R_right = None
+if Rx is not None and np.isfinite(Rx) and dm > 0:
+    R_left  = Rx * (k_trans ** (-1.0 / dm))
+    R_right = Rx * (k_trans ** ( 1.0 / dm))
+
 mask = y_exact > 0
 n_exact = np.full_like(R, np.nan, dtype=float)
 n_exact[mask] = effective_slope(R[mask], y_exact[mask])
@@ -60,6 +67,18 @@ if Rx is not None and np.isfinite(Rx) and (R.min() < Rx < R.max()):
     plt.axvline(Rx, linestyle="-.", linewidth=2, color="gray")
     plt.axhline(0.5 * (m_psi + m_phi), linestyle=":", linewidth=1,
                 label=r"$(m_\psi+m_\Phi)/2$")
+
+if R_left is not None and R_right is not None:
+    if R.min() < R_left < R.max():
+        plt.axvline(R_left, linestyle="--", color="gray", linewidth=1)
+        y0, y1 = plt.ylim()
+        plt.text(R_left, y1 *0.75, r"$R_\times k^{-\frac{1}{\Delta \rm{m}}}$", rotation=90,
+                 va="bottom", ha="right", color="gray")
+    if R.min() < R_right < R.max():
+        plt.axvline(R_right, linestyle="--", color="gray", linewidth=1)
+        y0, y1 = plt.ylim()
+        plt.text(R_right, y1 *0.75, r"$R_\times k^{\frac{1}{\Delta \rm{m}}}$", rotation=90,
+                 va="bottom", ha="right", color="gray")
 
 plt.xlabel("R")
 plt.ylabel("log-log slope")
