@@ -219,8 +219,8 @@ def compute_all_curves(A_P, chi, R0, r_phi, m_psi, m_phi, L):
             R_match_int, R_match_far, fac_int, fac_far, R_x_SF,
             has_numerical, has_asymptotics)
 
-fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
-plt.subplots_adjust(bottom=0.20, top=0.98, left=0.08, right=0.98, hspace=0.05)
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5), sharey=False)
+plt.subplots_adjust(bottom=0.20, top=0.98, left=0.08, right=0.98, wspace=0.15)
 
 def update_plot(chi, r_phi, m_psi, m_phi):
     F_vals, F_psi, F_phi, F_2term_matched, R_x_F, SF_num, SF_int, SF_far, R_match_int, R_match_far, fac_int, fac_far, R_x_SF, has_numerical, has_asymptotics = compute_all_curves(
@@ -235,6 +235,7 @@ def update_plot(chi, r_phi, m_psi, m_phi):
     ax1.loglog(R, F_psi, "--", label=r"INTRISTIC", color="orange", lw=2, alpha=1)
     ax1.loglog(R, F_phi, "--", label=r"FARADAY", color="blue", lw=2, alpha=1)
     
+    # ax1.set_xlabel("R", labelpad=2)
     ax1.set_ylabel("Directional SF", labelpad=2)
     ax1.legend(fontsize=12, borderpad=0.3, handlelength=1.5)
     ax1.tick_params(pad=2)
