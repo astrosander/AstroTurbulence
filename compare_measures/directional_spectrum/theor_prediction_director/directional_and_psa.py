@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.widgets import Slider
+import os
 
 init_A_P  = 1.0
 init_chi  = 0.14
@@ -11,25 +11,35 @@ init_m_phi = 2/3
 init_L    = 200.0
 Nu        = 100
 Xi0       = 1.0
+init_lambda_fixed = 100.0
+init_sigma_phi2_fixed = (init_chi / (2.0 * init_lambda_fixed**2))**2
 
-# plt.rcParams['text.usetex'] = True
+plt.rcParams['text.usetex'] = True
 plt.rcParams['font.family'] = 'serif'
 plt.rcParams["legend.frameon"] = False
 # Publication-ready font sizes
 
-plt.rcParams['font.size'] = 16
-plt.rcParams['axes.labelsize'] = 16
-plt.rcParams['axes.titlesize'] = 16
-plt.rcParams['xtick.labelsize'] = 16
-plt.rcParams['ytick.labelsize'] = 16
-plt.rcParams['legend.fontsize'] = 16
-plt.rcParams['figure.titlesize'] = 16
+plt.rcParams['font.size'] = 26
+plt.rcParams['axes.labelsize'] = 26
+plt.rcParams['axes.titlesize'] = 26
+plt.rcParams['xtick.labelsize'] = 26
+plt.rcParams['ytick.labelsize'] = 26
+plt.rcParams['legend.fontsize'] = 26
+plt.rcParams['figure.titlesize'] = 26
 
 
-def compute_sigma_phi2_and_lambda(chi, lambda_fixed=100.0):
-    sigma_phi = chi / (2.0 * lambda_fixed**2)
-    sigma_phi2 = sigma_phi**2
-    return sigma_phi2, lambda_fixed
+def compute_sigma_phi2_and_lambda(chi, sigma_phi2_fixed=None):
+    if sigma_phi2_fixed is None:
+        lambda_fixed = 100.0
+        sigma_phi = chi / (2.0 * lambda_fixed**2)
+        sigma_phi2_fixed = sigma_phi**2
+    
+    sigma_phi = np.sqrt(max(sigma_phi2_fixed, 1e-10))
+    if chi > 0 and sigma_phi > 0:
+        lam = np.sqrt(chi / (2.0 * sigma_phi))
+    else:
+        lam = 100.0
+    return sigma_phi2_fixed, lam
 
 def fpsi(R, R0, m_psi):
     x = (R / R0) ** m_psi
@@ -158,11 +168,11 @@ def compute_R_x_SF_thick(fac_int, fac_far, r_i, m_i, L, r_phi, m_phi):
 
 R = np.logspace(-5, 1, 1500)
 
-def compute_all_curves(A_P, chi, R0, r_phi, m_psi, m_phi, L):
+def compute_all_curves(A_P, chi, R0, r_phi, m_psi, m_phi, L, sigma_phi2_fixed=None):
     r_i = R0
     m_i = m_psi
 
-    sigma_phi2, lam = compute_sigma_phi2_and_lambda(chi)
+    sigma_phi2, lam = compute_sigma_phi2_and_lambda(chi, sigma_phi2_fixed=sigma_phi2_fixed)
 
     F_vals = F(R, A_P, chi, R0, r_phi, m_psi, m_phi)
     F_psi  = F_small_piece_psi(R, A_P, R0, m_psi)
@@ -219,13 +229,18 @@ def compute_all_curves(A_P, chi, R0, r_phi, m_psi, m_phi, L):
             R_match_int, R_match_far, fac_int, fac_far, R_x_SF,
             has_numerical, has_asymptotics)
 
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5), sharey=False)
-plt.subplots_adjust(bottom=0.20, top=0.98, left=0.08, right=0.98, wspace=0.15)
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6), sharey=False)
+plt.subplots_adjust(bottom=0.10, top=0.95, left=0.08, right=0.98, wspace=0.25)
+
+lambda_text = None
 
 def update_plot(chi, r_phi, m_psi, m_phi):
+    global lambda_text
     F_vals, F_psi, F_phi, F_2term_matched, R_x_F, SF_num, SF_int, SF_far, R_match_int, R_match_far, fac_int, fac_far, R_x_SF, has_numerical, has_asymptotics = compute_all_curves(
-        init_A_P, chi, init_R0, r_phi, m_psi, m_phi, init_L
+        init_A_P, chi, init_R0, r_phi, m_psi, m_phi, init_L, sigma_phi2_fixed=init_sigma_phi2_fixed
     )
+    
+    _, lam = compute_sigma_phi2_and_lambda(chi, sigma_phi2_fixed=init_sigma_phi2_fixed)
     
     ax1.clear()
     ax2.clear()
@@ -235,9 +250,9 @@ def update_plot(chi, r_phi, m_psi, m_phi):
     ax1.loglog(R, F_psi, "--", label=r"INTRISTIC", color="orange", lw=2, alpha=1)
     ax1.loglog(R, F_phi, "--", label=r"FARADAY", color="blue", lw=2, alpha=1)
     
-    # ax1.set_xlabel("R", labelpad=2)
+    ax1.set_xlabel("$R$", labelpad=2)
     ax1.set_ylabel("Directional SF", labelpad=2)
-    ax1.legend(fontsize=12, borderpad=0.3, handlelength=1.5)
+    ax1.legend(fontsize=22, borderpad=0.3, handlelength=1.5)
     ax1.tick_params(pad=2)
     
     R_min = 10*R.min()
@@ -255,7 +270,7 @@ def update_plot(chi, r_phi, m_psi, m_phi):
     if R_x_F is not None and np.isfinite(R_x_F) and (x_min_plot < R_x_F < x_max_plot):
         ax1.axvline(R_x_F, linestyle="-.", linewidth=2, color="gray")
         y0, y1 = ax1.get_ylim()
-        ax1.text(R_x_F, 2 * y0, r"$R_{\times,F}$", rotation=90, va="bottom", ha="right", color="gray", fontsize=12)
+        ax1.text(R_x_F, 2 * y0, r"$R_{\times,F}$", rotation=90, va="bottom", ha="right", color="gray", fontsize=22)
     
     if has_numerical and (SF_num is not None):
         ax2.loglog(R[1:], SF_num[1:], color="k", lw=3.2, label=r"PSA: numerical")
@@ -266,9 +281,9 @@ def update_plot(chi, r_phi, m_psi, m_phi):
         if SF_far is not None:
             ax2.loglog(R[1:], SF_far[1:], ls="-.", lw=2.0, color="blue", label=r"FARADAY")
     
-    ax2.set_xlabel("R", labelpad=2)
+    ax2.set_xlabel("$R$", labelpad=2)
     ax2.set_ylabel("$dP/d\\lambda^2$ SF", labelpad=2)
-    ax2.legend(fontsize=12, borderpad=0.3, handlelength=1.5)
+    ax2.legend(fontsize=22, borderpad=0.3, handlelength=1.5)
     ax2.tick_params(pad=2)
     
     y2_all_list = []
@@ -289,42 +304,30 @@ def update_plot(chi, r_phi, m_psi, m_phi):
         ax2.axvline(R_x_SF, linestyle="-.", linewidth=2, color="gray")
         y_cross = fac_int * (R_x_SF / init_R0) ** m_psi
         y0, y1 = ax2.get_ylim()
-        ax2.text(R_x_SF, 2 * y0, r"$R_{\times,SF}$", rotation=90, va="bottom", ha="right", color="gray", fontsize=12)
+        ax2.text(R_x_SF, 2 * y0, r"$R_{\times,SF}$", rotation=90, va="bottom", ha="right", color="gray", fontsize=22)
+    
+    if lambda_text is not None:
+        lambda_text.remove()
+    lambda_text = fig.text(0.5, -0.07, r"$\lambda = {:.1f}$".format(lam), ha="center", va="bottom", fontsize=50, color="red", weight='bold')
     
     fig.canvas.draw_idle()
 
-initial_F_vals, initial_F_psi, initial_F_phi, initial_F_2term_matched, initial_R_x_F, initial_SF_num, initial_SF_int, initial_SF_far, initial_R_match_int, initial_R_match_far, initial_fac_int, initial_fac_far, initial_R_x_SF, initial_has_numerical, initial_has_asymptotics = compute_all_curves(
-    init_A_P, init_chi, init_R0, init_r_phi, init_m_psi, init_m_phi, init_L
-)
+frames_dir = "frames"
+os.makedirs(frames_dir, exist_ok=True)
 
-update_plot(init_chi, init_r_phi, init_m_psi, init_m_phi)
+chi_values = np.linspace(0, 0.5, 101)
+n_frames = len(chi_values)
 
-ax_chi = plt.axes([0.15, 0.14, 0.3, 0.02])
-ax_r_phi = plt.axes([0.15, 0.11, 0.3, 0.02])
-ax_m_psi = plt.axes([0.15, 0.08, 0.3, 0.02])
-ax_m_phi = plt.axes([0.15, 0.05, 0.3, 0.02])
+for i, chi in enumerate(chi_values):
+    update_plot(chi, init_r_phi, init_m_psi, init_m_phi)
+    
+    frame_filename = os.path.join(frames_dir, f"frame_{i:04d}_chi_{chi:.3f}.png")
+    fig.savefig(frame_filename, dpi=150, bbox_inches='tight')
+    print(f"Saved frame {i+1}/{n_frames}: {frame_filename} (chi={chi:.3f})")
 
-slider_chi = Slider(ax_chi, r'$\chi$', 0.01, 2.0, valinit=init_chi, valstep=0.01, color="black")
-slider_r_phi = Slider(ax_r_phi, r'$r_\phi$', 0.1, 10.0, valinit=init_r_phi, valstep=0.1, color="black")
-slider_m_psi = Slider(ax_m_psi, r'INTRISTIC: $m_\psi$', 0.1, 5.0, valinit=init_m_psi, valstep=0.1, color="orange")
-slider_m_phi = Slider(ax_m_phi, r'FARADAY: $m_\Phi$', 0.1, 5.0, valinit=init_m_phi, valstep=0.1, color="blue")
+plt.close()
 
-def update(val):
-    chi = slider_chi.val
-    r_phi = slider_r_phi.val
-    m_psi = slider_m_psi.val
-    m_phi = slider_m_phi.val
-    update_plot(chi, r_phi, m_psi, m_phi)
-
-slider_chi.on_changed(update)
-slider_r_phi.on_changed(update)
-slider_m_psi.on_changed(update)
-slider_m_phi.on_changed(update)
-
-plt.show()
-
-print("=== Initial Parameters ===")
-print(f"A_P={init_A_P}, chi={init_chi}, R0={init_R0}, r_phi={init_r_phi}, m_psi={init_m_psi}, m_phi={init_m_phi}, L={init_L}, Nu={Nu}")
-print(f"F crossover R_x_F = {initial_R_x_F}")
-print(f"SF match points: R_match_int={initial_R_match_int}, R_match_far={initial_R_match_far}")
-print(f"SF crossover R_x_SF (thick screen, after matching) = {initial_R_x_SF}")
+print("\n=== Frame Generation Complete ===")
+print(f"Generated {n_frames} frames in '{frames_dir}' directory")
+print(f"Parameters: A_P={init_A_P}, R0={init_R0}, r_phi={init_r_phi}, m_psi={init_m_psi}, m_phi={init_m_phi}, L={init_L}, Nu={Nu}")
+print(f"chi varied from 0 to 2")
