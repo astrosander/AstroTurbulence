@@ -10,6 +10,20 @@ init_m_psi = 4/3
 init_m_phi = 2/3
 k_trans = 10.0
 
+
+plt.rcParams['text.usetex'] = True
+plt.rcParams['font.family'] = 'serif'
+plt.rcParams["legend.frameon"] = False
+# Publication-ready font sizes
+
+plt.rcParams['font.size'] = 24
+plt.rcParams['axes.labelsize'] = 24
+plt.rcParams['axes.titlesize'] = 24
+plt.rcParams['xtick.labelsize'] = 24
+plt.rcParams['ytick.labelsize'] = 24
+plt.rcParams['legend.fontsize'] = 24
+plt.rcParams['figure.titlesize'] = 24
+
 def fpsi(R, R0, m_psi):
     x = (R / R0) ** m_psi
     return x / (1.0 + x)
@@ -95,7 +109,7 @@ def update_plot(chi, r_phi, m_psi, m_phi):
     
     ax.set_xlabel("R")
     ax.set_ylabel("log-log slope")
-    ax.legend(fontsize=9, loc="best")
+    ax.legend(fontsize=20, loc="best")
     
     fig.canvas.draw_idle()
 
@@ -127,6 +141,7 @@ slider_r_phi.on_changed(update)
 slider_m_psi.on_changed(update)
 slider_m_phi.on_changed(update)
 
+plt.savefig("das.svg")
 plt.show()
 
 print("=== Initial Parameters ===")
