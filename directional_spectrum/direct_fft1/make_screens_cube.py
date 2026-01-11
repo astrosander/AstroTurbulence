@@ -16,7 +16,7 @@ inner_phi = 0.0
 rms_psi = 1.0
 rms_phi = 1.0
 p0 = 1.0
-chi = "0.1"
+chi = "0.01"
 seed = 0
 out = "screens_cube.npz"
 
