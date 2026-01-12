@@ -7,8 +7,8 @@ Nx = 512*4
 Ny = 512*4
 Lx = 10.0
 Ly = 10.0
-m_psi = 4#2/3
-m_phi = 2/3#5/3
+m_psi = 4
+m_phi = 2/3
 R0_psi = 1.0
 r_phi = 0.1
 inner_psi = 0.0
@@ -16,14 +16,39 @@ inner_phi = 0.0
 rms_psi = 1.0
 rms_phi = 1.0
 p0 = 1.0
-chi = "0.01"
+chi = "0.1"
 seed = 0
 out = "screens_cube.npz"
 
+phi_beta_lo = 11.0 / 3.0
+phi_beta_hi = 5.0
+phi_lbreak = 0.05
+phi_kbreak = None
+use_hard_break = True
 
-def von_karman_psd_2d(k, m, k0, k_inner=None):
+
+def hard_broken_pk(K, k_break, beta_lo, beta_hi):
+    K = np.asarray(K, dtype=np.float64)
+    kb = float(k_break)
+    out = np.zeros_like(K)
+    m1 = (K > 0) & (K <= kb)
+    m2 = (K > kb)
+    out[m1] = K[m1]**(-beta_lo)
+    out[m2] = (kb**(beta_hi - beta_lo)) * K[m2]**(-beta_hi)
+    return out
+
+
+def von_karman_psd_2d(k, m, k0, k_inner=None, beta_hi=None, k_break=None, use_hard_break=True):
     beta = m + 2.0
-    psd = (k * k + k0 * k0) ** (-0.5 * beta)
+    if (beta_hi is not None) and (k_break is not None):
+        if use_hard_break:
+            psd = hard_broken_pk(k, k_break, beta, beta_hi)
+        else:
+            x = np.maximum(k, 1e-30) / k_break
+            smooth = 8.0
+            psd = x**(-beta) * (1.0 + x**smooth)**((beta - beta_hi) / smooth)
+    else:
+        psd = (k * k + k0 * k0) ** (-0.5 * beta)
     if k_inner is not None and k_inner > 0:
         psd *= np.exp(-(k / k_inner) ** 2)
     psd = psd.astype(np.float64)
@@ -69,11 +94,19 @@ def main():
     k_inner_psi = (2.0 * np.pi / inner_psi) if inner_psi and inner_psi > 0 else None
     k_inner_phi = (2.0 * np.pi / inner_phi) if inner_phi and inner_phi > 0 else None
 
+    if phi_kbreak is not None:
+        k_break = float(phi_kbreak)
+    elif phi_lbreak is not None:
+        k_break = 2.0 * np.pi / (float(phi_lbreak) * Lx)
+    else:
+        k_break = 2.0 * np.pi / (0.05 * Lx)
+
     def psd_psi(k):
         return von_karman_psd_2d(k, m=m_psi, k0=k0_psi, k_inner=k_inner_psi)
 
     def psd_phi(k):
-        return von_karman_psd_2d(k, m=m_phi, k0=k0_phi, k_inner=k_inner_phi)
+        return von_karman_psd_2d(k, m=m_phi, k0=k0_phi, k_inner=k_inner_phi, 
+                                 beta_hi=phi_beta_hi, k_break=k_break, use_hard_break=use_hard_break)
 
     psi = gaussian_real_field_2d_from_psd(Ny, Nx, Ly, Lx, psd_psi, rng)
     phi = gaussian_real_field_2d_from_psd(Ny, Nx, Ly, Lx, psd_phi, rng)
@@ -99,6 +132,8 @@ def main():
         rms_psi=rms_psi, rms_phi=rms_phi,
         p0=p0, chi=chi_list.tolist(),
         seed=seed,
+        phi_beta_lo=phi_beta_lo, phi_beta_hi=phi_beta_hi,
+        phi_kbreak=k_break, phi_lbreak=phi_lbreak, use_hard_break=use_hard_break,
         model="Separated screens: intrinsic synchrotron region + foreground Faraday screen",
     )
 
