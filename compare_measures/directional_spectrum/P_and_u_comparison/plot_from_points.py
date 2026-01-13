@@ -97,7 +97,7 @@ plt.savefig(structure_file, dpi=150, bbox_inches='tight')
 print(f"  Saved structure function figure to {structure_file}")
 
 # Also save as PDF
-structure_file_pdf = 'structure_functions_from_points_1400.pdf'
+structure_file_pdf = 'structure_functions_from_points_1400.svg'
 plt.savefig(structure_file_pdf, bbox_inches='tight')
 print(f"  Saved structure function figure to {structure_file_pdf}")
 
@@ -135,7 +135,7 @@ plt.savefig(spectrum_file, dpi=150, bbox_inches='tight')
 print(f"  Saved spectrum figure to {spectrum_file}")
 
 # Also save as PDF
-spectrum_file_pdf = 'power_spectra_from_points_1400.pdf'
+spectrum_file_pdf = 'power_spectra_from_points_1400.svg'
 plt.savefig(spectrum_file_pdf, bbox_inches='tight')
 print(f"  Saved spectrum figure to {spectrum_file_pdf}")
 
