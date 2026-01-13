@@ -27,10 +27,10 @@ ru = data['ru']
 Du = data['Du']
 
 # Extract power spectrum data
-kP = data['kP'][1:]
-Pk_amp = data['Pk_amp'][1:]
-ku = data['ku'][1:]
-Pk_u = data['Pk_u'][1:]
+kP = data['kP']
+Pk_amp = data['Pk_amp']
+ku = data['ku']
+Pk_u = data['Pk_u']
 
 # Extract parameters for title/labels
 N = int(data['N'])
@@ -60,35 +60,62 @@ r_max = np.max(r_all)
 r_ref = np.geomspace(r_min, r_max, 100)
 
 # Fit to DP data
-mask = (rP > 0) & (DP > 0)
-r_fit = rP[mask]
-D_fit = DP[mask]
+mask_P = (rP > 0) & (DP > 0)
+r_fit_P = rP[mask_P]
+D_fit_P = DP[mask_P]
 
-# Initial guess
-R_0_init = np.sqrt(r_min * r_max)
-A_P_init = np.median(D_fit) / 2.0
+# Initial guess for P_i
+R_0_init_P = np.sqrt(r_min * r_max)
+A_P_init_P = np.median(D_fit_P) / 2.0
 
-# Perform fit
+# Perform fit for P_i
 try:
-    popt, pcov = curve_fit(model_func, r_fit, D_fit, 
-                          p0=[A_P_init, R_0_init],
-                          bounds=([0, r_min*0.1], [np.inf, r_max*10]))
-    A_P_fit, R_0_fit = popt
-    print(f"Fitted parameters: A_P = {A_P_fit:.6e}, R_0 = {R_0_fit:.6e}")
+    popt_P, pcov_P = curve_fit(model_func, r_fit_P, D_fit_P, 
+                               p0=[A_P_init_P, R_0_init_P],
+                               bounds=([0, r_min*0.1], [np.inf, r_max*10]))
+    A_P_fit_P, R_0_fit_P = popt_P
+    print(f"Fitted parameters for P_i: A_P = {A_P_fit_P:.6e}, R_0 = {R_0_fit_P:.6e}")
 except Exception as e:
-    print(f"Fit failed: {e}, using initial guess")
-    A_P_fit, R_0_fit = A_P_init, R_0_init
-# A_P_fit=1
-# R_0_fit=0.2
-Dr_ref = model_func(r_ref, A_P_fit, R_0_fit)
-ax.loglog(r_ref, Dr_ref, '--', color='gray', linewidth=1.5, 
-          label=r'$2A_P \frac{(R/R_0)^{m_\psi}}{1 + (R/R_0)^{m_\psi}}$', alpha=0.7)
+    print(f"Fit failed for P_i: {e}, using initial guess")
+    A_P_fit_P, R_0_fit_P = A_P_init_P, R_0_init_P
+
+Dr_ref_P = model_func(r_ref, A_P_fit_P, R_0_fit_P)
+ax.loglog(r_ref, Dr_ref_P, '--', color='blue', linewidth=1.5, alpha=0.7,
+          label=r'$2A_P \frac{(R/R_0)^{m_\psi}}{1 + (R/R_0)^{m_\psi}}$ ($P_i$)')
+
+# Fit to Du data
+mask_u = (ru > 0) & (Du > 0)
+r_fit_u = ru[mask_u]
+D_fit_u = Du[mask_u]
+
+# Initial guess for u_i
+R_0_init_u = np.sqrt(r_min * r_max)
+A_P_init_u = np.median(D_fit_u) / 2.0
+
+# Perform fit for u_i
+try:
+    popt_u, pcov_u = curve_fit(model_func, r_fit_u, D_fit_u, 
+                               p0=[A_P_init_u, R_0_init_u],
+                               bounds=([0, r_min*0.1], [np.inf, r_max*10]))
+    A_P_fit_u, R_0_fit_u = popt_u
+    print(f"Fitted parameters for u_i: A_P = {A_P_fit_u:.6e}, R_0 = {R_0_fit_u:.6e}")
+except Exception as e:
+    print(f"Fit failed for u_i: {e}, using initial guess")
+    A_P_fit_u, R_0_fit_u = A_P_init_u, R_0_init_u
+
+Dr_ref_u = model_func(r_ref, A_P_fit_u, R_0_fit_u)
+ax.loglog(r_ref, Dr_ref_u, '--', color='red', linewidth=1.5, alpha=0.7,
+          label=r'$2A_P \frac{(R/R_0)^{m_\psi}}{1 + (R/R_0)^{m_\psi}}$ ($u_i$)')
 
 ax.set_xlabel(r'$r$')
 ax.set_ylabel(r'$D(r)$')
 # ax.set_title(rf'Structure Functions: $P_i$ vs $u_i$ (N={N}, L={L})', fontsize=14)
 ax.legend(fontsize=24)
 # ax.grid(True, alpha=0.3, which='both')
+r_data_all = np.concatenate([rP[rP > 0], ru[ru > 0]])
+D_data_all = np.concatenate([DP[DP > 0], Du[Du > 0]])
+ax.set_xlim(np.min(r_data_all), np.max(r_data_all))
+ax.set_ylim(np.min(D_data_all), np.max(D_data_all))
 plt.tight_layout()
 
 # Save structure function figure
@@ -109,24 +136,38 @@ fig, ax = plt.subplots(figsize=(10, 6))
 ax.loglog(kP, Pk_amp, 'o', color='blue', label=r'$P(k)$ for $|P_i|$', markersize=4, linewidth=1.5)
 ax.loglog(ku, Pk_u, 's', color='red', label=r'$P(k)$ for $u_i$', markersize=4, linewidth=1.5)
 
-# Add -11/3 reference line
+# Add -11/3 reference lines
 k_all = np.concatenate([kP, ku])
 k_min = np.min(k_all[k_all > 0])
 k_max = np.max(k_all)
 k_ref = np.geomspace(k_min, k_max, 100)
 anchor_k = np.sqrt(k_min * k_max)
-anchor_idx = np.argmin(np.abs(kP - anchor_k))
-if anchor_idx >= len(Pk_amp):
-    anchor_idx = len(Pk_amp) - 1
-C = Pk_amp[anchor_idx] * (kP[anchor_idx] ** (11.0/3.0))
-Pk_ref = C * k_ref ** (-11.0/3.0)
-ax.loglog(k_ref, Pk_ref, '--', color='gray', linewidth=1.5, label=r'$k^{-11/3}$', alpha=0.7)
+
+# Reference line for P_i
+anchor_idx_P = np.argmin(np.abs(kP - anchor_k))
+if anchor_idx_P >= len(Pk_amp):
+    anchor_idx_P = len(Pk_amp) - 1
+C_P = Pk_amp[anchor_idx_P] * (kP[anchor_idx_P] ** (11.0/3.0))
+Pk_ref_P = C_P * k_ref ** (-11.0/3.0)
+ax.loglog(k_ref, Pk_ref_P, '--', color='blue', linewidth=1.5, label=r'$k^{-11/3}$ ($|P_i|$)', alpha=0.7)
+
+# Reference line for u_i
+anchor_idx_u = np.argmin(np.abs(ku - anchor_k))
+if anchor_idx_u >= len(Pk_u):
+    anchor_idx_u = len(Pk_u) - 1
+C_u = Pk_u[anchor_idx_u] * (ku[anchor_idx_u] ** (11.0/3.0))
+Pk_ref_u = C_u * k_ref ** (-11.0/3.0)
+ax.loglog(k_ref, Pk_ref_u, '--', color='red', linewidth=1.5, label=r'$k^{-11/3}$ ($u_i$)', alpha=0.7)
 
 ax.set_xlabel(r'$k$')
 ax.set_ylabel(r'$P(k)$')
 # ax.set_title(rf'Power Spectra: $|P_i|$ vs $u_i$ (N={N}, L={L})', fontsize=14)
 ax.legend(fontsize=24)
 # ax.grid(True, alpha=0.3, which='both')
+k_data_all = np.concatenate([kP[kP > 0], ku[ku > 0]])
+Pk_data_all = np.concatenate([Pk_amp[Pk_amp > 0], Pk_u[Pk_u > 0]])
+ax.set_xlim(np.min(k_data_all), np.max(k_data_all))
+ax.set_ylim(np.min(Pk_data_all), np.max(Pk_data_all))
 plt.tight_layout()
 
 # Save spectrum figure
