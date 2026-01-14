@@ -123,8 +123,10 @@ def intrinsic_polarization_from_density_and_Bperp(
     Returns:
       P_i: complex array [N,N]
     """
+    print(np.mean(bx_cube))
     bperp = np.sqrt(bx_cube**2 + by_cube**2) + 1e-30
-    eps = (n_cube**alpha_n) * (bperp**alpha_B)
+    #eps = (n_cube**alpha_n) * (bperp**alpha_B)
+    eps = (bperp**2)
 
     if evpa_from_B:
         # B angle in plane; E-vector is perpendicular for synchrotron
@@ -134,7 +136,9 @@ def intrinsic_polarization_from_density_and_Bperp(
         # if you have your own angle model, plug it in here instead
         chi = chi_offset
 
-    dP = p0 * eps * np.exp(2j * chi) * dz
+    # dP = p0 * eps * np.exp(2j * chi) * dz
+    # dP = eps * np.exp(2j * chi) * dz
+    dP = (bx_cube**2 + by_cube**2 + 2j*bx_cube*by_cube) + 1e-30
     P_i = np.sum(dP, axis=2)  # integrate along z (LOS)
     return P_i
 
@@ -242,14 +246,15 @@ def isotropic_structure_function_2d(field2d, Lxy, nbins=40):
 
 def spectrum_P_amp(P_i, Lxy, nbins=40):
     """
-    Spectrum of P_i^a interpreted as amplitude: |P_i|
+    Spectrum of P_i using |FFT{Q+iU}|^2 where Q+iU = P_i
     """
-    return isotropic_power_spectrum_2d(np.abs(P_i), Lxy, nbins=nbins)
+    return isotropic_power_spectrum_2d(P_i, Lxy, nbins=nbins)
 
 
 def spectrum_u_i(u_i, Lxy, nbins=40):
     """
-    Spectrum of u_i (unit-modulus complex field)
+    Spectrum of u_i using |FFT{(Q+iU)/sqrt(Q^2+U^2)}|^2
+    where u_i = (Q+iU)/sqrt(Q^2+U^2) is the unit polarization
     """
     return isotropic_power_spectrum_2d(u_i, Lxy, nbins=nbins)
 
@@ -272,6 +277,14 @@ if __name__ == "__main__":
     # --- 2) Perpendicular B-field cube with power-law spectrum ---
     beta_B = 11/3
     bx, by, bz = make_solenoidal_vector_field_3d(N, L, beta=beta_B, rng=rng)
+
+    # --- 2a) Add mean magnetic field ---
+    B0x = 1000.0  # mean field in x direction
+    B0y = 0.0  # mean field in y direction
+    B0z = 0.0  # mean field in z direction (along LOS)
+    bx = bx + B0x
+    by = by + B0y
+    bz = bz + B0z
 
     # --- 3) Build intrinsic complex polarization screen P_i(x,y) ---
     P_i = intrinsic_polarization_from_density_and_Bperp(
@@ -316,6 +329,9 @@ if __name__ == "__main__":
         p0=0.7,
         alpha_B=2.0,
         alpha_n=1.0,
+        B0x=B0x,
+        B0y=B0y,
+        B0z=B0z,
         # 3D cubes
         n_cube=n,
         bx_cube=bx,
