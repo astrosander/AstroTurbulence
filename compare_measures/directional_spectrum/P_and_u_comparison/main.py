@@ -18,9 +18,23 @@ def _kgrid_fftn(N, L):
     return KX, KY, KZ, K
 
 
-def make_powerlaw_scalar_field_3d(N, L, beta, rng=None):
+def make_powerlaw_scalar_field_3d(N, L, beta, rng=None, R_cutoff=None):
     """
-    Make a real 3D Gaussian random field with 3D power spectrum P(k) ∝ k^{-beta}.
+    Make a real 3D Gaussian random field with 3D power spectrum P(k) ∝ k^{-beta} * exp(-k^2 R^2).
+    If R_cutoff is None, uses pure power law k^{-beta}.
+
+    Parameters:
+    -----------
+    N : int
+        Grid size
+    L : float
+        Box size
+    beta : float
+        Power law index (P(k) ∝ k^{-beta})
+    rng : numpy random generator, optional
+        Random number generator
+    R_cutoff : float, optional
+        Cutoff scale for exponential factor exp(-k^2 R^2). If None, no cutoff applied.
 
     Returns: field[N,N,N] real
     """
@@ -30,6 +44,21 @@ def make_powerlaw_scalar_field_3d(N, L, beta, rng=None):
     amp = np.zeros_like(K, dtype=np.complex128)
     mask = K > 0
     amp[mask] = K[mask] ** (-beta / 2.0)
+    
+    # Apply exponential cutoff if R_cutoff is specified
+    # R_cutoff is in units of grid cells
+    # Convert to proper k-space cutoff: k_cut = N / (2*pi*R_cells)
+    if R_cutoff is not None:
+        k_cut = N / (2*np.pi * R_cutoff)  # cutoff in FFT index units
+        amp[mask] *= np.exp(-(K[mask] / k_cut)**2)
+        
+        # Sanity check to avoid underflow
+        K_max = K[mask].max()
+        exp_arg_max = (K_max / k_cut)**2
+        if exp_arg_max > 100:
+            print(f"Warning: (K_max/k_cut)^2 = {exp_arg_max:.2e} is very large, may cause underflow")
+        else:
+            print(f"Cutoff: R_cutoff={R_cutoff} cells, k_cut={k_cut:.2f}, (K_max/k_cut)^2={exp_arg_max:.2f}")
 
     noise = rng.normal(size=K.shape) + 1j * rng.normal(size=K.shape)
     F = noise * amp
@@ -55,9 +84,24 @@ def make_powerlaw_scalar_field_3d(N, L, beta, rng=None):
     return field
 
 
-def make_solenoidal_vector_field_3d(N, L, beta, rng=None):
+def make_solenoidal_vector_field_3d(N, L, beta, rng=None, R_cutoff=None):
     """
-    Make an approximately divergence-free (solenoidal) 3D vector field with P(k) ∝ k^{-beta}.
+    Make an approximately divergence-free (solenoidal) 3D vector field with P(k) ∝ k^{-beta} * exp(-k^2 R^2).
+    If R_cutoff is None, uses pure power law k^{-beta}.
+    
+    Parameters:
+    -----------
+    N : int
+        Grid size
+    L : float
+        Box size
+    beta : float
+        Power law index (P(k) ∝ k^{-beta})
+    rng : numpy random generator, optional
+        Random number generator
+    R_cutoff : float, optional
+        Cutoff scale for exponential factor exp(-k^2 R^2). If None, no cutoff applied.
+    
     Returns Bx, By, Bz as real cubes.
     """
     rng = np.random.default_rng() if rng is None else rng
@@ -66,6 +110,21 @@ def make_solenoidal_vector_field_3d(N, L, beta, rng=None):
     amp = np.zeros_like(K, dtype=np.complex128)
     mask = K > 0
     amp[mask] = K[mask] ** (-beta / 2.0)
+    
+    # Apply exponential cutoff if R_cutoff is specified
+    # R_cutoff is in units of grid cells
+    # Convert to proper k-space cutoff: k_cut = N / (2*pi*R_cells)
+    if R_cutoff is not None:
+        k_cut = N / (2*np.pi * R_cutoff)  # cutoff in FFT index units
+        amp[mask] *= np.exp(-(K[mask] / k_cut)**2)
+        
+        # Sanity check to avoid underflow
+        K_max = K[mask].max()
+        exp_arg_max = (K_max / k_cut)**2
+        if exp_arg_max > 100:
+            print(f"Warning: (K_max/k_cut)^2 = {exp_arg_max:.2e} is very large, may cause underflow")
+        else:
+            print(f"Cutoff: R_cutoff={R_cutoff} cells, k_cut={k_cut:.2f}, (K_max/k_cut)^2={exp_arg_max:.2f}")
 
     Fx = (rng.normal(size=K.shape) + 1j*rng.normal(size=K.shape)) * amp
     Fy = (rng.normal(size=K.shape) + 1j*rng.normal(size=K.shape)) * amp
@@ -200,7 +259,8 @@ def isotropic_power_spectrum_2d(field2d, Lxy, nbins=40):
     K = np.sqrt(KX**2 + KY**2)
 
     kmax = K.max()
-    bins = np.linspace(0.0, kmax, nbins+1)
+    kmin = K[K > 0].min()  # minimum positive k value
+    bins = np.geomspace(kmin, kmax, nbins+1)
     which = np.digitize(K.ravel(), bins) - 1
 
     Pk = np.zeros(nbins)
@@ -213,7 +273,7 @@ def isotropic_power_spectrum_2d(field2d, Lxy, nbins=40):
             Pk[i] = P_flat[m].mean()
             Nk[i] = m.sum()
 
-    k_centers = 0.5*(bins[:-1] + bins[1:])
+    k_centers = np.sqrt(bins[:-1] * bins[1:])  # geometric mean for log bins
     good = (Nk > 0) & (k_centers > 0)
     return k_centers[good], Pk[good]
 
@@ -293,7 +353,7 @@ if __name__ == "__main__":
     rng = np.random.default_rng(1234)
 
     # Grid / box
-    N = 256
+    N = 1024
     L = 1.0  # physical size (same in x,y,z here)
 
     # --- 1) Density cube with power-law spectrum ---
@@ -303,7 +363,8 @@ if __name__ == "__main__":
 
     # --- 2) Perpendicular B-field cube with power-law spectrum ---
     beta_B = 11/3
-    bx, by, bz = make_solenoidal_vector_field_3d(N, L, beta=beta_B, rng=rng)
+    R_cutoff = None  # Set to a value (e.g., 0.1) to enable exponential cutoff exp(-k^2 R^2)
+    bx, by, bz = make_solenoidal_vector_field_3d(N, L, beta=beta_B, rng=rng, R_cutoff=R_cutoff)
 
     print(f"RMS before adding mean field:")
     print(f"  bx RMS: {np.sqrt(np.mean(bx**2)):.6e}")
@@ -355,7 +416,7 @@ if __name__ == "__main__":
     print(f"  u_i structure bins:  {len(ru)}")
 
     # --- 7) Save all data to npz file ---
-    output_file = f'{N}.npz'
+    output_file = f'{N}_3_upd.npz'
     np.savez(
         output_file,
         # Parameters
