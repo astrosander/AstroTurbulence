@@ -3,35 +3,35 @@ import matplotlib.pyplot as plt
 from scipy.special import j0
 from scipy.integrate import simpson
 
-plt.rcParams.update({
-    'font.size': 11,
-    "font.family": "STIXGeneral",
-    "mathtext.fontset": "stix",
-    # 'font.family': 'serif',
-    # 'font.serif': ['Times', 'Palatino', 'New Century Schoolbook', 'Bookman', 'Computer Modern Roman'],
-    'text.usetex': False,
-    'axes.linewidth': 1.2,
-    'axes.labelsize': 12,
-    'axes.titlesize': 13,
-    'xtick.labelsize': 14,
-    'ytick.labelsize': 14,
-    'legend.fontsize': 14,
-    'legend.frameon': True,
-    'legend.fancybox': True,
-    'legend.framealpha': 0.9,
-    'figure.dpi': 100,
-    'savefig.dpi': 300,
-    'savefig.bbox': 'tight',
-    'savefig.pad_inches': 0.1,
-})
+# plt.rcParams.update({
+#     'font.size': 11,
+#     "font.family": "STIXGeneral",
+#     "mathtext.fontset": "stix",
+#     # 'font.family': 'serif',
+#     # 'font.serif': ['Times', 'Palatino', 'New Century Schoolbook', 'Bookman', 'Computer Modern Roman'],
+#     'text.usetex': False,
+#     'axes.linewidth': 1.2,
+#     'axes.labelsize': 12,
+#     'axes.titlesize': 13,
+#     'xtick.labelsize': 14,
+#     'ytick.labelsize': 14,
+#     'legend.fontsize': 14,
+#     'legend.frameon': True,
+#     'legend.fancybox': True,
+#     'legend.framealpha': 0.9,
+#     'figure.dpi': 100,
+#     'savefig.dpi': 300,
+#     'savefig.bbox': 'tight',
+#     'savefig.pad_inches': 0.1,
+# })
 
-import matplotlib as mpl
+# import matplotlib as mpl
 
-# --- unified TeX-style appearance (MathText, no system LaTeX needed) ---
-mpl.rcParams.update({
-    "text.usetex": False,          # use MathText (portable)
-    "font.family": "STIXGeneral",  # match math fonts
-})
+# # --- unified TeX-style appearance (MathText, no system LaTeX needed) ---
+# mpl.rcParams.update({
+#     "text.usetex": False,          # use MathText (portable)
+#     "font.family": "STIXGeneral",  # match math fonts
+# })
 
 def ring_average_2d(power2d, kmin=1.0, kmax=None, nbins=200):
     ny, nx = power2d.shape
@@ -246,7 +246,7 @@ if __name__ == "__main__":
     mPhi_kolm = mPhi_from_beta3D(beta_kolm)
 
     directional_spectrum_from_models(
-        N=1024*2,
+        N=1024,
         A_P=1.0,
         R0=55.38,
         mpsi=1.373,

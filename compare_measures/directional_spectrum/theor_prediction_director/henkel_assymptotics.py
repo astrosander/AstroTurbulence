@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from scipy.special import j0
 
 
-plt.rcParams['text.usetex'] = True
+# plt.rcParams['text.usetex'] = True
 plt.rcParams['font.family'] = 'serif'
 plt.rcParams["legend.frameon"] = False
 # Publication-ready font sizes
@@ -231,10 +231,10 @@ def plot_Pdir_with_asymptotics(
 
     ax.set_xlabel(r"$k\,R_0$")
     ax.set_ylabel(r"$|P_{\rm dir}(k)|$")
-    ax.set_title(
-        rf"$\chi={chi:.3g}$, "
-        rf"$m_\Psi={m_psi:.2f}$, $m_\Phi={m_phi:.2f}$"
-    )
+    # ax.set_title(
+    #     rf"$\chi={chi:.3g}$, "
+    #     rf"$m_\Psi={m_psi:.2f}$, $m_\Phi={m_phi:.2f}$"
+    # )
     
     ax.set_ylim(1e-10, 1e-3)
     ax.set_xlim(kmin, lo)
