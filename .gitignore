@@ -18,3 +18,4 @@ frame_*.png
 [0-9][0-9][0-9][0-9].pdf
 directional_spectrum/direct_fft1/screens_cube.npz
 compare_measures/directional_spectrum/P_and_u_comparison/256.npz
+*.npz
