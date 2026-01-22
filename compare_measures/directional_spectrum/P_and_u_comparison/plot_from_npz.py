@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Load data from 1400.npz
-input_file = '1400.npz'
+input_file = '128.npz'
 print(f"Loading data from {input_file}...")
 data = np.load(input_file)
 
