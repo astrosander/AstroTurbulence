@@ -6,8 +6,8 @@ init_A_P  = 1.0
 init_chi  = 0.14
 init_R0   = 1.0
 init_r_phi = 1
-init_m_psi = 4/3
-init_m_phi = 2/3
+init_m_psi = 4/3# 4/3
+init_m_phi = 2/3#2/3
 init_L    = 200.0
 Nu        = 1000
 Xi0       = 1.0
@@ -190,8 +190,98 @@ def compute_all_curves(A_P, chi, R0, r_phi, m_psi, m_phi, L):
             R_match_int, R_match_far, fac_int, fac_far, R_x_SF,
             has_numerical, has_asymptotics)
 
-fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
+fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 12), sharex=False)
 plt.subplots_adjust(bottom=0.25)
+
+def compute_ratio_over_chi(chi_range, r_phi, m_psi, m_phi):
+    """Compute R_x(directional)/R_x(PSA) over a range of chi values"""
+    ratios = []
+    chi_valid = []
+    
+    for chi_val in chi_range:
+        R_x_F = compute_R_x_F(chi_val, init_R0, r_phi, m_psi, m_phi)
+        
+        # Compute R_x_SF for this chi
+        r_i = init_R0
+        m_i = m_psi
+        
+        try:
+            sigma_phi2, lam = compute_sigma_phi2_and_lambda(chi_val)
+            xiPp, xi_DF, D_DF = xi_dP_dlam2(R, lam, Xi0, r_i, m_i, init_L, r_phi, m_phi, sigma_phi2, Nu=Nu)
+            SF_num = SF_from_corr(xiPp)
+            
+            screen_type = "thick" if init_L > r_phi else "thin"
+            term_int, term_far = asymptotic_terms_derivative(screen_type, R, r_i, m_i, init_L, r_phi, m_phi)
+            
+            R_min = R.min()
+            R_max = R.max()
+            R_match_int = 0.001 * R_max
+            R_match_far = 10.0 * R_min
+            
+            SF_int, fac_int = normalize_asymptotic_to_numeric(R, SF_num, term_int, R_match_int)
+            term_far_safe = np.where(np.isfinite(term_far) & (term_far > 0), term_far, np.nan)
+            SF_far, fac_far = normalize_asymptotic_to_numeric(R, SF_num, term_far_safe, R_match_far)
+            
+            R_x_SF = None
+            if screen_type == "thick":
+                R_x_SF = compute_R_x_SF_thick(fac_int, fac_far, r_i, m_i, init_L, r_phi, m_phi)
+            
+            if (R_x_F is not None and np.isfinite(R_x_F) and 
+                R_x_SF is not None and np.isfinite(R_x_SF) and 
+                R_x_SF > 0):
+                ratio = R_x_F / R_x_SF
+                if np.isfinite(ratio) and ratio > 0:
+                    ratios.append(ratio)
+                    chi_valid.append(chi_val)
+        except:
+            pass
+    
+    return np.array(chi_valid), np.array(ratios)
+
+def compute_ratio_over_r_phi(r_phi_range, chi, m_psi, m_phi):
+    """Compute R_x(directional)/R_x(PSA) over a range of r_phi values"""
+    ratios = []
+    r_phi_valid = []
+    
+    for r_phi_val in r_phi_range:
+        R_x_F = compute_R_x_F(chi, init_R0, r_phi_val, m_psi, m_phi)
+        
+        # Compute R_x_SF for this r_phi
+        r_i = init_R0
+        m_i = m_psi
+        
+        try:
+            sigma_phi2, lam = compute_sigma_phi2_and_lambda(chi)
+            xiPp, xi_DF, D_DF = xi_dP_dlam2(R, lam, Xi0, r_i, m_i, init_L, r_phi_val, m_phi, sigma_phi2, Nu=Nu)
+            SF_num = SF_from_corr(xiPp)
+            
+            screen_type = "thick" if init_L > r_phi_val else "thin"
+            term_int, term_far = asymptotic_terms_derivative(screen_type, R, r_i, m_i, init_L, r_phi_val, m_phi)
+            
+            R_min = R.min()
+            R_max = R.max()
+            R_match_int = 0.001 * R_max
+            R_match_far = 10.0 * R_min
+            
+            SF_int, fac_int = normalize_asymptotic_to_numeric(R, SF_num, term_int, R_match_int)
+            term_far_safe = np.where(np.isfinite(term_far) & (term_far > 0), term_far, np.nan)
+            SF_far, fac_far = normalize_asymptotic_to_numeric(R, SF_num, term_far_safe, R_match_far)
+            
+            R_x_SF = None
+            if screen_type == "thick":
+                R_x_SF = compute_R_x_SF_thick(fac_int, fac_far, r_i, m_i, init_L, r_phi_val, m_phi)
+            
+            if (R_x_F is not None and np.isfinite(R_x_F) and 
+                R_x_SF is not None and np.isfinite(R_x_SF) and 
+                R_x_SF > 0):
+                ratio = R_x_F / R_x_SF
+                if np.isfinite(ratio) and ratio > 0:
+                    ratios.append(ratio)
+                    r_phi_valid.append(r_phi_val)
+        except:
+            pass
+    
+    return np.array(r_phi_valid), np.array(ratios)
 
 def update_plot(chi, r_phi, m_psi, m_phi):
     F_vals, F_psi, F_phi, R_x_F, SF_num, SF_int, SF_far, R_match_int, R_match_far, fac_int, fac_far, R_x_SF, has_numerical, has_asymptotics = compute_all_curves(
@@ -200,10 +290,12 @@ def update_plot(chi, r_phi, m_psi, m_phi):
     
     ax1.clear()
     ax2.clear()
+    ax3.clear()
+    ax4.clear()
     
-    ax1.loglog(R, F_vals, label="Directional SF: $D_u/2$", lw=3)
-    ax1.loglog(R, F_psi, "--", label=r"small-R: $A_P (R/R_0)^{m_\psi}$", lw=2, alpha=1)
-    ax1.loglog(R, F_phi, "--", label=r"small-R: $A_P\chi^2 (R/r_\phi)^{m_\Phi}$", lw=2, alpha=1)
+    ax1.loglog(R, F_vals, label="$D_u/2$", lw=3)
+    ax1.loglog(R, F_psi, "--", label=r"$A_P (R/R_0)^{m_\psi}$", lw=2, alpha=1)
+    ax1.loglog(R, F_phi, "--", label=r"$A_P\chi^2 (R/r_\phi)^{m_\Phi}$", lw=2, alpha=1)
     
     if R_x_F is not None and np.isfinite(R_x_F) and (R.min() < R_x_F < R.max()):
         ax1.axvline(R_x_F, linestyle="-.", linewidth=2, color="red")
@@ -216,8 +308,8 @@ def update_plot(chi, r_phi, m_psi, m_phi):
     x_all = np.concatenate([R, R[1:]])
     x_min, x_max = x_all.min(), x_all.max()
     
-    y1_all = np.concatenate([F_vals, F_psi, F_phi])
-    y1_all = y1_all[np.isfinite(y1_all) & (y1_all > 0)]
+    # Set ylim for ax1 using only F_vals (not slopes F_psi, F_phi)
+    y1_all = F_vals[np.isfinite(F_vals) & (F_vals > 0)]
     if len(y1_all) > 0:
         ax1.set_xlim(x_min, x_max)
         ax1.set_ylim(y1_all.min(), y1_all.max())
@@ -229,7 +321,7 @@ def update_plot(chi, r_phi, m_psi, m_phi):
         if SF_int is not None:
             ax2.loglog(R[1:], SF_int[1:], ls="-.", lw=2.0, label=r"PSA: $\propto (R/r_i)^{m_i}$")
         if SF_far is not None:
-            ax2.loglog(R[1:], SF_far[1:], ls="-.", lw=2.0, label=r"PSA: $\propto$ Faraday term")
+            ax2.loglog(R[1:], SF_far[1:], ls="-.", lw=2.0, label=r"PSA: $\propto R^{m_\Phi}$")
         
         if (R_x_SF is not None) and np.isfinite(R_x_SF) and (R.min() < R_x_SF < R.max()):
             ax2.axvline(R_x_SF, linestyle="-.", linewidth=2, color="red")
@@ -241,6 +333,7 @@ def update_plot(chi, r_phi, m_psi, m_phi):
     ax2.set_ylabel("SF(R)")
     ax2.legend(fontsize=12)
     
+    # Set ylim for ax2 using only SF_num (not slopes SF_int, SF_far)
     y2_all_list = []
     if has_numerical and (SF_num is not None):
         y2_all_list.append(SF_num[1:])
@@ -250,7 +343,59 @@ def update_plot(chi, r_phi, m_psi, m_phi):
         y2_all = y2_all[np.isfinite(y2_all) & (y2_all > 0)]
         if len(y2_all) > 0:
             ax2.set_xlim(x_min, x_max)
-            ax2.set_ylim(y2_all.min()*0.5, y2_all.max()*2)
+            ax2.set_ylim(y2_all.min(), y2_all.max())
+    
+    # Plot R_x(directional)/R_x(PSA) over chi
+    chi_range = np.logspace(-2, np.log10(2.0), 100)
+    chi_vals, ratios = compute_ratio_over_chi(chi_range, r_phi, m_psi, m_phi)
+    
+    if len(chi_vals) > 0:
+        ax3.plot(chi_vals, ratios, 'b-', lw=2, label=r'$R_{\times,F} / R_{\times,SF}$')
+        # Mark current chi value
+        current_ratio = None
+        if R_x_F is not None and np.isfinite(R_x_F) and R_x_SF is not None and np.isfinite(R_x_SF) and R_x_SF > 0:
+            current_ratio = R_x_F / R_x_SF
+            if np.isfinite(current_ratio) and current_ratio > 0:
+                ax3.plot(chi, current_ratio, 'ro', markersize=8, label='Current value')
+        ax3.axhline(1.0, color='gray', linestyle='--', alpha=0.5, label='Ratio = 1')
+        ax3.set_xlabel(r'$\chi$')
+        ax3.set_ylabel(r'$R_{\times,F} / R_{\times,SF}$')
+        ax3.set_xscale('log')
+        ax3.set_yscale('log')
+        ax3.legend(fontsize=12)
+        ax3.grid(True, alpha=0.3)
+        # Set ylim using only the ratios data (not the reference line at 1.0)
+        ratios_valid = ratios[np.isfinite(ratios) & (ratios > 0)]
+        if current_ratio is not None and np.isfinite(current_ratio) and current_ratio > 0:
+            ratios_valid = np.concatenate([ratios_valid, [current_ratio]])
+        if len(ratios_valid) > 0:
+            ax3.set_ylim(ratios_valid.min(), ratios_valid.max())
+    
+    # Plot R_x(directional)/R_x(PSA) over r_phi
+    r_phi_range = np.logspace(-1, np.log10(10.0), 100)
+    r_phi_vals, ratios_r_phi = compute_ratio_over_r_phi(r_phi_range, chi, m_psi, m_phi)
+    
+    if len(r_phi_vals) > 0:
+        ax4.plot(r_phi_vals, ratios_r_phi, 'g-', lw=2, label=r'$R_{\times,F} / R_{\times,SF}$')
+        # Mark current r_phi value
+        current_ratio_r_phi = None
+        if R_x_F is not None and np.isfinite(R_x_F) and R_x_SF is not None and np.isfinite(R_x_SF) and R_x_SF > 0:
+            current_ratio_r_phi = R_x_F / R_x_SF
+            if np.isfinite(current_ratio_r_phi) and current_ratio_r_phi > 0:
+                ax4.plot(r_phi, current_ratio_r_phi, 'ro', markersize=8, label='Current value')
+        ax4.axhline(1.0, color='gray', linestyle='--', alpha=0.5, label='Ratio = 1')
+        ax4.set_xlabel(r'$r_\phi$')
+        ax4.set_ylabel(r'$R_{\times,F} / R_{\times,SF}$')
+        ax4.set_xscale('log')
+        ax4.set_yscale('log')
+        ax4.legend(fontsize=12)
+        ax4.grid(True, alpha=0.3)
+        # Set ylim using only the ratios data (not the reference line at 1.0)
+        ratios_r_phi_valid = ratios_r_phi[np.isfinite(ratios_r_phi) & (ratios_r_phi > 0)]
+        if current_ratio_r_phi is not None and np.isfinite(current_ratio_r_phi) and current_ratio_r_phi > 0:
+            ratios_r_phi_valid = np.concatenate([ratios_r_phi_valid, [current_ratio_r_phi]])
+        if len(ratios_r_phi_valid) > 0:
+            ax4.set_ylim(ratios_r_phi_valid.min(), ratios_r_phi_valid.max())
     
     fig.canvas.draw_idle()
 
