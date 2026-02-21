@@ -371,32 +371,6 @@ def update_plot(chi, r_phi, m_psi, m_phi):
         if len(ratios_valid) > 0:
             ax3.set_ylim(ratios_valid.min(), ratios_valid.max())
     
-    # Plot R_x(directional)/R_x(PSA) over r_phi
-    r_phi_range = np.logspace(-1, np.log10(10.0), 100)
-    r_phi_vals, ratios_r_phi = compute_ratio_over_r_phi(r_phi_range, chi, m_psi, m_phi)
-    
-    if len(r_phi_vals) > 0:
-        ax4.plot(r_phi_vals, ratios_r_phi, 'g-', lw=2, label=r'$R_{\times,F} / R_{\times,SF}$')
-        # Mark current r_phi value
-        current_ratio_r_phi = None
-        if R_x_F is not None and np.isfinite(R_x_F) and R_x_SF is not None and np.isfinite(R_x_SF) and R_x_SF > 0:
-            current_ratio_r_phi = R_x_F / R_x_SF
-            if np.isfinite(current_ratio_r_phi) and current_ratio_r_phi > 0:
-                ax4.plot(r_phi, current_ratio_r_phi, 'ro', markersize=8, label='Current value')
-        ax4.axhline(1.0, color='gray', linestyle='--', alpha=0.5, label='Ratio = 1')
-        ax4.set_xlabel(r'$r_\phi$')
-        ax4.set_ylabel(r'$R_{\times,F} / R_{\times,SF}$')
-        ax4.set_xscale('log')
-        ax4.set_yscale('log')
-        ax4.legend(fontsize=12)
-        ax4.grid(True, alpha=0.3)
-        # Set ylim using only the ratios data (not the reference line at 1.0)
-        ratios_r_phi_valid = ratios_r_phi[np.isfinite(ratios_r_phi) & (ratios_r_phi > 0)]
-        if current_ratio_r_phi is not None and np.isfinite(current_ratio_r_phi) and current_ratio_r_phi > 0:
-            ratios_r_phi_valid = np.concatenate([ratios_r_phi_valid, [current_ratio_r_phi]])
-        if len(ratios_r_phi_valid) > 0:
-            ax4.set_ylim(ratios_r_phi_valid.min(), ratios_r_phi_valid.max())
-    
     fig.canvas.draw_idle()
 
 initial_F_vals, initial_F_psi, initial_F_phi, initial_R_x_F, initial_SF_num, initial_SF_int, initial_SF_far, initial_R_match_int, initial_R_match_far, initial_fac_int, initial_fac_far, initial_R_x_SF, initial_has_numerical, initial_has_asymptotics = compute_all_curves(
