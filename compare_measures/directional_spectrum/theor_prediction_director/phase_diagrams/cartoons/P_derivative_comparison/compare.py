@@ -103,7 +103,7 @@ def projected_scale(r, m, L):
 ri = 1.0
 L = 100.0 * ri
 rphi = 0.1 * ri
-etas = [0.1, 0.3, 1.0, 3.0, 10.0]
+etas = [0, 0.3, 1.0, 3.0, 10.0]#[0.1, 0.3, 1.0, 3.0, 10.0]
 xvals = np.logspace(-4, 2, 140)
 
 cases = [
@@ -115,24 +115,26 @@ cases = [
 
 results = [structure_functions_case(c["ri"], c["mi"], c["rphi"], c["mphi"], L, etas, xvals, nz=340) for c in cases]
 
-fig1, axs1 = plt.subplots(2, 2, figsize=(13.5, 9.5), facecolor=(0.94, 0.94, 0.94))
+fig1, axs1 = plt.subplots(2, 2, figsize=(13.5, 9.5))
 axs1 = axs1.ravel()
 colors = ["tab:blue", "tab:orange", "tab:green", "tab:red", "tab:purple"]
 
 for ax, c, res in zip(axs1, cases, results):
     for i, eta in enumerate(res["etas"]):
-        ax.loglog(res["x"], np.maximum(res["D_P_norm"][i], 1e-12), color=colors[i], lw=2.0, label=fr"$2\sigma_{{RM}}\lambda^2={eta:g}$")
+        ax.loglog(res["x"], np.maximum(res["D_P_norm"][i], 1e-12), color=colors[i], lw=2.0, label=fr"$\eta={eta:g}$")
     rp_i = projected_scale(c["ri"], c["mi"], L) / c["ri"]
     rp_f = projected_scale(c["rphi"], c["mphi"], L) / c["ri"]
-    ax.vlines(rp_i, 1e-8, 1e-5, colors="black", linestyles=":", lw=1.4)
-    ax.vlines(rp_f, 1e-8, 1e-5, colors="black", linestyles="--", lw=1.4)
+    ax.vlines(rp_i, 1e-5, 1e-3, colors="crimson", linestyles=":", lw=2.2, alpha=0.8, label=r"$r_{p,i}$")
+    ax.vlines(rp_f, 1e-5, 1e-3, colors="darkblue", linestyles="--", lw=2.2, alpha=0.8, label=r"$r_{p,\phi}$")
     x0 = np.array([1e-4, 3e-2])
-    y0 = 2e-7 * (x0 / x0[0]) ** (1.0 + min(c["mi"], 1.0))
-    ax.loglog(x0, y0, color="black", lw=1.6)
+    y0 = 2e-4 * (x0 / x0[0]) ** min(c["mi"], 1.0)
+    y0_phi = 2e-4 * (x0 / x0[0]) ** min(c["mphi"], 1.0)
+    ax.loglog(x0, y0, color="darkgreen", lw=2.4, alpha=0.8, label=r"$R^{m_i}$")
+    ax.loglog(x0, y0_phi, color="darkmagenta", lw=2.4, alpha=0.8, ls="--", label=r"$R^{m_\phi}$")
     ax.set_xlim(1e-4, 1e2)
-    ax.set_ylim(1e-8, 2)
+    ax.set_ylim(1e-5, 2)
     ax.set_title(c["name"], fontsize=13)
-    ax.set_facecolor((0.94, 0.94, 0.94))
+    # ax.set_facecolor((0.94, 0.94, 0.94))
     ax.tick_params(which="both", direction="in", labelsize=10)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
@@ -145,33 +147,34 @@ axs1[0].set_ylabel(r"$D_P(R)/D_P(\infty)$", fontsize=14)
 axs1[2].set_ylabel(r"$D_P(R)/D_P(\infty)$", fontsize=14)
 axs1[2].set_xlabel(r"$R/r_i$", fontsize=14)
 axs1[3].set_xlabel(r"$R/r_i$", fontsize=14)
-axs1[0].legend(loc="lower right", fontsize=9, frameon=False)
+for ax in axs1:
+    ax.legend(loc="lower right", fontsize=9, frameon=False, ncol=1)
 fig1.tight_layout()
 fig1.savefig("LP16_compare_DP_multiple_eta.png", dpi=300, bbox_inches="tight")
 fig1.savefig("LP16_compare_DP_multiple_eta.svg", bbox_inches="tight")
 plt.close(fig1)
 
-fig2, axs2 = plt.subplots(2, 2, figsize=(13.5, 9.5), facecolor=(0.94, 0.94, 0.94))
+fig2, axs2 = plt.subplots(2, 2, figsize=(13.5, 9.5))
 axs2 = axs2.ravel()
 
 for ax, c, res in zip(axs2, cases, results):
     for i, eta in enumerate(res["etas"]):
-        ax.loglog(res["x"], np.maximum(res["DdP_fig9_units"][i], 1e-12), color=colors[i], lw=2.0, label=fr"$2\sigma_{{RM}}\lambda^2={eta:g}$")
+        ax.loglog(res["x"], np.maximum(res["DdP_fig9_units"][i], 1e-12), color=colors[i], lw=2.0, label=fr"$\eta={eta:g}$")
     weak_ref = res["DdP_fig9_units"][0]
     s = np.nanmax(np.maximum(weak_ref, 1e-30))
     x0 = np.array([1e-4, 3e-2])
-    y1 = 3e-8 * (x0 / x0[0]) ** (1.0 + min(c["mphi"], 1.0))
-    y2 = 2e-6 * (x0 / x0[0]) ** (1.0 + min(c["mi"], 1.0))
-    ax.loglog(x0, y1, color="black", lw=1.4, ls="--")
-    ax.loglog(x0, y2, color="black", lw=1.4, ls=":")
+    y1 = 3e-5 * (x0 / x0[0]) ** min(c["mphi"], 1.0)
+    y2 = 2e-3 * (x0 / x0[0]) ** min(c["mi"], 1.0)
+    ax.loglog(x0, y1, color="darkmagenta", lw=2.4, ls="--", alpha=0.8, label=r"$R^{m_\phi}$")
+    ax.loglog(x0, y2, color="darkorange", lw=2.4, ls=":", alpha=0.8, label=r"$R^{m_i}$")
     rp_i = projected_scale(c["ri"], c["mi"], L) / max(c["ri"], c["rphi"])
     rp_f = projected_scale(c["rphi"], c["mphi"], L) / max(c["ri"], c["rphi"])
-    ax.vlines(rp_i, 1e-12, 1e-6, colors="black", linestyles=":", lw=1.2)
-    ax.vlines(rp_f, 1e-12, 1e-6, colors="black", linestyles="--", lw=1.2)
+    ax.vlines(rp_i, 1e-3, 1e-1, colors="crimson", linestyles=":", lw=2.2, alpha=0.8, label=r"$r_{p,i}$")
+    ax.vlines(rp_f, 1e-3, 1e-1, colors="darkblue", linestyles="--", lw=2.2, alpha=0.8, label=r"$r_{p,\phi}$")
     ax.set_xlim(1e-4, 1e2)
-    ax.set_ylim(1e-12, 10)
+    ax.set_ylim(1e-3, 10)
     ax.set_title(c["name"], fontsize=13)
-    ax.set_facecolor((0.94, 0.94, 0.94))
+    # ax.set_facecolor((0.94, 0.94, 0.94))
     ax.tick_params(which="both", direction="in", labelsize=10)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
@@ -184,13 +187,14 @@ axs2[0].set_ylabel(r"$D_{dP}(R)/(\sigma_i^2\sigma_\phi^2 L^3)$", fontsize=14)
 axs2[2].set_ylabel(r"$D_{dP}(R)/(\sigma_i^2\sigma_\phi^2 L^3)$", fontsize=14)
 axs2[2].set_xlabel(r"$R/r_i$", fontsize=14)
 axs2[3].set_xlabel(r"$R/r_i$", fontsize=14)
-axs2[0].legend(loc="lower right", fontsize=9, frameon=False)
+for ax in axs2:
+    ax.legend(loc="lower right", fontsize=9, frameon=False, ncol=1)
 fig2.tight_layout()
 fig2.savefig("LP16_compare_DdP_multiple_eta.png", dpi=300, bbox_inches="tight")
 fig2.savefig("LP16_compare_DdP_multiple_eta.svg", bbox_inches="tight")
 plt.close(fig2)
 
-fig3, axs3 = plt.subplots(2, 2, figsize=(13.5, 9.5), facecolor=(0.94, 0.94, 0.94))
+fig3, axs3 = plt.subplots(2, 2, figsize=(13.5, 9.5))
 axs3 = axs3.ravel()
 
 for ax, c, res in zip(axs3, cases, results):
@@ -199,12 +203,14 @@ for ax, c, res in zip(axs3, cases, results):
         sd = local_slope(res["x"], np.maximum(res["DdP_fig9_units"][i], 1e-300)[None, :])[0]
         ax.semilogx(res["x"], sp, color=colors[i], lw=2.0)
         ax.semilogx(res["x"], sd, color=colors[i], lw=1.5, ls="--")
-    ax.axhline(1.0 + min(c["mi"], 1.0), color="black", lw=1.0, ls=":")
-    ax.axhline(1.0 + min(c["mphi"], 1.0), color="black", lw=1.0, ls="--")
+    mi_slope = min(c["mi"], 1.0)
+    mphi_slope = min(c["mphi"], 1.0)
+    ax.axhline(mi_slope, color="crimson", lw=2.2, ls=":", alpha=0.8, label=fr"$m_i={mi_slope:.2f}$")
+    ax.axhline(mphi_slope, color="darkblue", lw=2.2, ls="--", alpha=0.8, label=fr"$m_\phi={mphi_slope:.2f}$")
     ax.set_xlim(1e-4, 1e2)
-    ax.set_ylim(-0.2, 2.4)
+    ax.set_ylim(0, 1.2)
     ax.set_title(c["name"], fontsize=13)
-    ax.set_facecolor((0.94, 0.94, 0.94))
+    # ax.set_facecolor((0.94, 0.94, 0.94))
     ax.tick_params(which="both", direction="in", labelsize=10)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
@@ -215,6 +221,8 @@ axs3[0].set_ylabel(r"local slope $d\log D / d\log R$", fontsize=14)
 axs3[2].set_ylabel(r"local slope $d\log D / d\log R$", fontsize=14)
 axs3[2].set_xlabel(r"$R/r_i$", fontsize=14)
 axs3[3].set_xlabel(r"$R/r_i$", fontsize=14)
+for ax in axs3:
+    ax.legend(loc="upper right", fontsize=9, frameon=False)
 fig3.tight_layout()
 fig3.savefig("LP16_compare_slopes_P_vs_dP_multiple_eta.png", dpi=300, bbox_inches="tight")
 fig3.savefig("LP16_compare_slopes_P_vs_dP_multiple_eta.svg", bbox_inches="tight")
