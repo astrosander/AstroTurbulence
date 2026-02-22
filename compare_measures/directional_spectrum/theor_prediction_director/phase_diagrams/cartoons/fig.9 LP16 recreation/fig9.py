@@ -332,13 +332,26 @@ def draw_figure9_multiple_eta(output_png="Figure9_multiple_eta_full.png",
     for ax in (ax1, ax2):
         ax.text(1.03, -0.02, r"$R/r_i$", transform=ax.transAxes, fontsize=32, weight='bold')
 
+    # Reference lines on left panel: power-law asymptotes spanning full R range
+    xg = np.logspace(-7, 2, 200)  # Full range from 1e-7 to 1e2
+    yg0 = 1e-8
+    yg_intr = yg0 * (xg / xg[0]) ** (1.0 + m_i)
+    yg_far = (1.5e-8) * (xg / xg[0]) ** (1.0 + m_phi)
+    ax1.loglog(xg, yg_intr, color="#2D5BFF", lw=3.0, ls="-", zorder=5, alpha=0.8)
+    ax1.text(1.25e-3, 5e-7, rf"$\propto R^{{1+m_i}}$", fontsize=24, color="#2D5BFF")
+    ax1.loglog(xg, yg_far, color="#E45756", lw=3.0, ls="-.", zorder=5, alpha=0.8)
+    ax1.text(2.0e-3, 8e-6, rf"$\propto R^{{1+m_\phi}}$", fontsize=24, color="#E45756")
+
     ax1.legend(frameon=False, fontsize=20, loc="lower right", ncol=1, handlelength=1.5)
     ax1.text(0.05, 0.90, rf"$m_i={m_i:.3g},\ m_\phi={m_phi:.3g}$", transform=ax1.transAxes, fontsize=20)
     ax1.text(0.05, 0.82, rf"$L/r_i={L_over_ri:.3g},\ r_\phi/r_i={r_f_over_ri:.3g}$", transform=ax1.transAxes, fontsize=20)
     ax1.text(0.05, 0.74, rf"$\beta=\bar\phi/\sigma_\phi={beta:.3g}$", transform=ax1.transAxes, fontsize=20)
 
-    ax2.axhline(1.0 + m_i, color="black", lw=3.0, zorder=5)
-    ax2.axhline(1.0 + m_phi, color="black", lw=3.0, ls="--", zorder=5)
+    # Reference lines on right panel: horizontal lines at slopes
+    ax2.axhline(1.0 + m_i, color="#2D5BFF", lw=3.0, ls="-", zorder=5, alpha=0.8)
+    ax2.axhline(1.0 + m_phi, color="#E45756", lw=3.0, ls="-.", zorder=5, alpha=0.8)
+    ax2.text(1.4e-4, 1.0 + m_i + 0.05, rf"$1+m_i={1+m_i:.3f}$", fontsize=20, color="#2D5BFF")
+    ax2.text(1.4e-4, 1.0 + m_phi + 0.05, rf"$1+m_\phi={1+m_phi:.3f}$", fontsize=20, color="#E45756")
 
     fig.savefig(output_png, dpi=300, bbox_inches="tight")
     fig.savefig(output_svg, bbox_inches="tight")

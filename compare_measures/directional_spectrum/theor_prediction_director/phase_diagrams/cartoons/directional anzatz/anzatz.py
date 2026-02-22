@@ -142,12 +142,12 @@ def plot_directional_structure_and_proxy(
         zorder = 100 if eta == 0.0 else 50
         ax2.semilogx(xs, sl, lw=lw, color=c, zorder=zorder, alpha=0.95)
 
-    # Left panel: structure function
-    xg = np.array([1e-3, 8e-2])
-    yg_i = 3e-5 * (xg / xg[0]) ** m_i
-    yg_f = 8e-4 * (xg / xg[0]) ** m_phi
-    ax1.loglog(xg, yg_i, "--", color="#2D5BFF", lw=3.0, zorder=5)
-    ax1.loglog(xg, yg_f, "--", color="#E45756", lw=3.0, zorder=5)
+    # Left panel: structure function - reference lines spanning full R range
+    xg = np.logspace(np.log10(x_min), np.log10(x_max), 200)  # Full range
+    yg_i = 3e-5 * (xg / x_min) ** m_i
+    yg_f = 8e-4 * (xg / x_min) ** m_phi
+    ax1.loglog(xg, yg_i, "-", color="#2D5BFF", lw=3.0, zorder=5, alpha=0.8)
+    ax1.loglog(xg, yg_f, "-.", color="#E45756", lw=3.0, zorder=5, alpha=0.8)
     ax1.text(2.2e-2, 1.5e-3, rf"$\propto R^{{m_\phi}}$", color="#E45756", fontsize=24, rotation=16)
     ax1.text(3.0e-2, 1.5e-2, rf"$\propto R^{{m_i}}$", color="#2D5BFF", fontsize=24, rotation=33)
 

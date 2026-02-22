@@ -281,8 +281,21 @@ def run():
         xs, sl = local_log_slope(x, y2)
         ax2.semilogx(xs, sl, lw=3.0, color=c, zorder=zorder, alpha=0.95)
 
-    ax2.axhline(1.0 + m_i, color="black", lw=3.0, zorder=5)
-    ax2.axhline(1.0 + m_phi, color="black", lw=3.0, ls="--", zorder=5)
+    # Reference lines on left panel: power-law asymptotes spanning full R range
+    xg = np.logspace(-7, 2, 200)  # Full range from 1e-7 to 1e2
+    yg0 = 1e-8
+    yg_intr = yg0 * (xg / xg[0]) ** (1.0 + m_i)
+    yg_far = (1.5e-8) * (xg / xg[0]) ** (1.0 + m_phi)
+    ax1.loglog(xg, yg_intr, color="#2D5BFF", lw=3.0, ls="-", zorder=5, alpha=0.8)
+    ax1.text(1.25e-3, 5e-7, rf"$\propto R^{{1+m_i}}$", fontsize=24, color="#2D5BFF")
+    ax1.loglog(xg, yg_far, color="#E45756", lw=3.0, ls="-.", zorder=5, alpha=0.8)
+    ax1.text(2.0e-3, 8e-6, rf"$\propto R^{{1+m_\phi}}$", fontsize=24, color="#E45756")
+
+    # Reference lines on right panel: horizontal lines at slopes
+    ax2.axhline(1.0 + m_i, color="#2D5BFF", lw=3.0, ls="-", zorder=5, alpha=0.8)
+    ax2.axhline(1.0 + m_phi, color="#E45756", lw=3.0, ls="-.", zorder=5, alpha=0.8)
+    ax2.text(1.4e-4, 1.0 + m_i + 0.05, rf"$1+m_i={1+m_i:.3f}$", fontsize=20, color="#2D5BFF")
+    ax2.text(1.4e-4, 1.0 + m_phi + 0.05, rf"$1+m_\phi={1+m_phi:.3f}$", fontsize=20, color="#E45756")
 
     # Large, clear axis labels for maximum citation potential
     ax1.text(-0.16, 1.05, r"$D_P(\mathrm{R})/D_P(\infty)$", transform=ax1.transAxes, fontsize=36, weight='bold')
