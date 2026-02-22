@@ -7,8 +7,49 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FixedLocator, LogFormatterMathtext
+from matplotlib.colors import LinearSegmentedColormap
+
+# Enable LaTeX rendering for publication quality
+# Set LaTeX parameters - matplotlib will handle errors gracefully during plotting
+plt.rcParams.update({
+    'text.usetex': True,
+    'font.family': 'serif',
+    'font.serif': ['Times New Roman', 'Times', 'DejaVu Serif'],
+    'font.size': 16,
+    'axes.labelsize': 32,
+    'axes.titlesize': 36,
+    'xtick.labelsize': 20,
+    'ytick.labelsize': 20,
+    'legend.fontsize': 18,
+    'figure.titlesize': 40,
+    'text.latex.preamble': r'\usepackage{amsmath}'
+})
 
 TRAPZ = getattr(np, "trapezoid", np.trapz)
+
+def create_blue_to_red_colormap(n_colors):
+    """
+    Create a sophisticated blue-to-red colormap for eta values.
+    Blue represents small eta, red represents large eta.
+    Optimized for ApJ publication quality.
+    """
+    base_colors = [
+        '#1a237e',  # Deep indigo blue (smallest eta)
+        '#283593',  # Rich blue
+        '#3949ab',  # Medium blue
+        '#5c6bc0',  # Soft blue
+        '#7986cb',  # Light blue
+        '#9fa8da',  # Pale blue
+        '#64b5f6',  # Sky blue (transition)
+        '#ffc107',  # Amber yellow (transition)
+        '#ff9800',  # Orange (warm transition)
+        '#ff5722',  # Orange-red (transition to red)
+        '#d32f2f',  # Strong red
+        '#b71c1c',  # Dark red (largest eta)
+    ]
+    cmap = LinearSegmentedColormap.from_list('blue_to_red_elite', base_colors, N=512)
+    positions = np.linspace(0, 1, n_colors)
+    return [cmap(pos) for pos in positions]
 
 def xi_i_eq30(R, dz, r_i, m, sigma_i=1.0, Pbar_i=0.0):
     rr = (R * R + dz * dz) ** (m / 2.0)
@@ -205,14 +246,16 @@ def draw_figure9_multiple_eta(output_png="Figure9_multiple_eta_full.png",
     x_plot = np.logspace(-8, 8, nR)
     R_vals = x_plot * r_i
 
-    fig = plt.figure(figsize=(18, 5.6))
-    gs = fig.add_gridspec(1, 3, left=0.055, right=0.985, top=0.90, bottom=0.22, wspace=0.30)
+    # ApJ publication quality figure - large size for maximum impact
+    fig = plt.figure(figsize=(20, 7))
+    fig.patch.set_facecolor('white')
+    gs = fig.add_gridspec(1, 3, left=0.065, right=0.98, top=0.92, bottom=0.18, wspace=0.32)
     ax1 = fig.add_subplot(gs[0, 0])
     ax2 = fig.add_subplot(gs[0, 1])
     ax3 = fig.add_subplot(gs[0, 2])
 
-    cmap = plt.cm.viridis
-    colors = [cmap(i) for i in np.linspace(0.1, 0.95, len(eta_list))]
+    # Use blue-to-red colormap
+    colors = create_blue_to_red_colormap(len(eta_list))
 
     t0 = time.time()
     curves = []
@@ -248,19 +291,26 @@ def draw_figure9_multiple_eta(output_png="Figure9_multiple_eta_full.png",
         y1 = D / norm_factor
         y2 = D / (D.max() if D.max() > 0 else 1.0)  # Normalize by max for second panel
         
-        ax1.loglog(x_plot, y1, lw=2.2, color=c, label=rf"$\eta={eta:g}$")
-        ax2.loglog(x_plot, y2, lw=2.2, color=c)
+        lw = 3.5 if eta == 0.0 else 3.0
+        zorder = 100 if eta == 0.0 else 50
+        label = r"$\eta = 0$" if eta == 0.0 else rf"$\eta = {eta:.3g}$"
+        ax1.loglog(x_plot, y1, lw=lw, color=c, label=label, zorder=zorder, alpha=0.95)
+        ax2.loglog(x_plot, y2, lw=lw, color=c, zorder=zorder, alpha=0.95)
         
         xs, sl = local_log_slope(x_plot, y2)
-        ax3.semilogx(xs, sl, lw=2.0, color=c)
+        ax3.semilogx(xs, sl, lw=3.0, color=c, zorder=zorder, alpha=0.95)
 
+    # Apply consistent styling to all axes
     for ax in (ax1, ax2):
         ax.set_xscale("log")
         ax.set_yscale("log")
         ax.set_xlim(1e-7, 1e2)
-        ax.tick_params(which="both", direction="in", labelsize=13, color="0.35")
+        ax.tick_params(which="both", direction="in", labelsize=22, width=2.5, length=8)
+        ax.tick_params(which="minor", direction="in", labelsize=18, width=1.5, length=5)
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
+        ax.spines["left"].set_linewidth(2.5)
+        ax.spines["bottom"].set_linewidth(2.5)
         ax.xaxis.set_major_locator(FixedLocator([1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 10, 100]))
         ax.xaxis.set_major_formatter(LogFormatterMathtext())
 
@@ -274,26 +324,30 @@ def draw_figure9_multiple_eta(output_png="Figure9_multiple_eta_full.png",
     ax3.set_xscale("log")
     ax3.set_xlim(1e-7, 1e2)
     ax3.set_ylim(0, 2.1)
-    ax3.tick_params(which="both", direction="in", labelsize=13, color="0.35")
+    ax3.tick_params(which="both", direction="in", labelsize=22, width=2.5, length=8)
+    ax3.tick_params(which="minor", direction="in", labelsize=18, width=1.5, length=5)
     ax3.spines["top"].set_visible(False)
     ax3.spines["right"].set_visible(False)
+    ax3.spines["left"].set_linewidth(2.5)
+    ax3.spines["bottom"].set_linewidth(2.5)
     ax3.xaxis.set_major_locator(FixedLocator([1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 10, 100]))
     ax3.xaxis.set_major_formatter(LogFormatterMathtext())
 
-    ax1.text(-0.08, 1.05, r"$D_{\mathrm{dP}}(\mathrm{R})$", transform=ax1.transAxes, fontsize=28)
-    ax2.text(-0.16, 1.05, r"$D_{\mathrm{dP}}(\mathrm{R})/D_{\mathrm{dP}}(\max)$", transform=ax2.transAxes, fontsize=28)
-    ax3.text(-0.02, 1.05, r"$d\ln D_{\mathrm{dP}}/d\ln R$", transform=ax3.transAxes, fontsize=24)
+    # Large, clear axis labels for maximum citation potential
+    ax1.text(-0.08, 1.05, r"$D_{\mathrm{dP}}(\mathrm{R})$", transform=ax1.transAxes, fontsize=36, weight='bold')
+    ax2.text(-0.16, 1.05, r"$D_{\mathrm{dP}}(\mathrm{R})/D_{\mathrm{dP}}(\max)$", transform=ax2.transAxes, fontsize=36, weight='bold')
+    ax3.text(-0.02, 1.05, r"$d\ln D_{\mathrm{dP}}/d\ln R$", transform=ax3.transAxes, fontsize=32, weight='bold')
 
     for ax in (ax1, ax2, ax3):
-        ax.text(1.03, -0.02, r"$R/r_i$", transform=ax.transAxes, fontsize=24)
+        ax.text(1.03, -0.02, r"$R/r_i$", transform=ax.transAxes, fontsize=32, weight='bold')
 
-    ax1.legend(frameon=False, fontsize=12, loc="lower right", ncol=1)
-    ax2.text(0.05, 0.90, rf"$m_i={m_i:.3g},\ m_\phi={m_phi:.3g}$", transform=ax2.transAxes, fontsize=16)
-    ax2.text(0.05, 0.82, rf"$L/r_i={L_over_ri:.3g},\ r_\phi/r_i={r_f_over_ri:.3g}$", transform=ax2.transAxes, fontsize=16)
-    ax2.text(0.05, 0.74, rf"$\beta=\bar\phi/\sigma_\phi={beta:.3g}$", transform=ax2.transAxes, fontsize=16)
+    ax1.legend(frameon=False, fontsize=20, loc="lower right", ncol=1, handlelength=1.5)
+    ax2.text(0.05, 0.90, rf"$m_i={m_i:.3g},\ m_\phi={m_phi:.3g}$", transform=ax2.transAxes, fontsize=20)
+    ax2.text(0.05, 0.82, rf"$L/r_i={L_over_ri:.3g},\ r_\phi/r_i={r_f_over_ri:.3g}$", transform=ax2.transAxes, fontsize=20)
+    ax2.text(0.05, 0.74, rf"$\beta=\bar\phi/\sigma_\phi={beta:.3g}$", transform=ax2.transAxes, fontsize=20)
 
-    ax3.axhline(1.0 + m_i, color="black", lw=1.8)
-    ax3.axhline(1.0 + m_phi, color="black", lw=1.8, ls="--")
+    ax3.axhline(1.0 + m_i, color="black", lw=3.0, zorder=5)
+    ax3.axhline(1.0 + m_phi, color="black", lw=3.0, ls="--", zorder=5)
 
     fig.savefig(output_png, dpi=300, bbox_inches="tight")
     fig.savefig(output_svg, bbox_inches="tight")
@@ -315,7 +369,7 @@ def run():
         output_svg="Figure9_multiple_eta_full.svg",
         full_mode="eq93_printed",
         beta=0.0,
-        eta_list=np.concatenate([[0.0], np.geomspace(1e-3, 1e0, 10)]),
+        eta_list=np.concatenate([[0.0], np.geomspace(5e-3, 1e0, 10)]),
         nR=100,
         nb_z2=160*2
     )
