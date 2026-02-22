@@ -14,13 +14,13 @@ def xi_i_eq30(R, dz, r_i, m, sigma_i=1.0, Pbar_i=0.0):
     rr = (R * R + dz * dz) ** (m / 2.0)
     return abs(Pbar_i) ** 2 + sigma_i**2 * (r_i**m) / (r_i**m + rr)
 
-def make_z_grid(L, n_log1=220, n_log2=200, n_lin=140, zmin=1e-12, zmid1=1e-4, zmid2=1.0):
+def make_z_grid(L, n_log1=240, n_log2=220, n_lin=160, zmin=1e-12, zmid1=1e-4, zmid2=1.0):
     z1 = np.geomspace(zmin, zmid1, n_log1)
     z2 = np.geomspace(zmid1, zmid2, n_log2)
     z3 = np.linspace(zmid2, L, n_lin)
     return np.unique(np.concatenate(([0.0], z1, z2, z3)))
 
-def make_s_grid_for_rm(L, n_log1=150, n_log2=120, n_lin=90, zmin=1e-12, zmid1=1e-4, zmid2=1.0):
+def make_s_grid_for_rm(L, n_log1=150, n_log2=130, n_lin=100, zmin=1e-12, zmid1=1e-4, zmid2=1.0):
     z1 = np.geomspace(zmin, zmid1, n_log1)
     z2 = np.geomspace(zmid1, zmid2, n_log2)
     z3 = np.linspace(zmid2, L, n_lin)
@@ -186,135 +186,114 @@ def draw_figure9_multiple_eta(output_png="Figure9_multiple_eta_full.png",
                               full_mode="eq93_printed",
                               beta=0.0,
                               eta_list=(0.0, 1e-3, 3e-3, 1e-2, 3e-2, 1e-1, 3e-1),
-                              nR=130,
+                              nR=100,
                               nb_z2=160):
-    L = 100.0
+    # Use same geometry as fig5.py
+    r_i = 1.0
+    L_over_ri = 100.0
+    L = L_over_ri * r_i
     sigma_i = 1.0
     Pbar_i = 0.0
-    delta = make_z_grid(L)
-    s_grid = make_s_grid_for_rm(L)
-    x_plot = np.logspace(-5, 2, nR)
+    
+    m_i = 0.7
+    m_phi = 1.0 / 4.0
+    r_f_over_ri = 1.0
+    r_f = r_f_over_ri * r_i
+    
+    delta = make_z_grid(L, n_log1=240, n_log2=220, n_lin=160)
+    s_grid = make_s_grid_for_rm(L, n_log1=150, n_log2=130, n_lin=100)
+    x_plot = np.logspace(-8, 8, nR)
+    R_vals = x_plot * r_i
 
-    panels = [
-        dict(name="TL", ri=1.0, mi=4/5, rf=0.1, mf=1/3, col="left"),
-        dict(name="TR", ri=1.0, mi=1/3, rf=0.1, mf=4/5, col="right"),
-        dict(name="BL", ri=1.0, mi=2/3, rf=0.1, mf=2/3, col="left"),
-        dict(name="BR", ri=1.0, mi=1/3, rf=1.0, mf=4/5, col="right"),
-    ]
-
-    fig = plt.figure(figsize=(14.5, 10.2))
-    gs = fig.add_gridspec(3, 2, left=0.065, right=0.985, top=0.93, bottom=0.12, wspace=0.24, hspace=0.24, height_ratios=[1.0, 1.0, 0.72])
-    axs = [fig.add_subplot(gs[0,0]), fig.add_subplot(gs[0,1]), fig.add_subplot(gs[1,0]), fig.add_subplot(gs[1,1])]
-    axs_s = [fig.add_subplot(gs[2,0]), fig.add_subplot(gs[2,1])]
+    fig = plt.figure(figsize=(18, 5.6))
+    gs = fig.add_gridspec(1, 3, left=0.055, right=0.985, top=0.90, bottom=0.22, wspace=0.30)
+    ax1 = fig.add_subplot(gs[0, 0])
+    ax2 = fig.add_subplot(gs[0, 1])
+    ax3 = fig.add_subplot(gs[0, 2])
 
     cmap = plt.cm.viridis
-    colors = [cmap(v) for v in np.linspace(0.08, 0.95, len(eta_list))]
-
-    panel_titles = {
-        "TL": r"$m_\phi=1/3,\ m=4/5,\ r_\phi/r_i=0.1$",
-        "TR": r"$m_\phi=4/5,\ m=1/3,\ r_\phi/r_i=0.1$",
-        "BL": r"$m_\phi=2/3,\ m=2/3,\ r_\phi/r_i=0.1$",
-        "BR": r"$m_\phi=4/5,\ m=1/3,\ r_\phi/r_i=1$",
-    }
+    colors = [cmap(i) for i in np.linspace(0.1, 0.95, len(eta_list))]
 
     t0 = time.time()
-    all_curves = {}
+    curves = []
 
-    for ax, p in zip(axs, panels):
-        r_m, m_m, r_M, m_M = classify_lengths(p["ri"], p["mi"], p["rf"], p["mf"])
-        R_vals = x_plot * r_M
+    for eta, c in zip(eta_list, colors):
+        cache = LP16EtaDerivativeKernelCache(
+            L=L,
+            delta_grid=delta,
+            s_grid=s_grid,
+            r_f=r_f,
+            m_f=m_phi,
+            eta=eta,
+            beta=beta,
+            nb_z2=nb_z2
+        )
+        Kd_R = cache.build_derivative_kernel(R_vals)
+        Kd_0 = cache.build_derivative_kernel(np.array([0.0]))
+        D, C0 = DdP_from_derivative_kernel(
+            R_vals,
+            Kd_R,
+            Kd_0,
+            delta,
+            r_i=r_i,
+            m_i=m_i,
+            sigma_i=sigma_i,
+            Pbar_i=Pbar_i,
+            full_mode=full_mode
+        )
+        curves.append((eta, D, C0))
+        
+        # Normalization factor (similar to fig5.py style)
+        norm_factor = 2.0 * sigma_i**2 * L**2
+        y1 = D / norm_factor
+        y2 = D / (D.max() if D.max() > 0 else 1.0)  # Normalize by max for second panel
+        
+        ax1.loglog(x_plot, y1, lw=2.2, color=c, label=rf"$\eta={eta:g}$")
+        ax2.loglog(x_plot, y2, lw=2.2, color=c)
+        
+        xs, sl = local_log_slope(x_plot, y2)
+        ax3.semilogx(xs, sl, lw=2.0, color=c)
 
-        if p["col"] == "left":
-            col_scale = (L / r_M) ** m_M
-        else:
-            col_scale = (L / r_m) ** m_m
-
-        panel_key = p["name"]
-        all_curves[panel_key] = []
-
-        for eta, c in zip(eta_list, colors):
-            cache = LP16EtaDerivativeKernelCache(
-                L=L,
-                delta_grid=delta,
-                s_grid=s_grid,
-                r_f=p["rf"],
-                m_f=p["mf"],
-                eta=eta,
-                beta=beta,
-                nb_z2=nb_z2
-            )
-            Kd_R = cache.build_derivative_kernel(R_vals)
-            Kd_0 = cache.build_derivative_kernel(np.array([0.0]))
-            D, C0 = DdP_from_derivative_kernel(
-                R_vals,
-                Kd_R,
-                Kd_0,
-                delta,
-                r_i=p["ri"],
-                m_i=p["mi"],
-                sigma_i=sigma_i,
-                Pbar_i=Pbar_i,
-                full_mode=full_mode
-            )
-            y = (D / (L**3)) * col_scale
-            all_curves[panel_key].append((eta, x_plot.copy(), y.copy()))
-            ax.loglog(x_plot, y, color=c, lw=2.2)
-
-        Rp_i = projected_correlation_length(p["ri"], p["mi"], L) / r_M
-        Rp_f = projected_correlation_length(p["rf"], p["mf"], L) / r_M
-        ax.vlines(Rp_i, 1e-10, 1e-6, color="#E69500", lw=1.8, linestyles=(0, (1.5, 2.0)))
-        ax.vlines(Rp_f, 1e-10, 1e-6, color="#6B8EC7", lw=1.8, linestyles="--")
-
+    for ax in (ax1, ax2):
         ax.set_xscale("log")
         ax.set_yscale("log")
-        ax.set_xlim(1e-5, 1e2)
-        ax.set_ylim(1e-10, 1e3)
-        ax.tick_params(which="both", direction="in", labelsize=13)
+        ax.set_xlim(1e-7, 1e2)
+        ax.tick_params(which="both", direction="in", labelsize=13, color="0.35")
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
-        ax.xaxis.set_major_locator(FixedLocator([1e-4, 1e-2, 1, 1e2]))
-        ax.yaxis.set_major_locator(FixedLocator([1e2, 1e-1, 1e-4, 1e-7, 1e-10]))
+        ax.xaxis.set_major_locator(FixedLocator([1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 10, 100]))
         ax.xaxis.set_major_formatter(LogFormatterMathtext())
-        ax.yaxis.set_major_formatter(LogFormatterMathtext())
 
-        ax.text(-0.10, 1.04, r"$D_{\mathrm{dP}}(R)$", transform=ax.transAxes, fontsize=20)
-        ax.text(1.03, -0.02, r"$R/r_M$", transform=ax.transAxes, fontsize=20)
-        ax.text(0.03, 0.90, panel_titles[panel_key], transform=ax.transAxes, fontsize=15)
-        ax.text(0.03, 0.82, rf"$\beta=\bar\phi/\sigma_\phi={beta:g}$", transform=ax.transAxes, fontsize=13)
+    ax1.set_ylim(1e-10, 2e3)
+    ax2.set_ylim(1e-10, 2)
+    ax1.yaxis.set_major_locator(FixedLocator([1e-1, 1e-3, 1e-5, 1e-7]))
+    ax1.yaxis.set_major_formatter(LogFormatterMathtext())
+    ax2.yaxis.set_major_locator(FixedLocator([1, 1e-2, 1e-4, 1e-6]))
+    ax2.yaxis.set_major_formatter(LogFormatterMathtext())
 
-        if p["col"] == "left":
-            ax.text(0.03, 0.74, r"scaled by $(L/r_M)^{m_M}$", transform=ax.transAxes, fontsize=13)
-        else:
-            ax.text(0.03, 0.74, r"scaled by $(L/r_m)^{m_m}$", transform=ax.transAxes, fontsize=13)
+    ax3.set_xscale("log")
+    ax3.set_xlim(1e-7, 1e2)
+    ax3.set_ylim(0, 2.1)
+    ax3.tick_params(which="both", direction="in", labelsize=13, color="0.35")
+    ax3.spines["top"].set_visible(False)
+    ax3.spines["right"].set_visible(False)
+    ax3.xaxis.set_major_locator(FixedLocator([1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 10, 100]))
+    ax3.xaxis.set_major_formatter(LogFormatterMathtext())
 
-        ax.text(0.66, 0.10, r"$R_{P,i}$", color="#E69500", transform=ax.transAxes, fontsize=13)
-        ax.text(0.80, 0.10, r"$R_{P,\phi}$", color="#6B8EC7", transform=ax.transAxes, fontsize=13)
+    ax1.text(-0.08, 1.05, r"$D_{\mathrm{dP}}(\mathrm{R})$", transform=ax1.transAxes, fontsize=28)
+    ax2.text(-0.16, 1.05, r"$D_{\mathrm{dP}}(\mathrm{R})/D_{\mathrm{dP}}(\max)$", transform=ax2.transAxes, fontsize=28)
+    ax3.text(-0.02, 1.05, r"$d\ln D_{\mathrm{dP}}/d\ln R$", transform=ax3.transAxes, fontsize=24)
 
-    slope_panel_map = [("TL", axs_s[0]), ("TR", axs_s[1])]
-    for key, ax in slope_panel_map:
-        for (eta, x, y), c in zip(all_curves[key], colors):
-            xs, s = local_log_slope(x, y)
-            ax.semilogx(xs, s, color=c, lw=1.9)
-        p = [pp for pp in panels if pp["name"] == key][0]
-        r_m, m_m, r_M, m_M = classify_lengths(p["ri"], p["mi"], p["rf"], p["mf"])
-        ax.axhline(1.0 + m_m, color="black", lw=1.4, ls="--")
-        ax.axhline(1.0 + m_M, color="black", lw=1.4)
-        ax.text(1.4e-5, 1.0 + m_M + 0.03, rf"$1+m_M={1+m_M:.3g}$", fontsize=12)
-        ax.text(1.4e-5, 1.0 + m_m + 0.03, rf"$1+m_m={1+m_m:.3g}$", fontsize=12)
-        ax.set_xscale("log")
-        ax.set_xlim(1e-5, 1e2)
-        ax.set_ylim(0.8, 2.05)
-        ax.tick_params(which="both", direction="in", labelsize=12)
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
-        ax.xaxis.set_major_locator(FixedLocator([1e-4, 1e-2, 1, 1e2]))
-        ax.xaxis.set_major_formatter(LogFormatterMathtext())
-        ax.text(-0.02, 1.04, r"$d\ln D_{\mathrm{dP}}/d\ln R$", transform=ax.transAxes, fontsize=18)
-        ax.text(1.03, -0.02, r"$R/r_M$", transform=ax.transAxes, fontsize=18)
+    for ax in (ax1, ax2, ax3):
+        ax.text(1.03, -0.02, r"$R/r_i$", transform=ax.transAxes, fontsize=24)
 
-    handles = [plt.Line2D([0], [0], color=c, lw=2.5) for c in colors]
-    labels = [rf"$\eta={eta:g}$" for eta in eta_list]
-    fig.legend(handles, labels, ncol=min(4, len(labels)), frameon=False, fontsize=12, loc="upper center", bbox_to_anchor=(0.52, 0.995))
+    ax1.legend(frameon=False, fontsize=12, loc="lower right", ncol=1)
+    ax2.text(0.05, 0.90, rf"$m_i={m_i:.3g},\ m_\phi={m_phi:.3g}$", transform=ax2.transAxes, fontsize=16)
+    ax2.text(0.05, 0.82, rf"$L/r_i={L_over_ri:.3g},\ r_\phi/r_i={r_f_over_ri:.3g}$", transform=ax2.transAxes, fontsize=16)
+    ax2.text(0.05, 0.74, rf"$\beta=\bar\phi/\sigma_\phi={beta:.3g}$", transform=ax2.transAxes, fontsize=16)
+
+    ax3.axhline(1.0 + m_i, color="black", lw=1.8)
+    ax3.axhline(1.0 + m_phi, color="black", lw=1.8, ls="--")
 
     fig.savefig(output_png, dpi=300, bbox_inches="tight")
     fig.savefig(output_svg, bbox_inches="tight")
@@ -336,9 +315,9 @@ def run():
         output_svg="Figure9_multiple_eta_full.svg",
         full_mode="eq93_printed",
         beta=0.0,
-        eta_list=np.concatenate([[0.0], np.geomspace(1e-4, 1e0, 20)]),#(0.0, 1e-3, 3e-3, 1e-2, 3e-2, 1e-1, 3e-1),
-        nR=130,
-        nb_z2=160
+        eta_list=np.concatenate([[0.0], np.geomspace(1e-3, 1e0, 10)]),
+        nR=100,
+        nb_z2=160*2
     )
 
 if __name__ == "__main__":
