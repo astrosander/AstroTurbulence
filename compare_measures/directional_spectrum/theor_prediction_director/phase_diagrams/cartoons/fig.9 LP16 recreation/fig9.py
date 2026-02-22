@@ -400,18 +400,6 @@ def draw_figure9_exact(output_png="Figure9_exact_equations_fast.png",
 
     fig.subplots_adjust(left=0.07, right=0.98, top=0.93, bottom=0.23, wspace=0.24, hspace=0.25)
 
-    # Caption (compact but complete enough)
-    caption = (
-        r"$\bf{Figure\ 9.}$ Structure function of the derivative of the polarization with respect to $\lambda^2$, "
-        r"$D_{dP}\equiv\left\langle\left|\frac{dP(X_1)}{d\lambda^2}-\frac{dP(X_2)}{d\lambda^2}\right|^2\right\rangle$, "
-        r"in units of $\sigma_i^2\sigma_\phi^2L^3$. Example parameters are $r_i=r_M$, $r_\phi=r_m=0.1\,r_i$, "
-        r"$L=100\,r_i$ (except bottom right where $r_i=r_\phi$). Bold solid line is the full result from the exact "
-        r"Eq. (90)/Eq. (93) evaluation; dotted and dashed lines are the intrinsic and Faraday linear terms from Eq. (93). "
-        r"Vertical lines mark the projected correlation lengths $R_P$."
-    )
-    # fig.text(0.015, 0.04, "\n".join(textwrap.wrap(caption, width=175)),
-    #          ha="left", va="bottom", fontsize=10)
-
     # Save files
     fig.savefig(output_png, dpi=300, bbox_inches="tight")
     fig.savefig(output_pdf, bbox_inches="tight")
