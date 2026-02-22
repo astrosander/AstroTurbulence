@@ -3,6 +3,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.ticker import LogFormatterMathtext, FixedLocator
+from matplotlib.colors import LinearSegmentedColormap, LogNorm
 
 TRAPZ = getattr(np, "trapezoid", np.trapz)
 
@@ -102,28 +103,50 @@ def projected_scale(r, m, L):
 
 ri = 1.0
 L = 100.0 * ri
-rphi = 0.1 * ri
-etas = [0, 0.3, 1.0, 3.0, 10.0]#[0.1, 0.3, 1.0, 3.0, 10.0]
+# Use same eta values as p.py
+num_etas = 8
+etas = np.concatenate(([0], np.geomspace(0.1, 10, num_etas-1)))
 xvals = np.logspace(-4, 2, 140)
 
-cases = [
-    {"name": r"$m_\phi=1/3,\ m_i=4/5$", "mi": 4/5, "mphi": 1/3, "ri": ri, "rphi": rphi},
-    {"name": r"$m_\phi=4/5,\ m_i=1/3$", "mi": 1/3, "mphi": 4/5, "ri": ri, "rphi": rphi},
-    {"name": r"$m_\phi=2/3,\ m_i=2/3$", "mi": 2/3, "mphi": 2/3, "ri": ri, "rphi": rphi},
-    {"name": r"$r_\phi=r_i,\ m_\phi=4/5,\ m_i=1/3$", "mi": 1/3, "mphi": 4/5, "ri": ri, "rphi": ri}
+# Cases for new figure layout: m_i > m_phi (using m_i=4/5, m_phi=1/3)
+cases_fig1 = [
+    {"name": r"$r_\phi=r_i=1,\ m_i=4/5,\ m_\phi=1/3$", "mi": 4/5, "mphi": 1/3, "ri": ri, "rphi": ri},
+    {"name": r"$r_\phi=0.1,\ r_i=1,\ m_i=4/5,\ m_\phi=1/3$", "mi": 4/5, "mphi": 1/3, "ri": ri, "rphi": 0.1 * ri}
 ]
 
-results = [structure_functions_case(c["ri"], c["mi"], c["rphi"], c["mphi"], L, etas, xvals, nz=340) for c in cases]
+# Cases for log derivative plot
+cases_fig2 = [
+    {"name": r"$r_\phi=r_i=1,\ m_i=4/5,\ m_\phi=1/3$", "mi": 4/5, "mphi": 1/3, "ri": ri, "rphi": ri},
+    {"name": r"$r_\phi=0.1,\ r_i=1,\ m_i=4/5,\ m_\phi=1/3$", "mi": 4/5, "mphi": 1/3, "ri": ri, "rphi": 0.1 * ri}
+]
 
+results_fig1 = [structure_functions_case(c["ri"], c["mi"], c["rphi"], c["mphi"], L, etas, xvals, nz=340) for c in cases_fig1]
+results_fig2 = [structure_functions_case(c["ri"], c["mi"], c["rphi"], c["mphi"], L, etas, xvals, nz=340) for c in cases_fig2]
+
+# Create colormap from blue to red (matching p.py)
+cmap = LinearSegmentedColormap.from_list('blue_to_red', ['#0000FF', '#FF0000'])
+# Normalize eta values logarithmically (handle eta=0 by using small epsilon)
+eta_min = min([e for e in etas if e > 0]) if any(e > 0 for e in etas) else 1e-6
+norm = LogNorm(vmin=eta_min, vmax=max(etas))
+
+# Figure 1: Two columns (P on left, dP on right), two rows
 fig1, axs1 = plt.subplots(2, 2, figsize=(13.5, 9.5))
-axs1 = axs1.ravel()
-colors = ["tab:blue", "tab:orange", "tab:green", "tab:red", "tab:purple"]
 
-for ax, c, res in zip(axs1, cases, results):
+# Left column: P plots
+for row, (c, res) in enumerate(zip(cases_fig1, results_fig1)):
+    ax = axs1[row, 0]
     for i, eta in enumerate(res["etas"]):
-        ax.loglog(res["x"], np.maximum(res["D_P_norm"][i], 1e-12), color=colors[i], lw=2.0, label=fr"$\eta={eta:g}$")
+        if eta == 0:
+            color = cmap(0.0)  # Use blue for eta=0
+        else:
+            color = cmap(norm(eta))
+        ax.loglog(res["x"], np.maximum(res["D_P_norm"][i], 1e-12), color=color, lw=2.0, label=rf"$\eta={eta:.3f}$")
     rp_i = projected_scale(c["ri"], c["mi"], L) / c["ri"]
-    rp_f = projected_scale(c["rphi"], c["mphi"], L) / c["ri"]
+    # When r_i = r_phi, normalize by r_phi so lines are together; otherwise normalize by r_i
+    if abs(c["ri"] - c["rphi"]) < 1e-10:
+        rp_f = projected_scale(c["rphi"], c["mphi"], L) / c["rphi"]
+    else:
+        rp_f = projected_scale(c["rphi"], c["mphi"], L) / c["ri"]
     ax.vlines(rp_i, 1e-5, 1e-3, colors="crimson", linestyles=":", lw=2.2, alpha=0.8, label=r"$r_{p,i}$")
     ax.vlines(rp_f, 1e-5, 1e-3, colors="darkblue", linestyles="--", lw=2.2, alpha=0.8, label=r"$r_{p,\phi}$")
     x0 = np.array([1e-4, 3e-2])
@@ -134,7 +157,6 @@ for ax, c, res in zip(axs1, cases, results):
     ax.set_xlim(1e-4, 1e2)
     ax.set_ylim(1e-5, 2)
     ax.set_title(c["name"], fontsize=13)
-    # ax.set_facecolor((0.94, 0.94, 0.94))
     ax.tick_params(which="both", direction="in", labelsize=10)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
@@ -143,38 +165,31 @@ for ax, c, res in zip(axs1, cases, results):
     ax.xaxis.set_major_formatter(LogFormatterMathtext())
     ax.yaxis.set_major_formatter(LogFormatterMathtext())
 
-axs1[0].set_ylabel(r"$D_P(R)/D_P(\infty)$", fontsize=14)
-axs1[2].set_ylabel(r"$D_P(R)/D_P(\infty)$", fontsize=14)
-axs1[2].set_xlabel(r"$R/r_i$", fontsize=14)
-axs1[3].set_xlabel(r"$R/r_i$", fontsize=14)
-for ax in axs1:
-    ax.legend(loc="lower right", fontsize=9, frameon=False, ncol=1)
-fig1.tight_layout()
-fig1.savefig("LP16_compare_DP_multiple_eta.png", dpi=300, bbox_inches="tight")
-fig1.savefig("LP16_compare_DP_multiple_eta.svg", bbox_inches="tight")
-plt.close(fig1)
-
-fig2, axs2 = plt.subplots(2, 2, figsize=(13.5, 9.5))
-axs2 = axs2.ravel()
-
-for ax, c, res in zip(axs2, cases, results):
+# Right column: dP plots
+for row, (c, res) in enumerate(zip(cases_fig1, results_fig1)):
+    ax = axs1[row, 1]
     for i, eta in enumerate(res["etas"]):
-        ax.loglog(res["x"], np.maximum(res["DdP_fig9_units"][i], 1e-12), color=colors[i], lw=2.0, label=fr"$\eta={eta:g}$")
-    weak_ref = res["DdP_fig9_units"][0]
-    s = np.nanmax(np.maximum(weak_ref, 1e-30))
+        if eta == 0:
+            color = cmap(0.0)  # Use blue for eta=0
+        else:
+            color = cmap(norm(eta))
+        ax.loglog(res["x"], np.maximum(res["DdP_fig9_units"][i], 1e-12), color=color, lw=2.0, label=rf"$\eta={eta:.3f}$")
     x0 = np.array([1e-4, 3e-2])
     y1 = 3e-5 * (x0 / x0[0]) ** min(c["mphi"], 1.0)
     y2 = 2e-3 * (x0 / x0[0]) ** min(c["mi"], 1.0)
     ax.loglog(x0, y1, color="darkmagenta", lw=2.4, ls="--", alpha=0.8, label=r"$R^{m_\phi}$")
     ax.loglog(x0, y2, color="darkorange", lw=2.4, ls=":", alpha=0.8, label=r"$R^{m_i}$")
-    rp_i = projected_scale(c["ri"], c["mi"], L) / max(c["ri"], c["rphi"])
-    rp_f = projected_scale(c["rphi"], c["mphi"], L) / max(c["ri"], c["rphi"])
+    rp_i = projected_scale(c["ri"], c["mi"], L) / c["ri"]
+    # When r_i = r_phi, normalize by r_phi so lines are together; otherwise normalize by r_i
+    if abs(c["ri"] - c["rphi"]) < 1e-10:
+        rp_f = projected_scale(c["rphi"], c["mphi"], L) / c["rphi"]
+    else:
+        rp_f = projected_scale(c["rphi"], c["mphi"], L) / c["ri"]
     ax.vlines(rp_i, 1e-3, 1e-1, colors="crimson", linestyles=":", lw=2.2, alpha=0.8, label=r"$r_{p,i}$")
     ax.vlines(rp_f, 1e-3, 1e-1, colors="darkblue", linestyles="--", lw=2.2, alpha=0.8, label=r"$r_{p,\phi}$")
     ax.set_xlim(1e-4, 1e2)
     ax.set_ylim(1e-3, 10)
     ax.set_title(c["name"], fontsize=13)
-    # ax.set_facecolor((0.94, 0.94, 0.94))
     ax.tick_params(which="both", direction="in", labelsize=10)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
@@ -183,26 +198,33 @@ for ax, c, res in zip(axs2, cases, results):
     ax.xaxis.set_major_formatter(LogFormatterMathtext())
     ax.yaxis.set_major_formatter(LogFormatterMathtext())
 
-axs2[0].set_ylabel(r"$D_{dP}(R)/(\sigma_i^2\sigma_\phi^2 L^3)$", fontsize=14)
-axs2[2].set_ylabel(r"$D_{dP}(R)/(\sigma_i^2\sigma_\phi^2 L^3)$", fontsize=14)
-axs2[2].set_xlabel(r"$R/r_i$", fontsize=14)
-axs2[3].set_xlabel(r"$R/r_i$", fontsize=14)
-for ax in axs2:
+axs1[0, 0].set_ylabel(r"$D_P(R)/D_P(\infty)$", fontsize=14)
+axs1[1, 0].set_ylabel(r"$D_P(R)/D_P(\infty)$", fontsize=14)
+axs1[0, 1].set_ylabel(r"$D_{dP}(R)/(\sigma_i^2\sigma_\phi^2 L^3)$", fontsize=14)
+axs1[1, 1].set_ylabel(r"$D_{dP}(R)/(\sigma_i^2\sigma_\phi^2 L^3)$", fontsize=14)
+axs1[1, 0].set_xlabel(r"$R/r_i$", fontsize=14)
+axs1[1, 1].set_xlabel(r"$R/r_i$", fontsize=14)
+for ax in axs1.ravel():
     ax.legend(loc="lower right", fontsize=9, frameon=False, ncol=1)
-fig2.tight_layout()
-fig2.savefig("LP16_compare_DdP_multiple_eta.png", dpi=300, bbox_inches="tight")
-fig2.savefig("LP16_compare_DdP_multiple_eta.svg", bbox_inches="tight")
-plt.close(fig2)
+fig1.tight_layout()
+fig1.savefig("LP16_compare_DP_multiple_eta.png", dpi=300, bbox_inches="tight")
+fig1.savefig("LP16_compare_DP_multiple_eta.svg", bbox_inches="tight")
+plt.close(fig1)
 
-fig3, axs3 = plt.subplots(2, 2, figsize=(13.5, 9.5))
-axs3 = axs3.ravel()
+# Figure 2: Log derivative plot with 2 cases
+fig2, axs2 = plt.subplots(1, 2, figsize=(13.5, 4.5))
 
-for ax, c, res in zip(axs3, cases, results):
+for col, (c, res) in enumerate(zip(cases_fig2, results_fig2)):
+    ax = axs2[col]
     for i, eta in enumerate(res["etas"]):
+        if eta == 0:
+            color = cmap(0.0)  # Use blue for eta=0
+        else:
+            color = cmap(norm(eta))
         sp = local_slope(res["x"], res["D_P_norm"][i][None, :])[0]
         sd = local_slope(res["x"], np.maximum(res["DdP_fig9_units"][i], 1e-300)[None, :])[0]
-        ax.semilogx(res["x"], sp, color=colors[i], lw=2.0)
-        ax.semilogx(res["x"], sd, color=colors[i], lw=1.5, ls="--")
+        ax.semilogx(res["x"], sp, color=color, lw=2.0)
+        ax.semilogx(res["x"], sd, color=color, lw=1.5, ls="--")
     mi_slope = min(c["mi"], 1.0)
     mphi_slope = min(c["mphi"], 1.0)
     ax.axhline(mi_slope, color="crimson", lw=2.2, ls=":", alpha=0.8, label=fr"$m_i={mi_slope:.2f}$")
@@ -210,25 +232,23 @@ for ax, c, res in zip(axs3, cases, results):
     ax.set_xlim(1e-4, 1e2)
     ax.set_ylim(0, 1.2)
     ax.set_title(c["name"], fontsize=13)
-    # ax.set_facecolor((0.94, 0.94, 0.94))
     ax.tick_params(which="both", direction="in", labelsize=10)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     ax.xaxis.set_major_locator(FixedLocator([1e-4, 1e-3, 1e-2, 1e-1, 1, 10, 100]))
     ax.xaxis.set_major_formatter(LogFormatterMathtext())
 
-axs3[0].set_ylabel(r"local slope $d\log D / d\log R$", fontsize=14)
-axs3[2].set_ylabel(r"local slope $d\log D / d\log R$", fontsize=14)
-axs3[2].set_xlabel(r"$R/r_i$", fontsize=14)
-axs3[3].set_xlabel(r"$R/r_i$", fontsize=14)
-for ax in axs3:
+axs2[0].set_ylabel(r"local slope $d\log D / d\log R$", fontsize=14)
+axs2[0].set_xlabel(r"$R/r_i$", fontsize=14)
+axs2[1].set_xlabel(r"$R/r_i$", fontsize=14)
+for ax in axs2:
     ax.legend(loc="upper right", fontsize=9, frameon=False)
-fig3.tight_layout()
-fig3.savefig("LP16_compare_slopes_P_vs_dP_multiple_eta.png", dpi=300, bbox_inches="tight")
-fig3.savefig("LP16_compare_slopes_P_vs_dP_multiple_eta.svg", bbox_inches="tight")
-plt.close(fig3)
+fig2.tight_layout()
+fig2.savefig("LP16_compare_slopes_P_vs_dP_multiple_eta.png", dpi=300, bbox_inches="tight")
+fig2.savefig("LP16_compare_slopes_P_vs_dP_multiple_eta.svg", bbox_inches="tight")
+plt.close(fig2)
 
-for c, res in zip(cases, results):
+for c, res in zip(cases_fig1, results_fig1):
     print(c["name"])
     print("sigma_RM =", res["sigma_RM"])
     for eta, lam2, dp0, dd0 in zip(res["etas"], res["lambda2"], res["D_P_inf"], res["D_dP_inf"]):
