@@ -63,8 +63,8 @@ def plot_directional_structure_and_proxy(
     m_i=4.0/5.0,
     m_phi=1.0/3.0,
     eta_list=(0.0, 0.05, 0.09, 0.2, 0.3, 0.5),
-    x_min=1e-4,
-    x_max=1e1,
+    x_min=1e-7,
+    x_max=1e2,
     nR=500
 ):
     x = np.logspace(np.log10(x_min), np.log10(x_max), int(nR))
@@ -110,8 +110,8 @@ def plot_directional_structure_and_proxy(
         if np.isfinite(Rx) and Rx > 0:
             xr = Rx / r_i
             ax1.plot([xr], [np.interp(np.log10(xr), np.log10(x), np.log10(curves[len(curves)//2][1]))], alpha=0)
-            ax1.axvline(xr, color="0.2", lw=1.2, ls=":")
-            ax1.text(xr*1.05, 1.7e-5, r"$R_\times$", fontsize=16)
+            # ax1.axvline(xr, color="0.2", lw=1.2, ls=":")
+            # ax1.text(xr*1.05, 1.7e-5, r"$R_\times$", fontsize=16)
 
     ax1.set_xscale("log")
     ax1.set_yscale("log")
@@ -122,8 +122,8 @@ def plot_directional_structure_and_proxy(
     ax1.yaxis.set_major_formatter(LogFormatterMathtext())
 
     ax1.set_xlim(x_min, x_max)
-    ax1.set_ylim(1e-6, 1.2)
-    ax1.xaxis.set_major_locator(FixedLocator([1e-4, 1e-3, 1e-2, 1e-1, 1, 10]))
+    ax1.set_ylim(1e-5, 1.2)
+    ax1.xaxis.set_major_locator(FixedLocator([1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 10, 100]))
     ax1.yaxis.set_major_locator(FixedLocator([1, 1e-2, 1e-4, 1e-6]))
     ax1.text(-0.10, 1.05, r"$D_u(R)/2=1-\xi_u$", transform=ax1.transAxes, fontsize=24)
     ax1.text(1.03, -0.02, r"$R/r_i$", transform=ax1.transAxes, fontsize=22)
@@ -145,7 +145,7 @@ def plot_directional_structure_and_proxy(
     ax2.tick_params(which="both", direction="in", labelsize=13)
     ax2.spines["top"].set_visible(False)
     ax2.spines["right"].set_visible(False)
-    ax2.xaxis.set_major_locator(FixedLocator([1e-4, 1e-3, 1e-2, 1e-1, 1, 10]))
+    ax2.xaxis.set_major_locator(FixedLocator([1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 10, 100]))
     ax2.xaxis.set_major_formatter(LogFormatterMathtext())
     ax2.text(-0.02, 1.05, r"$d\ln D_u/d\ln R$", transform=ax2.transAxes, fontsize=24)
     ax2.text(1.03, -0.02, r"$R/r_i$", transform=ax2.transAxes, fontsize=22)
@@ -164,12 +164,12 @@ def run():
         out_png="directional_structure_and_proxy.png",
         out_svg="directional_structure_and_proxy.svg",
         r_i=1.0,
-        r_phi=0.1,
-        m_i=4.0/5.0,
-        m_phi=1.0/3.0,
-        eta_list=(0.0, 0.05, 0.09, 0.2, 0.3, 0.5),
-        x_min=1e-4,
-        x_max=1e1,
+        r_phi=1.0,  # r_f_over_ri = 1.0, so r_phi = 1.0 * r_i = 1.0
+        m_i=0.7,    # same as fig9.py
+        m_phi=1.0/4.0,  # same as fig9.py (0.25)
+        eta_list=np.concatenate([[0.0], np.geomspace(1e-3, 1e0, 10)]),  # same as fig9.py
+        x_min=1e-7,  # same as fig9.py
+        x_max=1e2,   # same as fig9.py
         nR=500
     )
 
