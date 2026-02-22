@@ -217,7 +217,7 @@ def run():
 
     ax3.set_xscale("log")
     ax3.set_xlim(1e-7, 1e2)
-    ax3.set_ylim(0.6, 2.1)
+    ax3.set_ylim(0, 2.1)
     ax3.tick_params(which="both", direction="in", labelsize=13, color="0.35")
     ax3.spines["top"].set_visible(False)
     ax3.spines["right"].set_visible(False)
