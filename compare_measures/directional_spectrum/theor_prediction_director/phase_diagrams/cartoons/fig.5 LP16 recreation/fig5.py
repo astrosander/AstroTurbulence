@@ -233,89 +233,68 @@ def run():
         D, C0, Dinf = D_from_kernel(R_values=R, kernel_R=K_R, kernel_0=K_0, delta_grid=delta, r_i=r_i, m_i=m_i, sigma_i=sigma_i, Pbar_i=Pbar_i)
         curves.append((eta, D, Dinf))
 
-    # ApJ publication quality figure - large size for maximum impact
-    fig = plt.figure(figsize=(20, 7))
+    # ApJ publication quality figure - match anzatz.py layout
+    fig = plt.figure(figsize=(16, 6))
     fig.patch.set_facecolor('white')
-    gs = fig.add_gridspec(1, 3, left=0.065, right=0.98, top=0.92, bottom=0.18, wspace=0.32)
-    ax1 = fig.add_subplot(gs[0, 0])
-    ax2 = fig.add_subplot(gs[0, 1])
-    ax3 = fig.add_subplot(gs[0, 2])
+    gs = fig.add_gridspec(1, 2, left=0.08, right=0.98, top=0.92, bottom=0.18, wspace=0.28)
+    ax1 = fig.add_subplot(gs[0, 0])  # Center panel: D_P(R)/D_P(inf)
+    ax2 = fig.add_subplot(gs[0, 1])  # Right panel: log derivative
 
-    # Apply consistent styling to all axes
-    for ax in (ax1, ax2):
-        ax.set_xscale("log")
-        ax.set_yscale("log")
-        ax.set_xlim(1e-7, 1e2)
-        ax.tick_params(which="both", direction="in", labelsize=22, width=2.5, length=8)
-        ax.tick_params(which="minor", direction="in", labelsize=18, width=1.5, length=5)
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
-        ax.spines["left"].set_linewidth(2.5)
-        ax.spines["bottom"].set_linewidth(2.5)
-        ax.xaxis.set_major_locator(FixedLocator([1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 10, 100]))
-        ax.xaxis.set_major_formatter(LogFormatterMathtext())
-
-    ax1.set_ylim(1e-14, 2e-1)
-    ax2.set_ylim(1e-14, 2)
-    ax1.yaxis.set_major_locator(FixedLocator([1e-1, 1e-3, 1e-5, 1e-7]))
+    # Left panel: normalized structure function
+    ax1.set_xscale("log")
+    ax1.set_yscale("log")
+    ax1.set_xlim(1e-7, 1e2)
+    ax1.set_ylim(1e-14, 2)
+    ax1.tick_params(which="both", direction="in", labelsize=22, width=2.5, length=8)
+    ax1.tick_params(which="minor", direction="in", labelsize=18, width=1.5, length=5)
+    ax1.spines["top"].set_visible(False)
+    ax1.spines["right"].set_visible(False)
+    ax1.spines["left"].set_linewidth(2.5)
+    ax1.spines["bottom"].set_linewidth(2.5)
+    ax1.xaxis.set_major_locator(FixedLocator([1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 10, 100]))
+    ax1.xaxis.set_major_formatter(LogFormatterMathtext())
+    ax1.yaxis.set_major_locator(FixedLocator([1, 1e-2, 1e-4, 1e-6]))
     ax1.yaxis.set_major_formatter(LogFormatterMathtext())
-    ax2.yaxis.set_major_locator(FixedLocator([1, 1e-2, 1e-4, 1e-6]))
-    ax2.yaxis.set_major_formatter(LogFormatterMathtext())
 
-    ax3.set_xscale("log")
-    ax3.set_xlim(1e-7, 1e2)
-    ax3.set_ylim(0, 2.1)
-    ax3.tick_params(which="both", direction="in", labelsize=22, width=2.5, length=8)
-    ax3.tick_params(which="minor", direction="in", labelsize=18, width=1.5, length=5)
-    ax3.spines["top"].set_visible(False)
-    ax3.spines["right"].set_visible(False)
-    ax3.spines["left"].set_linewidth(2.5)
-    ax3.spines["bottom"].set_linewidth(2.5)
-    ax3.xaxis.set_major_locator(FixedLocator([1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 10, 100]))
-    ax3.xaxis.set_major_formatter(LogFormatterMathtext())
+    # Right panel: log derivative
+    ax2.set_xscale("log")
+    ax2.set_xlim(1e-7, 1e2)
+    ax2.set_ylim(0, 2.1)
+    ax2.tick_params(which="both", direction="in", labelsize=22, width=2.5, length=8)
+    ax2.tick_params(which="minor", direction="in", labelsize=18, width=1.5, length=5)
+    ax2.spines["top"].set_visible(False)
+    ax2.spines["right"].set_visible(False)
+    ax2.spines["left"].set_linewidth(2.5)
+    ax2.spines["bottom"].set_linewidth(2.5)
+    ax2.xaxis.set_major_locator(FixedLocator([1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 10, 100]))
+    ax2.xaxis.set_major_formatter(LogFormatterMathtext())
 
     # Use blue-to-red colormap
     colors = create_blue_to_red_colormap(len(curves))
 
-    left_norm_factor = 2.0
-    left_denom = left_norm_factor * sigma_i**2 * L**2
-    D_asym = D_P_asymptotic_eq45(R, r_i=r_i, m=m_i, L=L, sigma_i=sigma_i)
-    xg = np.array([1e-3, 3e-2])
-    yg0 = 2.0e-6
-    yg_intr = yg0 * (xg / xg[0]) ** (1.0 + m_i)
-    yg_far = (3.5e-6) * (xg / xg[0]) ** (1.0 + m_phi)
-
     for (eta, D, Dinf), c in zip(curves, colors):
-        y1 = D / left_denom
         y2 = D / Dinf
         lw = 3.5 if eta == 0.0 else 3.0
         zorder = 100 if eta == 0.0 else 50
         label = r"$\eta = 0$" if eta == 0.0 else rf"$\eta = {eta:.3g}$"
-        ax1.loglog(x, y1, lw=lw, color=c, label=label, zorder=zorder, alpha=0.95)
-        ax2.loglog(x, y2, lw=lw, color=c, zorder=zorder, alpha=0.95)
+        ax1.loglog(x, y2, lw=lw, color=c, label=label, zorder=zorder, alpha=0.95)
         xs, sl = local_log_slope(x, y2)
-        ax3.semilogx(xs, sl, lw=3.0, color=c, zorder=zorder, alpha=0.95)
+        ax2.semilogx(xs, sl, lw=3.0, color=c, zorder=zorder, alpha=0.95)
 
-    ax1.loglog(xg, yg_intr, color="black", lw=3.0, zorder=5)
-    ax1.text(1.25e-3, 1.1e-4, rf"$\propto R^{{1+m_i}}$", fontsize=26, color="black")
-    ax1.loglog(xg, yg_far, color="black", lw=3.0, ls="--", zorder=5)
-    ax1.text(2.0e-3, 1.8e-3, rf"$\propto R^{{1+m_\phi}}$", fontsize=26, color="black")
-
-    ax3.axhline(1.0 + m_i, color="black", lw=3.0, zorder=5)
-    ax3.axhline(1.0 + m_phi, color="black", lw=3.0, ls="--", zorder=5)
+    ax2.axhline(1.0 + m_i, color="black", lw=3.0, zorder=5)
+    ax2.axhline(1.0 + m_phi, color="black", lw=3.0, ls="--", zorder=5)
 
     # Large, clear axis labels for maximum citation potential
-    ax1.text(-0.08, 1.05, r"$D_P(\mathrm{R})$", transform=ax1.transAxes, fontsize=36, weight='bold')
-    ax2.text(-0.16, 1.05, r"$D_P(\mathrm{R})/D_P(\infty)$", transform=ax2.transAxes, fontsize=36, weight='bold')
-    ax3.text(-0.02, 1.05, r"$d\ln D_P/d\ln R$", transform=ax3.transAxes, fontsize=32, weight='bold')
+    ax1.text(-0.16, 1.05, r"$D_P(\mathrm{R})/D_P(\infty)$", transform=ax1.transAxes, fontsize=36, weight='bold')
+    ax2.text(-0.02, 1.05, r"$d\ln D_P/d\ln R$", transform=ax2.transAxes, fontsize=32, weight='bold')
 
-    for ax in (ax1, ax2, ax3):
+    for ax in (ax1, ax2):
         ax.text(1.03, -0.02, r"$R/r_i$", transform=ax.transAxes, fontsize=32, weight='bold')
 
     ax1.legend(frameon=False, fontsize=20, loc="lower right", ncol=1, handlelength=1.5)
-    ax2.text(0.05, 0.90, rf"$m_i={m_i:.3g},\ m_\phi={m_phi:.3g}$", transform=ax2.transAxes, fontsize=20)
-    ax2.text(0.05, 0.82, rf"$L/r_i={L_over_ri:.3g},\ r_\phi/r_i={r_f_over_ri:.3g}$", transform=ax2.transAxes, fontsize=20)
-    ax2.text(0.05, 0.74, rf"$\beta=\bar\phi/\sigma_\phi={beta:.3g}$", transform=ax2.transAxes, fontsize=20)
+    ax1.text(0.05, 0.90, rf"$m_i={m_i:.3g},\ m_\phi={m_phi:.3g}$", transform=ax1.transAxes, fontsize=20)
+    ax1.text(0.05, 0.82, rf"$L/r_i={L_over_ri:.3g},\ r_\phi/r_i={r_f_over_ri:.3g}$", transform=ax1.transAxes, fontsize=20)
+    ax1.text(0.05, 0.74, rf"$\beta=\bar\phi/\sigma_\phi={beta:.3g}$", transform=ax1.transAxes, fontsize=20)
 
     fig.savefig(out_png, dpi=300, bbox_inches="tight")
     fig.savefig(out_svg, bbox_inches="tight")
