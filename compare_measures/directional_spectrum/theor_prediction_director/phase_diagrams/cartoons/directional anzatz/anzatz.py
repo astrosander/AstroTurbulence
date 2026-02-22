@@ -141,7 +141,7 @@ def plot_directional_structure_and_proxy(
     
     ax2.set_xscale("log")
     ax2.set_xlim(x_min, x_max)
-    ax2.set_ylim(0, 1.2)
+    ax2.set_ylim(0, 0.8)
     ax2.tick_params(which="both", direction="in", labelsize=13)
     ax2.spines["top"].set_visible(False)
     ax2.spines["right"].set_visible(False)
@@ -167,7 +167,7 @@ def run():
         r_phi=1.0,  # r_f_over_ri = 1.0, so r_phi = 1.0 * r_i = 1.0
         m_i=0.7,    # same as fig9.py
         m_phi=1.0/4.0,  # same as fig9.py (0.25)
-        eta_list=np.concatenate([[0.0], np.geomspace(1e-3, 1e0, 10)]),  # same as fig9.py
+        eta_list=np.concatenate([[0.0], np.geomspace(2e-2, 1e0, 10)]),  # same as fig9.py
         x_min=1e-7,  # same as fig9.py
         x_max=1e2,   # same as fig9.py
         nR=500
