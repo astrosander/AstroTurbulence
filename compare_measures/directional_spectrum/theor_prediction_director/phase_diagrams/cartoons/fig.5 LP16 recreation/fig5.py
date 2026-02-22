@@ -175,7 +175,7 @@ def run():
     r_f = r_f_over_ri * r_i
 
     beta = 0.0
-    eta_list = np.concatenate([[0.0], np.geomspace(1e-4, 1e2, 20)])#[0.0, 3e-3, 1e-2, 3e-2, 1e-1, 3e-1, 1.0]
+    eta_list = np.concatenate([[0.0], np.geomspace(1e-4, 1e0, 20)])#[0.0, 3e-3, 1e-2, 3e-2, 1e-1, 3e-1, 1.0]
     nR = 100
     x = np.logspace(-8, 8, nR)
     R = x * r_i
