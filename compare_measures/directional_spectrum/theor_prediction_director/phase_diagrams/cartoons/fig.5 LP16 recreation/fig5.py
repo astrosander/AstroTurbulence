@@ -169,15 +169,15 @@ def run():
     sigma_i = 1.0
     Pbar_i = 0.0
 
-    m_i = 0.8+2
-    m_phi = 1.0 / 3.0
-    r_f_over_ri = 1.0#0.3
+    m_i = 0.7#0.8+1
+    m_phi = 1.0 / 4.0
+    r_f_over_ri = 1.0#0.1#1.0#0.3
     r_f = r_f_over_ri * r_i
 
     beta = 0.0
-    eta_list = [0.0, 3e-3, 1e-2, 3e-2, 1e-1, 3e-1, 1.0]
-    nR = 140
-    x = np.logspace(-4, 2, nR)
+    eta_list = np.concatenate([[0.0], np.geomspace(1e-4, 1e0, 20)])#[0.0, 3e-3, 1e-2, 3e-2, 1e-1, 3e-1, 1.0]
+    nR = 100
+    x = np.logspace(-8, 8, nR)
     R = x * r_i
 
     delta = make_z_grid(L, n_log1=240, n_log2=220, n_lin=160)
@@ -201,27 +201,27 @@ def run():
     for ax in (ax1, ax2):
         ax.set_xscale("log")
         ax.set_yscale("log")
-        ax.set_xlim(1e-4, 1e2)
+        ax.set_xlim(1e-7, 1e2)
         ax.tick_params(which="both", direction="in", labelsize=13, color="0.35")
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
-        ax.xaxis.set_major_locator(FixedLocator([1e-4, 1e-3, 1e-2, 1e-1, 1, 10, 100]))
+        ax.xaxis.set_major_locator(FixedLocator([1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 10, 100]))
         ax.xaxis.set_major_formatter(LogFormatterMathtext())
 
-    ax1.set_ylim(1e-8, 2e-1)
-    ax2.set_ylim(1e-8, 2)
+    ax1.set_ylim(1e-14, 2e-1)
+    ax2.set_ylim(1e-14, 2)
     ax1.yaxis.set_major_locator(FixedLocator([1e-1, 1e-3, 1e-5, 1e-7]))
     ax1.yaxis.set_major_formatter(LogFormatterMathtext())
     ax2.yaxis.set_major_locator(FixedLocator([1, 1e-2, 1e-4, 1e-6]))
     ax2.yaxis.set_major_formatter(LogFormatterMathtext())
 
     ax3.set_xscale("log")
-    ax3.set_xlim(1e-4, 1e2)
+    ax3.set_xlim(1e-7, 1e2)
     ax3.set_ylim(0.6, 2.1)
     ax3.tick_params(which="both", direction="in", labelsize=13, color="0.35")
     ax3.spines["top"].set_visible(False)
     ax3.spines["right"].set_visible(False)
-    ax3.xaxis.set_major_locator(FixedLocator([1e-4, 1e-3, 1e-2, 1e-1, 1, 10, 100]))
+    ax3.xaxis.set_major_locator(FixedLocator([1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 10, 100]))
     ax3.xaxis.set_major_formatter(LogFormatterMathtext())
 
     cmap = plt.cm.viridis
