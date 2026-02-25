@@ -59,10 +59,10 @@ plt.rcParams.update({
     'axes.titlepad': 18,
     
     # Grid styling - subtle but present
-    'grid.linewidth': 1.0,
-    'grid.alpha': 0.3,
-    'grid.color': '#808080',
-    'grid.linestyle': '--',
+    # 'grid.linewidth': 1.0,
+    # 'grid.alpha': 0.3,
+    # 'grid.color': '#808080',
+    # 'grid.linestyle': '--',
     
     # Tick styling - prominent and clear
     'xtick.major.width': 2.5,
@@ -377,7 +377,7 @@ ax.set_ylabel(r"$P_u(k)$",
 
 # Set axis limits
 ax.set_xlim(xlim_min, xlim_max)
-ax.set_ylim(1e0, 4e10)
+ax.set_ylim(1e0, 1e10)
 
 # Enhanced tick formatting for maximum visibility and memorability
 ax.tick_params(which='major', 
@@ -433,14 +433,14 @@ legend.get_frame().set_linewidth(2.5)  # Thicker border for prominence
 # ============================================================================
 # GRID - Subtle but effective for readability
 # ============================================================================
-ax.grid(True, 
-        alpha=0.32,  # Slightly more visible
-        linestyle='--', 
-        linewidth=1.2,  # Slightly thicker
-        which='both',
-        color='#666666',  # Darker for better visibility
-        zorder=0)
-ax.set_axisbelow(True)
+# ax.grid(True, 
+#         alpha=0.32,  # Slightly more visible
+#         linestyle='--', 
+#         linewidth=1.2,  # Slightly thicker
+#         which='both',
+#         color='#666666',  # Darker for better visibility
+#         zorder=0)
+# ax.set_axisbelow(True)
 
 # ============================================================================
 # FINAL POLISH - Maximum visual impact and memorability

@@ -94,7 +94,7 @@ plt.rcParams.update({
 # -----------------------
 # User config
 # -----------------------
-npz_path = "Pu_cache_middle_density_only_B0.npz"
+npz_path = "Pu_cache_bottom_zero_mean_BdeltaB.npz"
 
 # plot for one or many etas:
 eta_start = 0.01  # start value (must be > 0 for geomspace)
@@ -342,32 +342,32 @@ y_norm = np.sqrt(y_min * y_max)
 # k^{-11/3} reference line - bold and memorable styling
 P_ref_11_3 = y_norm * (k_ref_k / k_norm_k) ** (-11/3)
 ax.loglog(k_ref, P_ref_11_3, 
-          linestyle='-.', 
-          color='red',  # Bold red for high visibility
+          linestyle='-', 
+          color='blue',  # Bold blue for high visibility
           linewidth=5.5,  # Increased for prominence
           alpha=0.85,  # More opaque for impact
           zorder=1, 
           label=r'$k^{-11/3}$',
-          dashes=(6, 3),  # More frequent dashes for better visibility
+          # dashes=(6, 3),  # More frequent dashes for better visibility
           solid_capstyle='round')
 
 # k^{-5/3} reference line - bold and clearly distinguished
 P_ref_5_3 = y_norm * (k_ref_k / k_norm_k) ** (-5/3)
 ax.loglog(k_ref, P_ref_5_3, 
-          linestyle='-', 
-          color='blue',  # Bold blue for high visibility
-          linewidth=5.5*2,  # Increased for prominence
+          linestyle='-.', 
+          color='red',  # Bold red for high visibility
+          linewidth=5.5*1.5,  # Increased for prominence
           alpha=0.85,  # More opaque for impact
           zorder=1, 
           label=r'$k^{-5/3}$',
-          dashes=(4, 2),  # More frequent dashes, different pattern for distinction
+          # dashes=(4, 2),  # More frequent dashes, different pattern for distinction
           solid_capstyle='round')
 
 # ============================================================================
 # AXIS LABELS AND FORMATTING - Professional typography
 # ============================================================================
 ax.set_xlabel(r"$\frac{k L_{\rm box}}{2\pi}$", 
-              fontsize=36,  # Increased for maximum impact
+              fontsize=40,  # Increased for maximum impact
               fontweight='bold',  # Bold for memorability
               color='#000000')  # Pure black for maximum contrast
 ax.set_ylabel(r"$P_u(k)$", 
