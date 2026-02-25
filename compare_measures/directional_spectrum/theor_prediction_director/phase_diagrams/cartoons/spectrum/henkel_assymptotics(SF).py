@@ -372,7 +372,7 @@ def _setup_panel(ax, x_min, x_max, ylabel, xlabel, ylim, legend=False, params_te
     if legend:
         ax.legend(frameon=False, fontsize=20, loc="lower right", handlelength=1.5)
     if params_text and m_psi is not None and m_phi is not None:
-        ax.text(0.03, 0.92, rf"$m_\psi={m_psi:.3g},\ m_\Phi={m_phi:.3g}$", transform=ax.transAxes, fontsize=20)
+        ax.text(0.03, 0.92, rf"$m_i={m_psi:.3g},\ m_\Phi={m_phi:.3g}$", transform=ax.transAxes, fontsize=20)
         if r_phi is not None and R0 is not None:
             ax.text(0.03, 0.84, rf"$r_\phi/R_0={r_phi/R0:.3g}$", transform=ax.transAxes, fontsize=20)
 
@@ -447,10 +447,10 @@ def run_and_plot(params,
     if sigma_phi2_list is not None and len(sigma_phi2_list) > 0:
         # For backward compatibility: if sigma_phi2_list is provided, 
         # we'll generate eta_list directly (same as main function)
-        eta_list = np.concatenate([[0.0], np.geomspace(1e-2, 1e0, 10)])
+        eta_list = np.concatenate([[0.0], np.geomspace(3e-3, 1e0, 10)])
     else:
         # Default: use eta_list from main
-        eta_list = np.concatenate([[0.0], np.geomspace(1e-2, 1e0, 10)])
+        eta_list = np.concatenate([[0.0], np.geomspace(3e-3, 1e0, 10)])
     
     # Use blue-to-red colormap matching reference files
     colors = create_blue_to_red_colormap(len(eta_list))
@@ -563,7 +563,7 @@ def run_and_plot(params,
     ax1_du.loglog(xg, yg_psi, "-", color="blue", lw=3.0, zorder=5, alpha=0.8)
     ax1_du.loglog(xg, yg_phi, "-.", color="red", lw=3.0, zorder=5, alpha=0.8)
     ax1_du.text(2.2e-2, 1.5e-3, rf"$\propto R^{{m_\Phi}}$", color="red", fontsize=24, rotation=16)
-    ax1_du.text(3.0e-2, 1.5e-2, rf"$\propto R^{{m_\psi}}$", color="blue", fontsize=24, rotation=33)
+    ax1_du.text(3.0e-2, 1.5e-2, rf"$\propto R^{{m_i}}$", color="blue", fontsize=24, rotation=33)
     
     for idx, (Du2, eta, c) in enumerate(zip(all_Du2, eta_list, colors)):
         lw = 3.5 if eta == 0.0 else 3.0
@@ -590,9 +590,9 @@ def run_and_plot(params,
     yg_intr_p = yg0_p * (xg_p / x_min) ** (5/3)
     yg_far_p = (1.5e-8) * (xg_p / x_min) ** (1.1)
     ax1_p.loglog(xg_p, yg_intr_p, color="blue", lw=3.0, ls="-", zorder=5, alpha=0.8)
-    ax1_p.text(1.25e-3, 5e-7, rf"$\propto R^{{1+m_i}}$", fontsize=24, color="blue")
+    ax1_p.text(1.25e-3, 5e-7, rf"$\propto R^{{m_i}}$", fontsize=24, color="blue")
     ax1_p.loglog(xg_p, yg_far_p, color="red", lw=3.0, ls="-.", zorder=5, alpha=0.8)
-    ax1_p.text(2.0e-3, 8e-6, rf"$\propto R^{{1+m_\phi}}$", fontsize=24, color="red")
+    ax1_p.text(2.0e-3, 8e-6, rf"$\propto R^{{m_\Phi}}$", fontsize=24, color="red")
     
     for idx, (xi, eta, c) in enumerate(zip(all_xi_P, eta_list, colors)):
         lw = 3.5 if eta == 0.0 else 3.0
@@ -621,9 +621,9 @@ def run_and_plot(params,
     yg_intr_dp = yg0_dp * (xg_dp / x_min) ** (5/3)
     yg_far_dp = (1.5e-8) * (xg_dp / x_min) ** (1.1)
     ax1_dp.loglog(xg_dp, yg_intr_dp, color="blue", lw=3.0, ls="-", zorder=5, alpha=0.8)
-    ax1_dp.text(1.25e-3, 5e-7, rf"$\propto R^{{1+m_i}}$", fontsize=24, color="blue")
+    ax1_dp.text(1.25e-3, 5e-7, rf"$\propto R^{{m_i}}$", fontsize=24, color="blue")
     ax1_dp.loglog(xg_dp, yg_far_dp, color="red", lw=3.0, ls="-.", zorder=5, alpha=0.8)
-    ax1_dp.text(2.0e-3, 8e-6, rf"$\propto R^{{1+m_\phi}}$", fontsize=24, color="red")
+    ax1_dp.text(2.0e-3, 8e-6, rf"$\propto R^{{m_\Phi}}$", fontsize=24, color="red")
     
     # Plot dP (normalize by max in plotting section, matching fig9.py exactly)
     for idx, (dP, eta, c) in enumerate(zip(all_dP_dlambda2, eta_list, colors)):
@@ -639,14 +639,14 @@ def run_and_plot(params,
             ax1_dp_der.semilogx(xs, sl, lw=lw, color=c, zorder=zorder, alpha=0.95)
     
     _setup_panel(ax1_dp, x_min, x_max, r"$dP/d\lambda^2$", r"$R/r_i$",
-                 ylim=(1e-10, 2), legend=True)
+                 ylim=(1e-13, 10), legend=True)
     ax1_dp.yaxis.set_major_locator(FixedLocator([1e1, 1e-1, 1e-3, 1e-5, 1e-7, 1e-9, 1e-11, 1e-13]))
     
     # Reference lines on right panel for dP derivative
     ax1_dp_der.axhline(1.1, color="red", lw=3.0, zorder=5)
     ax1_dp_der.axhline(5/3, color="blue", lw=3.0, ls="--", zorder=5)
     _setup_derivative_panel(ax1_dp_der, x_min, x_max, r"$d\ln |dP/d\lambda^2|/d\ln R$", r"$R/r_i$",
-                           ylim=(0, 2.1))
+                           ylim=(0, 2))
 
     fig1.savefig(f"{out_prefix}_structure_functions.png", dpi=300, bbox_inches="tight")
     fig1.savefig(f"{out_prefix}_structure_functions.svg", bbox_inches="tight")
@@ -706,20 +706,9 @@ def run_and_plot(params,
         all_M_P.append(M_P)
         all_M_dP.append(M_dP)
 
-    # Find actual min/max values to cover full grid
-    all_M_combined = all_M + all_M_P + all_M_dP
-    y_min_list = [np.min(M[M > 0]) for M in all_M_combined if np.any(M > 0)]
-    y_max_list = [np.max(M) for M in all_M_combined if np.any(M > 0)]
-    if len(y_min_list) > 0 and len(y_max_list) > 0:
-        y_min_all = min(y_min_list)
-        y_max_all = max(y_max_list)
-        # Expand slightly for better coverage
-        y_min_spectrum = y_min_all * 0.5
-        y_max_spectrum = y_max_all * 2.0
-    else:
-        # Fallback if no valid values
-        y_min_spectrum = 1e-5
-        y_max_spectrum = 1e0
+    # Use fixed y-range for all spectra to keep panels comparable
+    y_min_spectrum = 1e-12
+    y_max_spectrum = 1e0
 
     # Reference lines for spectrum
     k_anchor = math.sqrt(kmin * kmax)
@@ -756,25 +745,22 @@ def run_and_plot(params,
     ax2_du.xaxis.set_major_formatter(LogFormatterMathtext())
     ax2_du.yaxis.set_major_formatter(LogFormatterMathtext())
     ax2_du.set_xlim(kmin, kmax)
-    ax2_du.set_ylim(y_min_spectrum, y_max_spectrum)
+    ax2_du.set_ylim(1e-12, 1e0)
     ax2_du.xaxis.set_major_locator(FixedLocator([1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 10, 100, 1e3, 1e4,1e5,1e6,1e7]))
-    # Use same y-axis locator style as structure functions - generate ticks every order of magnitude
-    log_y_min = np.floor(np.log10(y_min_spectrum))
-    log_y_max = np.ceil(np.log10(y_max_spectrum))
-    n_ticks = int(log_y_max - log_y_min) + 1
-    if n_ticks > 0:
-        y_ticks_du = np.logspace(log_y_min, log_y_max, n_ticks)
-        ax2_du.yaxis.set_major_locator(FixedLocator(y_ticks_du))
+    # Fixed y-ticks: 1e0, 1e-2, ..., 1e-12
+    ax2_du.yaxis.set_major_locator(
+        FixedLocator([1e0, 1e-2, 1e-4, 1e-6, 1e-8, 1e-10, 1e-12])
+    )
     ax2_du.text(-0.10, 1.05, r"$P_u(k)$", transform=ax2_du.transAxes, fontsize=36, weight='bold')
     ax2_du.text(1.03, -0.02, r"$k$", transform=ax2_du.transAxes, fontsize=32, weight='bold')
-    ax2_du.text(0.03, 0.92, rf"$m_\psi={m_psi:.3g},\ m_\Phi={m_phi:.3g}$", transform=ax2_du.transAxes, fontsize=20)
+    ax2_du.text(0.03, 0.92, rf"$m_i={m_psi:.3g},\ m_\Phi={m_phi:.3g}$", transform=ax2_du.transAxes, fontsize=20)
     ax2_du.text(0.03, 0.84, rf"$r_\phi/R_0={r_phi/R0:.3g}$", transform=ax2_du.transAxes, fontsize=20)
     ax2_du.legend(frameon=False, fontsize=20, loc="lower right", handlelength=1.5)
     
     ax2_du_der.axhline(-1.1, color="red", lw=3.0, zorder=5)
     ax2_du_der.axhline(-5/3, color="blue", lw=3.0, ls="--", zorder=5)
     _setup_derivative_panel(ax2_du_der, kmin, kmax, r"$d\ln P_u/d\ln k$", r"$k$",
-                           ylim=(-2, 0))
+                           ylim=(-2, 0.1))
 
     # Row 2: Spectrum of P
     y_anchor_p = all_M_P[0][np.argmin(np.abs(k - k_anchor))]
@@ -807,14 +793,13 @@ def run_and_plot(params,
     ax2_p.xaxis.set_major_formatter(LogFormatterMathtext())
     ax2_p.yaxis.set_major_formatter(LogFormatterMathtext())
     ax2_p.set_xlim(kmin, kmax)
-    ax2_p.set_ylim(y_min_spectrum, y_max_spectrum)
-    ax2_p.xaxis.set_major_locator(FixedLocator([1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 10, 100, 1e3, 1e4,1e5,1e6,1e7]))
-    log_y_min = np.floor(np.log10(y_min_spectrum))
-    log_y_max = np.ceil(np.log10(y_max_spectrum))
-    n_ticks = int(log_y_max - log_y_min) + 1
-    if n_ticks > 0:
-        y_ticks_p = np.logspace(log_y_min, log_y_max, n_ticks)
-        ax2_p.yaxis.set_major_locator(FixedLocator(y_ticks_p))
+    ax2_p.set_ylim(1e-12, 1e0)
+    ax2_p.xaxis.set_major_locator(
+        FixedLocator([1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 10, 100, 1e3, 1e4, 1e5, 1e6, 1e7])
+    )
+    ax2_p.yaxis.set_major_locator(
+        FixedLocator([1e0, 1e-2, 1e-4, 1e-6, 1e-8, 1e-10, 1e-12])
+    )
     ax2_p.text(-0.10, 1.05, r"$P(k)$", transform=ax2_p.transAxes, fontsize=36, weight='bold')
     ax2_p.text(1.03, -0.02, r"$k$", transform=ax2_p.transAxes, fontsize=32, weight='bold')
     ax2_p.legend(frameon=False, fontsize=20, loc="lower right", handlelength=1.5)
@@ -822,7 +807,7 @@ def run_and_plot(params,
     ax2_p_der.axhline(-1.1, color="red", lw=3.0, zorder=5)
     ax2_p_der.axhline(-5/3, color="blue", lw=3.0, ls="--", zorder=5)
     _setup_derivative_panel(ax2_p_der, kmin, kmax, r"$d\ln P/d\ln k$", r"$k$",
-                           ylim=(-2, 0))
+                           ylim=(-2, 0.1))
 
     # Row 3: Spectrum of dP/d(lambda^2)
     y_anchor_dp = all_M_dP[0][np.argmin(np.abs(k - k_anchor))]
@@ -855,14 +840,13 @@ def run_and_plot(params,
     ax2_dp.xaxis.set_major_formatter(LogFormatterMathtext())
     ax2_dp.yaxis.set_major_formatter(LogFormatterMathtext())
     ax2_dp.set_xlim(kmin, kmax)
-    ax2_dp.set_ylim(y_min_spectrum, y_max_spectrum)
-    ax2_dp.xaxis.set_major_locator(FixedLocator([1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 10, 100, 1e3, 1e4,1e5,1e6,1e7]))
-    log_y_min = np.floor(np.log10(y_min_spectrum))
-    log_y_max = np.ceil(np.log10(y_max_spectrum))
-    n_ticks = int(log_y_max - log_y_min) + 1
-    if n_ticks > 0:
-        y_ticks_dp = np.logspace(log_y_min, log_y_max, n_ticks)
-        ax2_dp.yaxis.set_major_locator(FixedLocator(y_ticks_dp))
+    ax2_dp.set_ylim(1e-12, 1e0)
+    ax2_dp.xaxis.set_major_locator(
+        FixedLocator([1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 10, 100, 1e3, 1e4, 1e5, 1e6, 1e7])
+    )
+    ax2_dp.yaxis.set_major_locator(
+        FixedLocator([1e0, 1e-2, 1e-4, 1e-6, 1e-8, 1e-10, 1e-12])
+    )
     ax2_dp.text(-0.10, 1.05, r"$dP/d\lambda^2(k)$", transform=ax2_dp.transAxes, fontsize=36, weight='bold')
     ax2_dp.text(1.03, -0.02, r"$k$", transform=ax2_dp.transAxes, fontsize=32, weight='bold')
     ax2_dp.legend(frameon=False, fontsize=20, loc="lower right", handlelength=1.5)
@@ -870,7 +854,7 @@ def run_and_plot(params,
     ax2_dp_der.axhline(-1.1, color="red", lw=3.0, zorder=5)
     ax2_dp_der.axhline(-5/3, color="blue", lw=3.0, ls="--", zorder=5)
     _setup_derivative_panel(ax2_dp_der, kmin, kmax, r"$d\ln [dP/d\lambda^2]/d\ln k$", r"$k$",
-                           ylim=(-2, 0))
+                           ylim=(-2, 0.1))
 
     fig2.savefig(f"{out_prefix}_spectrum.png", dpi=300, bbox_inches="tight")
     fig2.savefig(f"{out_prefix}_spectrum.svg", bbox_inches="tight")
@@ -896,7 +880,7 @@ if __name__ == "__main__":
     )
 
     # Use the same eta_list as fig5.py: from 0 to 1
-    eta_list = np.concatenate([[0.0], np.geomspace(1e-2, 1e0, 10)])
+    eta_list = np.concatenate([[0.0], np.geomspace(3e-3, 1e0, 10)])
     
     # Compute corresponding lambda values for each eta
     # eta = 2 * sigma_phi * lambda^2, so lambda = sqrt(eta / (2 * sigma_phi))
