@@ -18,7 +18,7 @@
    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
    xmlns:cc="http://creativecommons.org/ns#"
    xmlns:dc="http://purl.org/dc/elements/1.1/"
-   xmlns:ns4="http://www.iki.fi/pav/software/textext/">
+   xmlns:ns3="http://www.iki.fi/pav/software/textext/">
   <sodipodi:namedview
      id="namedview894"
      pagecolor="#ffffff"
@@ -30,14 +30,14 @@
      inkscape:deskcolor="#d1d1d1"
      inkscape:document-units="pt"
      inkscape:zoom="0.68796673"
-     inkscape:cx="683.89936"
-     inkscape:cy="1149.0381"
+     inkscape:cx="987.69311"
+     inkscape:cy="1041.4748"
      inkscape:window-width="1920"
      inkscape:window-height="991"
      inkscape:window-x="-9"
      inkscape:window-y="-9"
      inkscape:window-maximized="1"
-     inkscape:current-layer="axes_1" />
+     inkscape:current-layer="figure_1" />
   <metadata
      id="metadata1">
     <rdf:RDF>
@@ -211,6 +211,18 @@
     <path
        id="path17"
        d="M 2579,4160 H 832 v -102 c 397,-38 493,-89 493,-273 0,-90 -26,-237 -71,-395 L 467,574 C 352,204 307,166 -51,102 V 0 h 3257 l 372,1141 -128,38 C 3226,721 3053,516 2771,377 2547,268 2285,230 1728,230 c -486,0 -646,51 -646,217 0,45 32,198 64,319 l 787,2832 c 96,325 262,447 646,447 z"
+       transform="scale(0.015625)" />
+    <path
+       id="NimbusRomNo9L-Regu-6d"
+       d="m 122,2547 c 83,19 134,26 204,26 167,0 224,-103 224,-411 V 539 C 550,192 461,96 102,96 V 0 h 1421 v 96 c -339,0 -435,70 -435,322 v 1816 c 0,12 51,76 96,121 160,147 435,256 659,256 282,0 423,-226 423,-679 V 528 C 2266,167 2195,96 1830,96 V 0 h 1434 v 96 c -365,0 -461,109 -461,507 v 1618 c 192,275 403,390 698,390 365,0 480,-173 480,-704 V 557 C 3981,192 3930,141 3558,96 V 0 h 1402 v 96 l -166,19 c -192,0 -276,115 -276,365 v 1322 c 0,757 -249,1142 -742,1142 -371,0 -698,-166 -1043,-537 -115,364 -333,537 -679,537 -281,0 -460,-90 -992,-493 v 480 l -44,13 C 691,2822 474,2752 122,2656 Z"
+       transform="scale(0.015625)" />
+    <path
+       id="NimbusRomNo9L-Regu-61"
+       d="m 2829,423 c -109,-90 -186,-122 -282,-122 -147,0 -192,89 -192,371 v 1248 c 0,333 -32,518 -128,672 -141,230 -416,352 -793,352 -602,0 -1076,-314 -1076,-717 0,-147 128,-275 276,-275 153,0 288,128 288,269 0,25 -7,57 -13,102 -13,58 -19,109 -19,154 0,173 204,313 460,313 314,0 487,-185 487,-531 V 1869 C 851,1472 742,1421 467,1178 326,1050 237,832 237,621 237,218 518,-64 909,-64 c 281,0 544,134 934,467 32,-333 147,-467 410,-467 217,0 352,77 576,320 z M 1837,783 C 1837,584 1805,526 1670,449 1517,359 1338,301 1203,301 979,301 800,520 800,796 v 26 c 0,379 262,611 1037,893 z"
+       transform="scale(0.015625)" />
+    <path
+       id="NimbusRomNo9L-Regu-78"
+       d="m 1779,0 h 1287 v 96 c -199,0 -327,102 -525,384 l -819,1255 531,767 c 121,173 313,276 518,276 v 102 H 1760 v -102 c 192,0 256,-38 256,-129 0,-78 -77,-219 -237,-420 -32,-38 -109,-154 -192,-283 l -89,128 c -180,268 -295,486 -295,569 0,90 83,135 275,135 v 102 H 154 v -102 h 57 c 192,0 295,-83 493,-382 L 1306,1479 576,422 C 384,160 320,115 109,96 V 0 h 928 v 96 c -179,0 -256,32 -256,115 0,39 45,135 128,263 l 505,787 583,-896 c 25,-39 38,-77 38,-115 0,-127 -45,-154 -256,-154 z"
        transform="scale(0.015625)" />
   </defs>
   <g
@@ -3951,7 +3963,10 @@
       </g>
     </g>
     <g
-       id="axes_5">
+       id="axes_5"
+       inkscape:export-filename="axes_5.pdf"
+       inkscape:export-xdpi="96"
+       inkscape:export-ydpi="96">
       <g
          id="patch_14">
         <path
@@ -4705,41 +4720,6 @@
          id="text_123"
          transform="translate(0,-3)">
         <!-- $dP/d\lambda^2$ -->
-        <g
-           transform="matrix(0.36,0,0,-0.36,15.965639,848.7277)"
-           id="g700">
-          <defs
-             id="defs694">
-            <path
-               id="StandardSymL-6c"
-               d="m 480,3653 c 45,364 230,574 518,574 205,0 378,-160 474,-447 45,-127 102,-338 160,-580 L 154,19 H 755 L 1843,2301 C 2048,1058 2150,605 2266,357 2406,83 2611,-64 2848,-64 c 250,0 448,153 557,433 70,173 96,345 102,644 h -134 c -51,-332 -199,-517 -429,-517 -192,0 -358,121 -461,345 -83,165 -128,331 -217,803 l -173,822 c -7,19 -13,64 -26,128 -147,822 -377,1600 -531,1829 -141,204 -333,313 -544,313 -390,0 -595,-331 -666,-1083 z"
-               transform="scale(0.015625)" />
-          </defs>
-          <use
-             xlink:href="#NimbusRomNo9L-ReguItal-64"
-             transform="scale(0.996264)"
-             id="use695" />
-          <use
-             xlink:href="#NimbusRomNo9L-ReguItal-50"
-             transform="matrix(0.996264,0,0,0.996264,54.992828,0)"
-             id="use696" />
-          <use
-             xlink:href="#CMMI10-3d"
-             transform="matrix(0.996264,0,0,0.996264,115.86446,0)"
-             id="use697" />
-          <use
-             xlink:href="#NimbusRomNo9L-ReguItal-64"
-             transform="matrix(0.996264,0,0,0.996264,165.67766,0)"
-             id="use698" />
-          <use
-             xlink:href="#StandardSymL-6c"
-             transform="matrix(0.996264,0,0,0.996264,220.67049,0)"
-             id="use699" />
-          <use
-             xlink:href="#NimbusRomNo9L-Regu-32"
-             transform="matrix(0.737241,0,0,0.737241,287.61912,36.163231)"
-             id="use700" />
-        </g>
       </g>
       <g
          id="text_79-6-3-3-6-9"
@@ -5653,85 +5633,6 @@
            id="path858" />
       </g>
       <g
-         id="text_151">
-        <!-- $d\ln |dP/d\lambda^2|/d\ln R$ -->
-        <g
-           transform="translate(634.407745 848.7277) scale(0.32 -0.32)"
-           id="g873">
-          <defs
-             id="defs858">
-            <path
-               id="CMSY10-6a"
-               d="M 1018 4570  C 1018 4685 1018 4800 890 4800  C 762 4800 762 4685 762 4570  L 762 -1370  C 762 -1485 762 -1600 890 -1600  C 1018 -1600 1018 -1485 1018 -1370  L 1018 4570  z "
-               transform="scale(0.015625)" />
-          </defs>
-          <use
-             xlink:href="#NimbusRomNo9L-ReguItal-64"
-             transform="scale(0.996264)"
-             id="use858" />
-          <use
-             xlink:href="#NimbusRomNo9L-Regu-6c"
-             transform="translate(66.062401 0) scale(0.996264)"
-             id="use859" />
-          <use
-             xlink:href="#NimbusRomNo9L-Regu-6e"
-             transform="translate(93.75757 0) scale(0.996264)"
-             id="use860" />
-          <use
-             xlink:href="#CMSY10-6a"
-             transform="translate(154.640344 0) scale(0.996264)"
-             id="use861" />
-          <use
-             xlink:href="#NimbusRomNo9L-ReguItal-64"
-             transform="translate(182.235851 0) scale(0.996264)"
-             id="use862" />
-          <use
-             xlink:href="#NimbusRomNo9L-ReguItal-50"
-             transform="translate(237.228679 0) scale(0.996264)"
-             id="use863" />
-          <use
-             xlink:href="#CMMI10-3d"
-             transform="translate(298.100309 0) scale(0.996264)"
-             id="use864" />
-          <use
-             xlink:href="#NimbusRomNo9L-ReguItal-64"
-             transform="translate(347.91351 0) scale(0.996264)"
-             id="use865" />
-          <use
-             xlink:href="#StandardSymL-6c"
-             transform="translate(402.906338 0) scale(0.996264)"
-             id="use866" />
-          <use
-             xlink:href="#NimbusRomNo9L-Regu-32"
-             transform="translate(469.854972 36.163231) scale(0.737241)"
-             id="use867" />
-          <use
-             xlink:href="#CMSY10-6a"
-             transform="translate(507.215146 0) scale(0.996264)"
-             id="use868" />
-          <use
-             xlink:href="#CMMI10-3d"
-             transform="translate(534.810653 0) scale(0.996264)"
-             id="use869" />
-          <use
-             xlink:href="#NimbusRomNo9L-ReguItal-64"
-             transform="translate(584.623853 0) scale(0.996264)"
-             id="use870" />
-          <use
-             xlink:href="#NimbusRomNo9L-Regu-6c"
-             transform="translate(650.686254 0) scale(0.996264)"
-             id="use871" />
-          <use
-             xlink:href="#NimbusRomNo9L-Regu-6e"
-             transform="translate(678.381424 0) scale(0.996264)"
-             id="use872" />
-          <use
-             xlink:href="#NimbusRomNo9L-ReguItal-52"
-             transform="translate(739.264197 0) scale(0.996264)"
-             id="use873" />
-        </g>
-      </g>
-      <g
          id="line2d_198"
          transform="translate(0,6)">
         <path
@@ -5857,6 +5758,188 @@
              style="stroke-width:0.0115194" />
         </g>
       </g>
+      <g
+         id="text_123-7"
+         style="stroke-linecap:butt;stroke-linejoin:round"
+         transform="translate(-3.6441491,-7.5631447)">
+        <!-- $D_{dP}(R)/D_{dP}(R)_{\rm max}$ -->
+        <g
+           transform="matrix(0.36,0,0,-0.36,15.965639,848.7277)"
+           id="g710"
+           style="stroke-linecap:butt;stroke-linejoin:round">
+          <defs
+             id="defs694">
+            <path
+               id="path12"
+               d="m 122,2547 c 83,19 134,26 204,26 167,0 224,-103 224,-411 V 539 C 550,192 461,96 102,96 V 0 h 1421 v 96 c -339,0 -435,70 -435,322 v 1816 c 0,12 51,76 96,121 160,147 435,256 659,256 282,0 423,-226 423,-679 V 528 C 2266,167 2195,96 1830,96 V 0 h 1434 v 96 c -365,0 -461,109 -461,507 v 1618 c 192,275 403,390 698,390 365,0 480,-173 480,-704 V 557 C 3981,192 3930,141 3558,96 V 0 h 1402 v 96 l -166,19 c -192,0 -276,115 -276,365 v 1322 c 0,757 -249,1142 -742,1142 -371,0 -698,-166 -1043,-537 -115,364 -333,537 -679,537 -281,0 -460,-90 -992,-493 v 480 l -44,13 C 691,2822 474,2752 122,2656 Z"
+               transform="scale(0.015625)" />
+            <path
+               id="path13"
+               d="m 2829,423 c -109,-90 -186,-122 -282,-122 -147,0 -192,89 -192,371 v 1248 c 0,333 -32,518 -128,672 -141,230 -416,352 -793,352 -602,0 -1076,-314 -1076,-717 0,-147 128,-275 276,-275 153,0 288,128 288,269 0,25 -7,57 -13,102 -13,58 -19,109 -19,154 0,173 204,313 460,313 314,0 487,-185 487,-531 V 1869 C 851,1472 742,1421 467,1178 326,1050 237,832 237,621 237,218 518,-64 909,-64 c 281,0 544,134 934,467 32,-333 147,-467 410,-467 217,0 352,77 576,320 z M 1837,783 C 1837,584 1805,526 1670,449 1517,359 1338,301 1203,301 979,301 800,520 800,796 v 26 c 0,379 262,611 1037,893 z"
+               transform="scale(0.015625)" />
+            <path
+               id="path14"
+               d="m 1779,0 h 1287 v 96 c -199,0 -327,102 -525,384 l -819,1255 531,767 c 121,173 313,276 518,276 v 102 H 1760 v -102 c 192,0 256,-38 256,-129 0,-78 -77,-219 -237,-420 -32,-38 -109,-154 -192,-283 l -89,128 c -180,268 -295,486 -295,569 0,90 83,135 275,135 v 102 H 154 v -102 h 57 c 192,0 295,-83 493,-382 L 1306,1479 576,422 C 384,160 320,115 109,96 V 0 h 928 v 96 c -179,0 -256,32 -256,115 0,39 45,135 128,263 l 505,787 583,-896 c 25,-39 38,-77 38,-115 0,-127 -45,-154 -256,-154 z"
+               transform="scale(0.015625)" />
+          </defs>
+          <use
+             xlink:href="#NimbusRomNo9L-ReguItal-44"
+             transform="scale(0.996264)"
+             id="use695"
+             style="stroke-linecap:butt;stroke-linejoin:round" />
+          <use
+             xlink:href="#NimbusRomNo9L-ReguItal-64"
+             transform="matrix(0.737241,0,0,0.737241,71.929985,-16.487732)"
+             id="use696"
+             style="stroke-linecap:butt;stroke-linejoin:round" />
+          <use
+             xlink:href="#NimbusRomNo9L-ReguItal-50"
+             transform="matrix(0.737241,0,0,0.737241,112.62497,-16.487732)"
+             id="use697"
+             style="stroke-linecap:butt;stroke-linejoin:round" />
+          <use
+             xlink:href="#CMR10-28"
+             transform="matrix(0.996264,0,0,0.996264,158.16843,0)"
+             id="use698"
+             style="stroke-linecap:butt;stroke-linejoin:round" />
+          <use
+             xlink:href="#NimbusRomNo9L-ReguItal-52"
+             transform="matrix(0.996264,0,0,0.996264,196.82228,0)"
+             id="use699"
+             style="stroke-linecap:butt;stroke-linejoin:round" />
+          <use
+             xlink:href="#CMR10-29"
+             transform="matrix(0.996264,0,0,0.996264,257.69391,0)"
+             id="use700"
+             style="stroke-linecap:butt;stroke-linejoin:round" />
+          <use
+             xlink:href="#CMMI10-3d"
+             transform="matrix(0.996264,0,0,0.996264,296.34776,0)"
+             id="use701"
+             style="stroke-linecap:butt;stroke-linejoin:round" />
+          <use
+             xlink:href="#NimbusRomNo9L-ReguItal-44"
+             transform="matrix(0.996264,0,0,0.996264,346.16096,0)"
+             id="use702"
+             style="stroke-linecap:butt;stroke-linejoin:round" />
+          <use
+             xlink:href="#NimbusRomNo9L-ReguItal-64"
+             transform="matrix(0.737241,0,0,0.737241,418.09094,-16.487732)"
+             id="use703"
+             style="stroke-linecap:butt;stroke-linejoin:round" />
+          <use
+             xlink:href="#NimbusRomNo9L-ReguItal-50"
+             transform="matrix(0.737241,0,0,0.737241,458.78593,-16.487732)"
+             id="use704"
+             style="stroke-linecap:butt;stroke-linejoin:round" />
+          <use
+             xlink:href="#CMR10-28"
+             transform="matrix(0.53452941,0,0,0.53452941,507.10991,-11.543365)"
+             id="use705"
+             style="stroke-linecap:butt;stroke-linejoin:round" />
+          <use
+             xlink:href="#CMR10-29"
+             transform="matrix(0.50621658,0,0,0.50621658,647.25211,-7.9685971)"
+             id="use707"
+             style="stroke-linecap:butt;stroke-linejoin:round" />
+          <use
+             xlink:href="#NimbusRomNo9L-Regu-6d"
+             transform="matrix(0.737241,0,0,0.737241,521.67528,-14.943915)"
+             id="use708"
+             style="stroke-linecap:butt;stroke-linejoin:round" />
+          <use
+             xlink:href="#NimbusRomNo9L-Regu-61"
+             transform="matrix(0.737241,0,0,0.737241,579.0319,-14.943915)"
+             id="use709"
+             style="stroke-linecap:butt;stroke-linejoin:round" />
+          <use
+             xlink:href="#NimbusRomNo9L-Regu-78"
+             transform="matrix(0.737241,0,0,0.737241,611.76498,-14.943915)"
+             id="use710"
+             style="stroke-linecap:butt;stroke-linejoin:round" />
+        </g>
+      </g>
+      <g
+         id="text_151"
+         style="stroke-linecap:butt;stroke-linejoin:round"
+         transform="translate(2.0374067,-1.0992365)">
+        <!-- $d\ln D_{dP}(R)/d\ln R$ -->
+        <g
+           transform="matrix(0.32,0,0,-0.32,634.40774,848.7277)"
+           id="g881"
+           style="stroke-linecap:butt;stroke-linejoin:round">
+          <use
+             xlink:href="#NimbusRomNo9L-ReguItal-64"
+             transform="scale(0.996264)"
+             id="use868"
+             style="stroke-linecap:butt;stroke-linejoin:round" />
+          <use
+             xlink:href="#NimbusRomNo9L-Regu-6c"
+             transform="matrix(0.996264,0,0,0.996264,66.062401,0)"
+             id="use869"
+             style="stroke-linecap:butt;stroke-linejoin:round" />
+          <use
+             xlink:href="#NimbusRomNo9L-Regu-6e"
+             transform="matrix(0.996264,0,0,0.996264,93.75757,0)"
+             id="use870"
+             style="stroke-linecap:butt;stroke-linejoin:round" />
+          <use
+             xlink:href="#NimbusRomNo9L-ReguItal-44"
+             transform="matrix(0.996264,0,0,0.996264,154.64034,0)"
+             id="use871"
+             style="stroke-linecap:butt;stroke-linejoin:round" />
+          <use
+             xlink:href="#NimbusRomNo9L-ReguItal-64"
+             transform="matrix(0.737241,0,0,0.737241,226.57033,-16.487732)"
+             id="use872"
+             style="stroke-linecap:butt;stroke-linejoin:round" />
+          <use
+             xlink:href="#NimbusRomNo9L-ReguItal-50"
+             transform="matrix(0.737241,0,0,0.737241,267.26532,-16.487732)"
+             id="use873"
+             style="stroke-linecap:butt;stroke-linejoin:round" />
+          <use
+             xlink:href="#CMR10-28"
+             transform="matrix(0.996264,0,0,0.996264,312.80878,0)"
+             id="use874-10"
+             style="stroke-linecap:butt;stroke-linejoin:round" />
+          <use
+             xlink:href="#NimbusRomNo9L-ReguItal-52"
+             transform="matrix(0.996264,0,0,0.996264,351.46262,0)"
+             id="use875-73"
+             style="stroke-linecap:butt;stroke-linejoin:round" />
+          <use
+             xlink:href="#CMR10-29"
+             transform="matrix(0.996264,0,0,0.996264,412.33425,0)"
+             id="use876-4"
+             style="stroke-linecap:butt;stroke-linejoin:round" />
+          <use
+             xlink:href="#CMMI10-3d"
+             transform="matrix(0.996264,0,0,0.996264,450.9881,0)"
+             id="use877-9"
+             style="stroke-linecap:butt;stroke-linejoin:round" />
+          <use
+             xlink:href="#NimbusRomNo9L-ReguItal-64"
+             transform="matrix(0.996264,0,0,0.996264,500.8013,0)"
+             id="use878"
+             style="stroke-linecap:butt;stroke-linejoin:round" />
+          <use
+             xlink:href="#NimbusRomNo9L-Regu-6c"
+             transform="matrix(0.996264,0,0,0.996264,566.8637,0)"
+             id="use879"
+             style="stroke-linecap:butt;stroke-linejoin:round" />
+          <use
+             xlink:href="#NimbusRomNo9L-Regu-6e"
+             transform="matrix(0.996264,0,0,0.996264,594.55887,0)"
+             id="use880"
+             style="stroke-linecap:butt;stroke-linejoin:round" />
+          <use
+             xlink:href="#NimbusRomNo9L-ReguItal-52"
+             transform="matrix(0.996264,0,0,0.996264,655.44164,0)"
+             id="use881"
+             style="stroke-linecap:butt;stroke-linejoin:round" />
+        </g>
+      </g>
     </g>
   </g>
   <g
@@ -5911,15 +5994,15 @@
   </g>
   <g
      id="g9055-2-7-9-3-4"
-     ns4:version="1.12.0"
-     ns4:texconverter="pdflatex"
-     ns4:pdfconverter="inkscape"
-     ns4:text="$m_i$"
-     ns4:preamble="C:\Users\256bit.by\AppData\Roaming\inkscape\extensions\textext\default_packages.tex"
-     ns4:scale="4.666075868180116"
-     ns4:alignment="middle center"
+     ns3:version="1.12.0"
+     ns3:texconverter="pdflatex"
+     ns3:pdfconverter="inkscape"
+     ns3:text="$m_i$"
+     ns3:preamble="C:\Users\256bit.by\AppData\Roaming\inkscape\extensions\textext\default_packages.tex"
+     ns3:scale="4.666075868180116"
+     ns3:alignment="middle center"
      transform="matrix(4.66165,0.203063,-0.203063,4.66165,1034.5791,66.271588)"
-     ns4:jacobian_sqrt="4.666070649322511"
+     ns3:jacobian_sqrt="4.666070649322511"
      style="fill:#0000ff;stroke-width:0">
     <defs
        id="defs9427"
@@ -5978,15 +6061,15 @@
   </g>
   <g
      id="g9055-2-7-9-3-4-6"
-     ns4:version="1.12.0"
-     ns4:texconverter="pdflatex"
-     ns4:pdfconverter="inkscape"
-     ns4:text="$m_i$"
-     ns4:preamble="C:\Users\256bit.by\AppData\Roaming\inkscape\extensions\textext\default_packages.tex"
-     ns4:scale="4.666075868180116"
-     ns4:alignment="middle center"
+     ns3:version="1.12.0"
+     ns3:texconverter="pdflatex"
+     ns3:pdfconverter="inkscape"
+     ns3:text="$m_i$"
+     ns3:preamble="C:\Users\256bit.by\AppData\Roaming\inkscape\extensions\textext\default_packages.tex"
+     ns3:scale="4.666075868180116"
+     ns3:alignment="middle center"
      transform="matrix(4.66165,0.203063,-0.203063,4.66165,1035.645,475.47387)"
-     ns4:jacobian_sqrt="4.666070649322511"
+     ns3:jacobian_sqrt="4.666070649322511"
      style="fill:#0000ff;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round">
     <defs
        id="defs9427-0"
@@ -6045,15 +6128,15 @@
   </g>
   <g
      id="g9055-2-7-9-3-4-0"
-     ns4:version="1.12.0"
-     ns4:texconverter="pdflatex"
-     ns4:pdfconverter="inkscape"
-     ns4:text="$m_\\Phi$"
-     ns4:preamble="C:\Users\256bit.by\AppData\Roaming\inkscape\extensions\textext\default_packages.tex"
-     ns4:scale="4.666075868180116"
-     ns4:alignment="middle center"
+     ns3:version="1.12.0"
+     ns3:texconverter="pdflatex"
+     ns3:pdfconverter="inkscape"
+     ns3:text="$m_\\Phi$"
+     ns3:preamble="C:\Users\256bit.by\AppData\Roaming\inkscape\extensions\textext\default_packages.tex"
+     ns3:scale="4.666075868180116"
+     ns3:alignment="middle center"
      transform="matrix(4.66165,0.203063,-0.203063,4.66165,1031.26,159.385)"
-     ns4:jacobian_sqrt="4.666070649322511"
+     ns3:jacobian_sqrt="4.666070649322511"
      style="fill:#ff0000;stroke-width:0">
     <defs
        id="defs799"
@@ -6112,15 +6195,15 @@
   </g>
   <g
      id="g9055-2-7-9-3-4-0-7"
-     ns4:version="1.12.0"
-     ns4:texconverter="pdflatex"
-     ns4:pdfconverter="inkscape"
-     ns4:text="$m_\\Phi$"
-     ns4:preamble="C:\Users\256bit.by\AppData\Roaming\inkscape\extensions\textext\default_packages.tex"
-     ns4:scale="4.666075868180116"
-     ns4:alignment="middle center"
+     ns3:version="1.12.0"
+     ns3:texconverter="pdflatex"
+     ns3:pdfconverter="inkscape"
+     ns3:text="$m_\\Phi$"
+     ns3:preamble="C:\Users\256bit.by\AppData\Roaming\inkscape\extensions\textext\default_packages.tex"
+     ns3:scale="4.666075868180116"
+     ns3:alignment="middle center"
      transform="matrix(4.66165,0.203063,-0.203063,4.66165,1028.3942,571.84476)"
-     ns4:jacobian_sqrt="4.666070649322511"
+     ns3:jacobian_sqrt="4.666070649322511"
      style="fill:#ff0000;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round">
     <defs
        id="defs799-1"
@@ -6179,15 +6262,15 @@
   </g>
   <g
      id="g9055-2-7-9-3-4-0-7-6"
-     ns4:version="1.12.0"
-     ns4:texconverter="pdflatex"
-     ns4:pdfconverter="inkscape"
-     ns4:text="$m_\\Phi$"
-     ns4:preamble="C:\Users\256bit.by\AppData\Roaming\inkscape\extensions\textext\default_packages.tex"
-     ns4:scale="4.666075868180116"
-     ns4:alignment="middle center"
+     ns3:version="1.12.0"
+     ns3:texconverter="pdflatex"
+     ns3:pdfconverter="inkscape"
+     ns3:text="$m_\\Phi$"
+     ns3:preamble="C:\Users\256bit.by\AppData\Roaming\inkscape\extensions\textext\default_packages.tex"
+     ns3:scale="4.666075868180116"
+     ns3:alignment="middle center"
      transform="matrix(4.66165,0.203063,-0.203063,4.66165,1030.8658,980.23978)"
-     ns4:jacobian_sqrt="4.666070649322511"
+     ns3:jacobian_sqrt="4.666070649322511"
      style="fill:#ff0000;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round">
     <defs
        id="defs799-1-6"

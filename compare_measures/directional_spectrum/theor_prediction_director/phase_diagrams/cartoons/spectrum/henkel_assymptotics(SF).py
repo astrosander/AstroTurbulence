@@ -638,14 +638,14 @@ def run_and_plot(params,
         if len(xs) > 0:
             ax1_dp_der.semilogx(xs, sl, lw=lw, color=c, zorder=zorder, alpha=0.95)
     
-    _setup_panel(ax1_dp, x_min, x_max, r"$dP/d\lambda^2$", r"$R/r_\phi$",
+    _setup_panel(ax1_dp, x_min, x_max, r"$D_{dP}(R)/D_{dP}(R)_{\rm max}$", r"$R/r_\phi$",
                  ylim=(1e-13, 10), legend=True)
     ax1_dp.yaxis.set_major_locator(FixedLocator([1e1, 1e-1, 1e-3, 1e-5, 1e-7, 1e-9, 1e-11, 1e-13]))
     
     # Reference lines on right panel for dP derivative
     ax1_dp_der.axhline(1.1, color="red", lw=3.0, ls="-.", zorder=5)
     ax1_dp_der.axhline(5/3, color="blue", lw=3.0, ls="-", zorder=5)
-    _setup_derivative_panel(ax1_dp_der, x_min, x_max, r"$d\ln |dP/d\lambda^2|/d\ln R$", r"$R/r_\phi$",
+    _setup_derivative_panel(ax1_dp_der, x_min, x_max, r"$d\ln D_{dP}(R)/d\ln R$", r"$R/r_\phi$",
                            ylim=(0, 2))
 
     fig1.savefig(f"{out_prefix}_structure_functions.png", dpi=300, bbox_inches="tight")
