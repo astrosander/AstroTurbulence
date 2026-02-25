@@ -578,8 +578,8 @@ def run_and_plot(params,
     _setup_panel(ax1_du, x_min, x_max, r"$D_u(R)/2$", r"$R/r_i$", 
                  ylim=(1e-13, 1e1), legend=True, params_text=True,
                  m_psi=m_psi, m_phi=m_phi, r_phi=r_phi, R0=R0)
-    ax1_du_der.axhline(1.1, color="red", lw=3.0, zorder=5)
-    ax1_du_der.axhline(5/3, color="blue", lw=3.0, ls="--", zorder=5)
+    ax1_du_der.axhline(1.1, color="red", lw=3.0, ls="-.", zorder=5)
+    ax1_du_der.axhline(5/3, color="blue", lw=3.0, ls="-", zorder=5)
     _setup_derivative_panel(ax1_du_der, x_min, x_max, r"$d\ln D_u/d\ln R$", r"$R/r_i$",
                            ylim=(0, 2))
 
@@ -609,8 +609,8 @@ def run_and_plot(params,
     ax1_p.yaxis.set_major_locator(FixedLocator([1e1, 1e-1, 1e-3, 1e-5, 1e-7, 1e-9, 1e-11, 1e-13]))
     
     # Reference lines on right panel for P derivative
-    ax1_p_der.axhline(1.1, color="red", lw=3.0, zorder=5)
-    ax1_p_der.axhline(5/3, color="blue", lw=3.0, ls="--", zorder=5)
+    ax1_p_der.axhline(1.1, color="red", lw=3.0, ls="-.", zorder=5)
+    ax1_p_der.axhline(5/3, color="blue", lw=3.0, ls="-", zorder=5)
     _setup_derivative_panel(ax1_p_der, x_min, x_max, r"$d\ln D_P/d\ln R$", r"$R/r_i$",
                            ylim=(0, 2))
 
@@ -643,8 +643,8 @@ def run_and_plot(params,
     ax1_dp.yaxis.set_major_locator(FixedLocator([1e1, 1e-1, 1e-3, 1e-5, 1e-7, 1e-9, 1e-11, 1e-13]))
     
     # Reference lines on right panel for dP derivative
-    ax1_dp_der.axhline(1.1, color="red", lw=3.0, zorder=5)
-    ax1_dp_der.axhline(5/3, color="blue", lw=3.0, ls="--", zorder=5)
+    ax1_dp_der.axhline(1.1, color="red", lw=3.0, ls="-.", zorder=5)
+    ax1_dp_der.axhline(5/3, color="blue", lw=3.0, ls="-", zorder=5)
     _setup_derivative_panel(ax1_dp_der, x_min, x_max, r"$d\ln |dP/d\lambda^2|/d\ln R$", r"$R/r_i$",
                            ylim=(0, 2))
 
@@ -757,8 +757,8 @@ def run_and_plot(params,
     ax2_du.text(0.03, 0.84, rf"$r_\phi/R_0={r_phi/R0:.3g}$", transform=ax2_du.transAxes, fontsize=20)
     ax2_du.legend(frameon=False, fontsize=20, loc="lower right", handlelength=1.5)
     
-    ax2_du_der.axhline(-1.1, color="red", lw=3.0, zorder=5)
-    ax2_du_der.axhline(-5/3, color="blue", lw=3.0, ls="--", zorder=5)
+    ax2_du_der.axhline(-1.1, color="blue", lw=3.0, zorder=5)
+    ax2_du_der.axhline(-5/3, color="red", lw=3.0, ls="-.", zorder=5)
     _setup_derivative_panel(ax2_du_der, kmin, kmax, r"$d\ln P_u/d\ln k$", r"$k$",
                            ylim=(-2, 0.1))
 
@@ -804,8 +804,8 @@ def run_and_plot(params,
     ax2_p.text(1.03, -0.02, r"$k$", transform=ax2_p.transAxes, fontsize=32, weight='bold')
     ax2_p.legend(frameon=False, fontsize=20, loc="lower right", handlelength=1.5)
     
-    ax2_p_der.axhline(-1.1, color="red", lw=3.0, zorder=5)
-    ax2_p_der.axhline(-5/3, color="blue", lw=3.0, ls="--", zorder=5)
+    ax2_p_der.axhline(-1.1, color="blue", lw=3.0, zorder=5)
+    ax2_p_der.axhline(-5/3, color="red", lw=3.0, ls="-.", zorder=5)
     _setup_derivative_panel(ax2_p_der, kmin, kmax, r"$d\ln P/d\ln k$", r"$k$",
                            ylim=(-2, 0.1))
 
@@ -851,8 +851,8 @@ def run_and_plot(params,
     ax2_dp.text(1.03, -0.02, r"$k$", transform=ax2_dp.transAxes, fontsize=32, weight='bold')
     ax2_dp.legend(frameon=False, fontsize=20, loc="lower right", handlelength=1.5)
     
-    ax2_dp_der.axhline(-1.1, color="red", lw=3.0, zorder=5)
-    ax2_dp_der.axhline(-5/3, color="blue", lw=3.0, ls="--", zorder=5)
+    ax2_dp_der.axhline(-1.1, color="blue", lw=3.0, zorder=5)
+    ax2_dp_der.axhline(-5/3, color="red", lw=3.0, ls="-.", zorder=5)
     _setup_derivative_panel(ax2_dp_der, kmin, kmax, r"$d\ln [dP/d\lambda^2]/d\ln k$", r"$k$",
                            ylim=(-2, 0.1))
 
