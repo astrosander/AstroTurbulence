@@ -144,11 +144,11 @@ def plot_directional_structure_and_proxy(
 
     # Left panel: structure function - reference lines spanning full R range
     xg = np.logspace(np.log10(x_min), np.log10(x_max), 200)  # Full range
-    yg_i = 3e-5 * (xg / x_min) ** m_i
-    yg_f = 8e-4 * (xg / x_min) ** m_phi
+    yg_i = 3e-9 * (xg / x_min) ** m_i
+    yg_f = 8e-8 * (xg / x_min) ** m_phi
     ax1.loglog(xg, yg_i, "-", color="#2D5BFF", lw=3.0, zorder=5, alpha=0.8)
     ax1.loglog(xg, yg_f, "-.", color="#E45756", lw=3.0, zorder=5, alpha=0.8)
-    ax1.text(2.2e-2, 1.5e-3, rf"$\propto R^{{m_\phi}}$", color="#E45756", fontsize=24, rotation=16)
+    ax1.text(2.2e-2, 1.5e-3, rf"$\propto R^{{m_\Phi}}$", color="#E45756", fontsize=24, rotation=16)
     ax1.text(3.0e-2, 1.5e-2, rf"$\propto R^{{m_i}}$", color="#2D5BFF", fontsize=24, rotation=33)
 
     eta_star = [e for e in eta_list if e > 0]
@@ -173,13 +173,13 @@ def plot_directional_structure_and_proxy(
     ax1.yaxis.set_major_formatter(LogFormatterMathtext())
 
     ax1.set_xlim(x_min, x_max)
-    ax1.set_ylim(1e-5, 1.2)
+    ax1.set_ylim(1e-13, 1e1)
     ax1.xaxis.set_major_locator(FixedLocator([1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 10, 100]))
-    ax1.yaxis.set_major_locator(FixedLocator([1, 1e-2, 1e-4, 1e-6]))
+    ax1.yaxis.set_major_locator(FixedLocator([1e1, 1e-1, 1e-3, 1e-5, 1e-7, 1e-9, 1e-11, 1e-13]))
     ax1.text(-0.10, 1.05, r"$D_u(R)/2=1-\xi_u$", transform=ax1.transAxes, fontsize=36, weight='bold')
     ax1.text(1.03, -0.02, r"$R/r_i$", transform=ax1.transAxes, fontsize=32, weight='bold')
 
-    ax1.text(0.03, 0.92, rf"$m_i={m_i:.3g},\ m_\phi={m_phi:.3g}$", transform=ax1.transAxes, fontsize=20)
+    ax1.text(0.03, 0.92, rf"$m_i={m_i:.3g},\ m_\Phi={m_phi:.3g}$", transform=ax1.transAxes, fontsize=20)
     ax1.text(0.03, 0.84, rf"$r_\phi/r_i={r_phi/r_i:.3g}$", transform=ax1.transAxes, fontsize=20)
     ax1.text(0.03, 0.76, r"$\xi_u=\xi_i\,e^{-\eta^2\hat D_\Phi}$", transform=ax1.transAxes, fontsize=20)
     ax1.legend(frameon=False, fontsize=20, loc="lower right", handlelength=1.5)
@@ -187,12 +187,12 @@ def plot_directional_structure_and_proxy(
     # Right panel: log derivative
     ax2.axhline(m_i, color="black", lw=3.0, zorder=5)
     ax2.axhline(m_phi, color="black", lw=3.0, ls="--", zorder=5)
-    ax2.text(1.4e-4, m_i + 0.03, rf"$m_i={m_i:.3g}$", fontsize=20)
-    ax2.text(1.4e-4, m_phi + 0.03, rf"$m_\phi={m_phi:.3g}$", fontsize=20)
+    ax2.text(1.4e-4, 0.1, rf"$m_i={m_i:.3g}$", fontsize=20)
+    ax2.text(1.4e-4, 0.5, rf"$m_\Phi={m_phi:.3g}$", fontsize=20)
     
     ax2.set_xscale("log")
     ax2.set_xlim(x_min, x_max)
-    ax2.set_ylim(0, 0.8)
+    ax2.set_ylim(0, 2)
     ax2.tick_params(which="both", direction="in", labelsize=22, width=2.5, length=8)
     ax2.tick_params(which="minor", direction="in", labelsize=18, width=1.5, length=5)
     ax2.spines["top"].set_visible(False)
@@ -219,8 +219,8 @@ def run():
         out_svg="directional_structure_and_proxy.svg",
         r_i=1.0,
         r_phi=1.0,  # r_f_over_ri = 1.0, so r_phi = 1.0 * r_i = 1.0
-        m_i=0.7,    # same as fig9.py
-        m_phi=1.0/4.0,  # same as fig9.py (0.25)
+        m_i=1.67,    # same as fig9.py
+        m_phi=1.1,  # same as fig9.py (0.25)
         eta_list=np.concatenate([[0.0], np.geomspace(5e-3, 1e0, 10)]),  # same as fig9.py
         x_min=1e-7,  # same as fig9.py
         x_max=1e2,   # same as fig9.py
