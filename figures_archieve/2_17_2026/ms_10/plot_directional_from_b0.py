@@ -59,10 +59,10 @@ plt.rcParams.update({
     'axes.titlepad': 18,
     
     # Grid styling - subtle but present
-    'grid.linewidth': 1.0,
-    'grid.alpha': 0.3,
-    'grid.color': '#808080',
-    'grid.linestyle': '--',
+    # 'grid.linewidth': 1.0,
+    # 'grid.alpha': 0.0,
+    # 'grid.color': '#808080',
+    # 'grid.linestyle': '--',
     
     # Tick styling - prominent and clear
     'xtick.major.width': 2.5,
@@ -342,8 +342,8 @@ y_norm = np.sqrt(y_min * y_max)
 # k^{-11/3} reference line - bold and memorable styling
 P_ref_11_3 = y_norm * (k_ref_k / k_norm_k) ** (-11/3)
 ax.loglog(k_ref, P_ref_11_3, 
-          linestyle='--', 
-          color='#DC2626',  # Bold red for high visibility
+          linestyle='-.', 
+          color='red',  # Bold red for high visibility
           linewidth=5.5,  # Increased for prominence
           alpha=0.85,  # More opaque for impact
           zorder=1, 
@@ -354,8 +354,8 @@ ax.loglog(k_ref, P_ref_11_3,
 # k^{-5/3} reference line - bold and clearly distinguished
 P_ref_5_3 = y_norm * (k_ref_k / k_norm_k) ** (-5/3)
 ax.loglog(k_ref, P_ref_5_3, 
-          linestyle='--', 
-          color='#2563EB',  # Bold blue for high visibility
+          linestyle='-', 
+          color='blue',  # Bold blue for high visibility
           linewidth=5.5*2,  # Increased for prominence
           alpha=0.85,  # More opaque for impact
           zorder=1, 
@@ -376,8 +376,9 @@ ax.set_ylabel(r"$P_u(k)$",
               color='#000000')  # Pure black for maximum contrast
 
 # Set axis limits
+# print("LIIMM=", xlim_max)
 ax.set_xlim(xlim_min, xlim_max)
-ax.set_ylim(1e0, 4e10)
+ax.set_ylim(1e0, 1e10)
 
 # Enhanced tick formatting for maximum visibility and memorability
 ax.tick_params(which='major', 
@@ -433,14 +434,14 @@ legend.get_frame().set_linewidth(2.5)  # Thicker border for prominence
 # ============================================================================
 # GRID - Subtle but effective for readability
 # ============================================================================
-ax.grid(True, 
-        alpha=0.32,  # Slightly more visible
-        linestyle='--', 
-        linewidth=1.2,  # Slightly thicker
-        which='both',
-        color='#666666',  # Darker for better visibility
-        zorder=0)
-ax.set_axisbelow(True)
+# ax.grid(True, 
+#         alpha=0.32,  # Slightly more visible
+#         linestyle='--', 
+#         linewidth=1.2,  # Slightly thicker
+#         which='both',
+#         color='#666666',  # Darker for better visibility
+#         zorder=0)
+# ax.set_axisbelow(True)
 
 # ============================================================================
 # FINAL POLISH - Maximum visual impact and memorability
