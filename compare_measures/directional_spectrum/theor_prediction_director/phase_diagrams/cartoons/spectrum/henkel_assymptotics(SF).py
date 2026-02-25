@@ -272,7 +272,7 @@ def DdP_from_derivative_kernel(R_values, Kd_R, Kd_0, delta_grid, r_i, m_i, sigma
     return D, float(np.real(C_0))
 
 def xi_i_director_regularized(R, r_i, m_i):
-    """Exact match to anzatz.py: xi_i = 1/(1 + (R/r_i)^m_i)"""
+    """Exact match to anzatz.py: xi_i = 1/(1 + (R/r_\phi)^m_i)"""
     t = (np.asarray(R, float) / float(r_i)) ** float(m_i)
     return 1.0 / (1.0 + t)
 
@@ -421,7 +421,7 @@ def run_and_plot(params,
     if sigma_phi2_list is None:
         sigma_phi2_list = [sigma_phi2_default]
 
-    # Use normalized R axis: x = R/r_i (matching reference files)
+    # Use normalized R axis: x = R/r_\phi (matching reference files)
     # Plot limits
     x_min = 1e-7
     x_max = 1e2
@@ -575,12 +575,12 @@ def run_and_plot(params,
         if len(xs) > 0:
             ax1_du_der.semilogx(xs, sl, lw=lw, color=c, zorder=zorder, alpha=0.95)
     
-    _setup_panel(ax1_du, x_min, x_max, r"$D_u(R)/2$", r"$R/r_i$", 
+    _setup_panel(ax1_du, x_min, x_max, r"$D_u(R)/2$", r"$R/r_\phi$", 
                  ylim=(1e-13, 1e1), legend=True, params_text=True,
                  m_psi=m_psi, m_phi=m_phi, r_phi=r_phi, R0=R0)
     ax1_du_der.axhline(1.1, color="red", lw=3.0, ls="-.", zorder=5)
     ax1_du_der.axhline(5/3, color="blue", lw=3.0, ls="-", zorder=5)
-    _setup_derivative_panel(ax1_du_der, x_min, x_max, r"$d\ln D_u/d\ln R$", r"$R/r_i$",
+    _setup_derivative_panel(ax1_du_der, x_min, x_max, r"$d\ln D_u/d\ln R$", r"$R/r_\phi$",
                            ylim=(0, 2))
 
     # Row 2: P (D_P(R)/D_P(inf)) - matching fig5.py exactly
@@ -604,14 +604,14 @@ def run_and_plot(params,
         if len(xs) > 0:
             ax1_p_der.semilogx(xs, sl, lw=lw, color=c, zorder=zorder, alpha=0.95)
     
-    _setup_panel(ax1_p, x_min, x_max, r"$D_P(R)/D_P(\infty)$", r"$R/r_i$",
+    _setup_panel(ax1_p, x_min, x_max, r"$D_P(R)/D_P(\infty)$", r"$R/r_\phi$",
                  ylim=(1e-13, 10), legend=True)
     ax1_p.yaxis.set_major_locator(FixedLocator([1e1, 1e-1, 1e-3, 1e-5, 1e-7, 1e-9, 1e-11, 1e-13]))
     
     # Reference lines on right panel for P derivative
     ax1_p_der.axhline(1.1, color="red", lw=3.0, ls="-.", zorder=5)
     ax1_p_der.axhline(5/3, color="blue", lw=3.0, ls="-", zorder=5)
-    _setup_derivative_panel(ax1_p_der, x_min, x_max, r"$d\ln D_P/d\ln R$", r"$R/r_i$",
+    _setup_derivative_panel(ax1_p_der, x_min, x_max, r"$d\ln D_P/d\ln R$", r"$R/r_\phi$",
                            ylim=(0, 2))
 
     # Row 3: dP/d(lambda^2) - using fig9.py method exactly
@@ -638,14 +638,14 @@ def run_and_plot(params,
         if len(xs) > 0:
             ax1_dp_der.semilogx(xs, sl, lw=lw, color=c, zorder=zorder, alpha=0.95)
     
-    _setup_panel(ax1_dp, x_min, x_max, r"$dP/d\lambda^2$", r"$R/r_i$",
+    _setup_panel(ax1_dp, x_min, x_max, r"$dP/d\lambda^2$", r"$R/r_\phi$",
                  ylim=(1e-13, 10), legend=True)
     ax1_dp.yaxis.set_major_locator(FixedLocator([1e1, 1e-1, 1e-3, 1e-5, 1e-7, 1e-9, 1e-11, 1e-13]))
     
     # Reference lines on right panel for dP derivative
     ax1_dp_der.axhline(1.1, color="red", lw=3.0, ls="-.", zorder=5)
     ax1_dp_der.axhline(5/3, color="blue", lw=3.0, ls="-", zorder=5)
-    _setup_derivative_panel(ax1_dp_der, x_min, x_max, r"$d\ln |dP/d\lambda^2|/d\ln R$", r"$R/r_i$",
+    _setup_derivative_panel(ax1_dp_der, x_min, x_max, r"$d\ln |dP/d\lambda^2|/d\ln R$", r"$R/r_\phi$",
                            ylim=(0, 2))
 
     fig1.savefig(f"{out_prefix}_structure_functions.png", dpi=300, bbox_inches="tight")
