@@ -752,14 +752,14 @@ def run_and_plot(params,
         FixedLocator([1e0, 1e-2, 1e-4, 1e-6, 1e-8, 1e-10, 1e-12])
     )
     ax2_du.text(-0.10, 1.05, r"$P_u(k)$", transform=ax2_du.transAxes, fontsize=36, weight='bold')
-    ax2_du.text(1.03, -0.02, r"$k$", transform=ax2_du.transAxes, fontsize=32, weight='bold')
+    ax2_du.text(1.03, -0.02, r"$k r_\phi$", transform=ax2_du.transAxes, fontsize=32, weight='bold')
     ax2_du.text(0.03, 0.92, rf"$m_i={m_psi:.3g},\ m_\Phi={m_phi:.3g}$", transform=ax2_du.transAxes, fontsize=20)
     ax2_du.text(0.03, 0.84, rf"$r_\phi/R_0={r_phi/R0:.3g}$", transform=ax2_du.transAxes, fontsize=20)
     ax2_du.legend(frameon=False, fontsize=20, loc="lower right", handlelength=1.5)
     
     ax2_du_der.axhline(-1.1, color="blue", lw=3.0, zorder=5)
     ax2_du_der.axhline(-5/3, color="red", lw=3.0, ls="-.", zorder=5)
-    _setup_derivative_panel(ax2_du_der, kmin, kmax, r"$d\ln P_u/d\ln k$", r"$k$",
+    _setup_derivative_panel(ax2_du_der, kmin, kmax, r"$d\ln P_u/d\ln k$", r"$k r_\phi$",
                            ylim=(-2, 0.1))
 
     # Row 2: Spectrum of P
@@ -801,12 +801,12 @@ def run_and_plot(params,
         FixedLocator([1e0, 1e-2, 1e-4, 1e-6, 1e-8, 1e-10, 1e-12])
     )
     ax2_p.text(-0.10, 1.05, r"$P(k)$", transform=ax2_p.transAxes, fontsize=36, weight='bold')
-    ax2_p.text(1.03, -0.02, r"$k$", transform=ax2_p.transAxes, fontsize=32, weight='bold')
+    ax2_p.text(1.03, -0.02, r"$k r_\phi$", transform=ax2_p.transAxes, fontsize=32, weight='bold')
     ax2_p.legend(frameon=False, fontsize=20, loc="lower right", handlelength=1.5)
     
     ax2_p_der.axhline(-1.1, color="blue", lw=3.0, zorder=5)
     ax2_p_der.axhline(-5/3, color="red", lw=3.0, ls="-.", zorder=5)
-    _setup_derivative_panel(ax2_p_der, kmin, kmax, r"$d\ln P/d\ln k$", r"$k$",
+    _setup_derivative_panel(ax2_p_der, kmin, kmax, r"$d\ln P/d\ln k$", r"$k r_\phi$",
                            ylim=(-2, 0.1))
 
     # Row 3: Spectrum of dP/d(lambda^2)
@@ -848,12 +848,12 @@ def run_and_plot(params,
         FixedLocator([1e0, 1e-2, 1e-4, 1e-6, 1e-8, 1e-10, 1e-12])
     )
     ax2_dp.text(-0.10, 1.05, r"$dP/d\lambda^2(k)$", transform=ax2_dp.transAxes, fontsize=36, weight='bold')
-    ax2_dp.text(1.03, -0.02, r"$k$", transform=ax2_dp.transAxes, fontsize=32, weight='bold')
+    ax2_dp.text(1.03, -0.02, r"$k r_\phi$", transform=ax2_dp.transAxes, fontsize=32, weight='bold')
     ax2_dp.legend(frameon=False, fontsize=20, loc="lower right", handlelength=1.5)
     
     ax2_dp_der.axhline(-1.1, color="blue", lw=3.0, zorder=5)
     ax2_dp_der.axhline(-5/3, color="red", lw=3.0, ls="-.", zorder=5)
-    _setup_derivative_panel(ax2_dp_der, kmin, kmax, r"$d\ln [dP/d\lambda^2]/d\ln k$", r"$k$",
+    _setup_derivative_panel(ax2_dp_der, kmin, kmax, r"$d\ln [dP/d\lambda^2]/d\ln k$", r"$k r_\phi$",
                            ylim=(-2, 0.1))
 
     fig2.savefig(f"{out_prefix}_spectrum.png", dpi=300, bbox_inches="tight")

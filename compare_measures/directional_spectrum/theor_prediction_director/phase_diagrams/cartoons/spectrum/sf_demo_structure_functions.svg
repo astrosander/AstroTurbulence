@@ -29,15 +29,15 @@
      inkscape:pagecheckerboard="0"
      inkscape:deskcolor="#d1d1d1"
      inkscape:document-units="pt"
-     inkscape:zoom="2.7518669"
-     inkscape:cx="1167.3893"
-     inkscape:cy="763.29999"
+     inkscape:zoom="0.48646594"
+     inkscape:cx="767.78243"
+     inkscape:cy="887.00969"
      inkscape:window-width="1920"
      inkscape:window-height="991"
      inkscape:window-x="-9"
      inkscape:window-y="-9"
      inkscape:window-maximized="1"
-     inkscape:current-layer="svg894" />
+     inkscape:current-layer="axes_1" />
   <metadata
      id="metadata1">
     <rdf:RDF>
@@ -176,6 +176,38 @@
            style="fill:#0000ff;stroke-width:0" />
       </g>
     </g>
+    <path
+       id="CMR10-3d-4"
+       d="m 4397,2048 c 96,0 217,0 217,129 0,128 -121,128 -211,128 H 570 c -90,0 -212,0 -212,-128 0,-129 122,-129 218,-129 z m 6,-1216 c 90,0 211,0 211,129 0,128 -121,128 -217,128 H 576 c -96,0 -218,0 -218,-128 0,-129 122,-129 212,-129 z"
+       transform="scale(0.015625)" />
+    <path
+       id="CMMI10-3a-0"
+       d="M 1229,338 C 1229,522 1075,675 890,675 704,675 550,522 550,338 550,153 704,0 890,0 c 185,0 339,153 339,338 z"
+       transform="scale(0.015625)" />
+    <path
+       id="CMMI10-3b-2"
+       d="M 1299,11 C 1299,429 1139,675 890,675 678,675 550,516 550,338 550,166 678,0 890,0 c 76,0 160,25 224,83 19,13 25,19 32,19 6,0 12,-6 12,-96 0,-466 -224,-843 -435,-1052 -70,-69 -70,-81 -70,-100 0,-44 32,-70 64,-70 70,0 582,487 582,1227 z"
+       transform="scale(0.015625)" />
+    <path
+       id="path3-8"
+       d="M 2579,4160 H 832 v -102 c 397,-38 493,-89 493,-273 0,-90 -26,-237 -71,-395 L 467,574 C 352,204 307,166 -51,102 V 0 h 3257 l 372,1141 -128,38 C 3226,721 3053,516 2771,377 2547,268 2285,230 1728,230 c -486,0 -646,51 -646,217 0,45 32,198 64,319 l 787,2832 c 96,325 262,447 646,447 z"
+       transform="scale(0.015625)" />
+    <path
+       id="path6-1"
+       d="M 2579,4160 H 832 v -102 c 397,-38 493,-89 493,-273 0,-90 -26,-237 -71,-395 L 467,574 C 352,204 307,166 -51,102 V 0 h 3257 l 372,1141 -128,38 C 3226,721 3053,516 2771,377 2547,268 2285,230 1728,230 c -486,0 -646,51 -646,217 0,45 32,198 64,319 l 787,2832 c 96,325 262,447 646,447 z"
+       transform="scale(0.015625)" />
+    <path
+       id="path3-2"
+       d="m 4397,2048 c 96,0 217,0 217,129 0,128 -121,128 -211,128 H 570 c -90,0 -212,0 -212,-128 0,-129 122,-129 218,-129 z m 6,-1216 c 90,0 211,0 211,129 0,128 -121,128 -217,128 H 576 c -96,0 -218,0 -218,-128 0,-129 122,-129 212,-129 z"
+       transform="scale(0.015625)" />
+    <path
+       id="path4-7"
+       d="M 1229,338 C 1229,522 1075,675 890,675 704,675 550,522 550,338 550,153 704,0 890,0 c 185,0 339,153 339,338 z"
+       transform="scale(0.015625)" />
+    <path
+       id="path5-2"
+       d="M 1299,11 C 1299,429 1139,675 890,675 678,675 550,516 550,338 550,166 678,0 890,0 c 76,0 160,25 224,83 19,13 25,19 32,19 6,0 12,-6 12,-96 0,-466 -224,-843 -435,-1052 -70,-69 -70,-81 -70,-100 0,-44 32,-70 64,-70 70,0 582,487 582,1227 z"
+       transform="scale(0.015625)" />
   </defs>
   <g
      id="figure_1">
@@ -1126,7 +1158,7 @@
       </g>
       <g
          id="text_23"
-         transform="matrix(1.2788321,0,0,1.2788321,-6.5699105,194.59609)">
+         transform="matrix(1.2788321,0,0,1.2788321,-6.5699105,199.09609)">
         <!-- $m_i=1.67,\ m_\Phi=1.1$ -->
         <g
            transform="matrix(0.2,0,0,-0.2,251.68881,87.906588)"
@@ -1206,7 +1238,7 @@
       </g>
       <g
          id="text_24"
-         transform="matrix(1.2788321,0,0,1.2788321,219.28128,209.23459)">
+         transform="matrix(1.2788321,0,0,1.2788321,218.26938,209.23459)">
         <!-- $r_\phi/R_0=1$ -->
         <g
            transform="matrix(0.2,0,0,-0.2,75.081429,102.52793)"
@@ -6255,6 +6287,386 @@
          transform="matrix(0.996264,0,0,0.996264,190.22878,0)"
          id="use368-2-7-1-3-7-1-5-8-6-2"
          style="fill:#242d84;fill-opacity:1;stroke-linecap:butt;stroke-linejoin:round" />
+    </g>
+  </g>
+  <g
+     id="text_23-1"
+     transform="matrix(1.2788321,0,0,1.2788321,-16.660964,614.6343)"
+     style="stroke-linecap:butt;stroke-linejoin:round">
+    <!-- $m_i=1.67,\ m_\Phi=1.1$ -->
+    <g
+       transform="matrix(0.2,0,0,-0.2,251.68881,87.906588)"
+       id="g122-5"
+       style="stroke-linecap:butt;stroke-linejoin:round">
+      <defs
+         id="defs108-5">
+        <path
+           id="path3"
+           d="m 4397,2048 c 96,0 217,0 217,129 0,128 -121,128 -211,128 H 570 c -90,0 -212,0 -212,-128 0,-129 122,-129 218,-129 z m 6,-1216 c 90,0 211,0 211,129 0,128 -121,128 -217,128 H 576 c -96,0 -218,0 -218,-128 0,-129 122,-129 212,-129 z"
+           transform="scale(0.015625)" />
+        <path
+           id="path4"
+           d="M 1229,338 C 1229,522 1075,675 890,675 704,675 550,522 550,338 550,153 704,0 890,0 c 185,0 339,153 339,338 z"
+           transform="scale(0.015625)" />
+        <path
+           id="path5"
+           d="M 1299,11 C 1299,429 1139,675 890,675 678,675 550,516 550,338 550,166 678,0 890,0 c 76,0 160,25 224,83 19,13 25,19 32,19 6,0 12,-6 12,-96 0,-466 -224,-843 -435,-1052 -70,-69 -70,-81 -70,-100 0,-44 32,-70 64,-70 70,0 582,487 582,1227 z"
+           transform="scale(0.015625)" />
+      </defs>
+      <use
+         xlink:href="#NimbusRomNo9L-ReguItal-6d"
+         transform="scale(0.996264)"
+         id="use109-6"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#NimbusRomNo9L-ReguItal-69"
+         transform="matrix(0.737241,0,0,0.737241,71.929985,-14.943915)"
+         id="use110-0"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#CMR10-3d-4"
+         transform="matrix(0.996264,0,0,0.996264,115.06184,0)"
+         id="use111-6"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#NimbusRomNo9L-Regu-31"
+         transform="matrix(0.996264,0,0,0.996264,214.60969,0)"
+         id="use112-1"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#CMMI10-3a-0"
+         transform="matrix(0.996264,0,0,0.996264,264.42289,0)"
+         id="use113-1"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#NimbusRomNo9L-Regu-36"
+         transform="matrix(0.996264,0,0,0.996264,292.01839,0)"
+         id="use114-1"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#NimbusRomNo9L-Regu-37"
+         transform="matrix(0.996264,0,0,0.996264,341.8316,0)"
+         id="use115-7"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#CMMI10-3b-2"
+         transform="matrix(0.996264,0,0,0.996264,391.6448,0)"
+         id="use116-3"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#NimbusRomNo9L-ReguItal-6d"
+         transform="matrix(0.996264,0,0,0.996264,455.21648,0)"
+         id="use117-0"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#StandardSymL-46"
+         transform="matrix(0.737241,0,0,0.737241,527.14646,-15.050129)"
+         id="use118-0"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#CMR10-3d-4"
+         transform="matrix(0.996264,0,0,0.996264,606.03433,0)"
+         id="use119-4"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#NimbusRomNo9L-Regu-31"
+         transform="matrix(0.996264,0,0,0.996264,705.58219,0)"
+         id="use120-8"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#CMMI10-3a-0"
+         transform="matrix(0.996264,0,0,0.996264,755.39539,0)"
+         id="use121-3"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#NimbusRomNo9L-Regu-31"
+         transform="matrix(0.996264,0,0,0.996264,782.99089,0)"
+         id="use122-0"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+    </g>
+  </g>
+  <g
+     id="text_23-1-9"
+     transform="matrix(1.2788321,0,0,1.2788321,-15.541235,1021.022)"
+     style="stroke-linecap:butt;stroke-linejoin:round">
+    <!-- $m_i=1.67,\ m_\Phi=1.1$ -->
+    <g
+       transform="matrix(0.2,0,0,-0.2,251.68881,87.906588)"
+       id="g122-5-1"
+       style="stroke-linecap:butt;stroke-linejoin:round">
+      <defs
+         id="defs108-5-6">
+        <path
+           id="path8"
+           d="m 4397,2048 c 96,0 217,0 217,129 0,128 -121,128 -211,128 H 570 c -90,0 -212,0 -212,-128 0,-129 122,-129 218,-129 z m 6,-1216 c 90,0 211,0 211,129 0,128 -121,128 -217,128 H 576 c -96,0 -218,0 -218,-128 0,-129 122,-129 212,-129 z"
+           transform="scale(0.015625)" />
+        <path
+           id="path9"
+           d="M 1229,338 C 1229,522 1075,675 890,675 704,675 550,522 550,338 550,153 704,0 890,0 c 185,0 339,153 339,338 z"
+           transform="scale(0.015625)" />
+        <path
+           id="path10"
+           d="M 1299,11 C 1299,429 1139,675 890,675 678,675 550,516 550,338 550,166 678,0 890,0 c 76,0 160,25 224,83 19,13 25,19 32,19 6,0 12,-6 12,-96 0,-466 -224,-843 -435,-1052 -70,-69 -70,-81 -70,-100 0,-44 32,-70 64,-70 70,0 582,487 582,1227 z"
+           transform="scale(0.015625)" />
+      </defs>
+      <use
+         xlink:href="#NimbusRomNo9L-ReguItal-6d"
+         transform="scale(0.996264)"
+         id="use109-6-7"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#NimbusRomNo9L-ReguItal-69"
+         transform="matrix(0.737241,0,0,0.737241,71.929985,-14.943915)"
+         id="use110-0-6"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#CMR10-3d-4"
+         transform="matrix(0.996264,0,0,0.996264,115.06184,0)"
+         id="use111-6-5"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#NimbusRomNo9L-Regu-31"
+         transform="matrix(0.996264,0,0,0.996264,214.60969,0)"
+         id="use112-1-1"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#CMMI10-3a-0"
+         transform="matrix(0.996264,0,0,0.996264,264.42289,0)"
+         id="use113-1-3"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#NimbusRomNo9L-Regu-36"
+         transform="matrix(0.996264,0,0,0.996264,292.01839,0)"
+         id="use114-1-9"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#NimbusRomNo9L-Regu-37"
+         transform="matrix(0.996264,0,0,0.996264,341.8316,0)"
+         id="use115-7-9"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#CMMI10-3b-2"
+         transform="matrix(0.996264,0,0,0.996264,391.6448,0)"
+         id="use116-3-5"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#NimbusRomNo9L-ReguItal-6d"
+         transform="matrix(0.996264,0,0,0.996264,455.21648,0)"
+         id="use117-0-9"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#StandardSymL-46"
+         transform="matrix(0.737241,0,0,0.737241,527.14646,-15.050129)"
+         id="use118-0-2"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#CMR10-3d-4"
+         transform="matrix(0.996264,0,0,0.996264,606.03433,0)"
+         id="use119-4-6"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#NimbusRomNo9L-Regu-31"
+         transform="matrix(0.996264,0,0,0.996264,705.58219,0)"
+         id="use120-8-5"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#CMMI10-3a-0"
+         transform="matrix(0.996264,0,0,0.996264,755.39539,0)"
+         id="use121-3-3"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#NimbusRomNo9L-Regu-31"
+         transform="matrix(0.996264,0,0,0.996264,782.99089,0)"
+         id="use122-0-2"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+    </g>
+  </g>
+  <g
+     id="text_17-5"
+     transform="matrix(1.2982633,0,0,1.2982633,165.03815,608.98231)"
+     style="stroke-linecap:butt;stroke-linejoin:round">
+    <!-- $L/r_i=100,\ r_\phi/r_i=1$ -->
+    <g
+       transform="matrix(0.2,0,0,-0.2,98.94335,113.24842)"
+       id="g116"
+       style="stroke-linecap:butt;stroke-linejoin:round">
+      <defs
+         id="defs100">
+        <path
+           id="path6"
+           d="M 2579,4160 H 832 v -102 c 397,-38 493,-89 493,-273 0,-90 -26,-237 -71,-395 L 467,574 C 352,204 307,166 -51,102 V 0 h 3257 l 372,1141 -128,38 C 3226,721 3053,516 2771,377 2547,268 2285,230 1728,230 c -486,0 -646,51 -646,217 0,45 32,198 64,319 l 787,2832 c 96,325 262,447 646,447 z"
+           transform="scale(0.015625)" />
+      </defs>
+      <path
+         id="use101-2"
+         d="M 40.146326,64.75716 H 12.951432 v -1.587796 c 6.17995,-0.591532 7.674346,-1.385429 7.674346,-4.249688 0,-1.400997 -0.404732,-3.68929 -1.10523,-6.148817 L 7.2696139,8.9352428 C 5.479452,3.1755915 4.7789539,2.5840598 -0.79389788,1.5877958 V 0 H 49.9066 l 5.790784,17.761519 -1.992528,0.591532 C 50.217932,11.223537 47.524906,8.0323785 43.135118,5.8686176 39.648194,4.1718555 35.569738,3.5803238 26.899128,3.5803238 c -7.56538,0 -10.05604,0.7938978 -10.05604,3.3779576 0,0.7004981 0.498132,3.0821916 0.996264,4.9657536 l 12.250934,44.084682 c 1.494396,5.059153 4.078456,6.958281 10.05604,6.958281 z"
+         style="stroke-width:0.0155666;stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#CMMI10-3d"
+         transform="matrix(0.996264,0,0,0.996264,55.689525,0)"
+         id="use102-0"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <path
+         id="use103-3"
+         d="m 117.5513,-0.07783313 c 5.18368,16.93648813 6.88045,21.21731013 11.45703,28.79825613 3.30013,5.572852 6.08655,8.655044 7.78332,8.655044 0.59153,0 1.08966,-0.389166 1.58779,-1.38543 0.7939,-1.696762 1.5878,-2.194894 3.58033,-2.194894 2.89539,0 4.59215,1.790162 4.59215,4.872353 0,3.082192 -1.89913,5.16812 -4.68555,5.16812 -2.2883,0 -4.98132,-1.478829 -7.56538,-4.171855 -4.09403,-4.187423 -8.07908,-10.05604 -9.66688,-14.041096 l -1.40099,-3.580324 5.27708,21.590909 -0.29576,0.186799 c -7.26962,-1.29203 -8.17248,-1.463262 -15.4421,-2.661892 v -1.696763 c 2.39726,0.498132 2.69303,0.498132 3.39353,0.498132 2.19489,0 3.48692,-0.996264 3.48692,-2.770859 0,-1.416563 0,-1.416563 -1.60336,-8.172478 l -8.06351,-29.09402213 z"
+         style="stroke-width:0.0155666;stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#NimbusRomNo9L-ReguItal-69"
+         transform="matrix(0.737241,0,0,0.737241,144.25643,-14.943915)"
+         id="use104-7"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#CMR10-3d"
+         transform="matrix(0.996264,0,0,0.996264,187.38828,0)"
+         id="use105-2"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#NimbusRomNo9L-Regu-31"
+         transform="matrix(0.996264,0,0,0.996264,286.93613,0)"
+         id="use106-9"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#NimbusRomNo9L-Regu-30"
+         transform="matrix(0.996264,0,0,0.996264,336.74934,0)"
+         id="use107"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#NimbusRomNo9L-Regu-30"
+         transform="matrix(0.996264,0,0,0.996264,386.56254,0)"
+         id="use108"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#CMMI10-3b"
+         transform="matrix(0.996264,0,0,0.996264,436.37574,0)"
+         id="use109-5"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <path
+         id="use110-7"
+         d="m 511.99599,-0.07783313 c 5.18368,16.93648813 6.88045,21.21731013 11.45703,28.79825613 3.30013,5.572852 6.08655,8.655044 7.78332,8.655044 0.59153,0 1.08966,-0.389166 1.58779,-1.38543 0.7939,-1.696762 1.5878,-2.194894 3.58033,-2.194894 2.89539,0 4.59215,1.790162 4.59215,4.872353 0,3.082192 -1.89913,5.16812 -4.68555,5.16812 -2.2883,0 -4.98132,-1.478829 -7.56538,-4.171855 -4.09403,-4.187423 -8.07908,-10.05604 -9.66688,-14.041096 l -1.40099,-3.580324 5.27708,21.590909 -0.29576,0.186799 c -7.26962,-1.29203 -8.17248,-1.463262 -15.4421,-2.661892 v -1.696763 c 2.39726,0.498132 2.69303,0.498132 3.39353,0.498132 2.19489,0 3.48692,-0.996264 3.48692,-2.770859 0,-1.416563 0,-1.416563 -1.60336,-8.172478 l -8.06351,-29.09402213 z"
+         style="stroke-width:0.0155666;stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#StandardSymL-66"
+         transform="matrix(0.737241,0,0,0.737241,538.70112,-15.270966)"
+         id="use111-7"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#CMMI10-3d"
+         transform="matrix(0.996264,0,0,0.996264,585.86632,0)"
+         id="use112-0"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <path
+         id="use113-8"
+         d="m 647.7281,-0.07783313 c 5.18368,16.93648813 6.88045,21.21731013 11.45703,28.79825613 3.30013,5.572852 6.08655,8.655044 7.78332,8.655044 0.59153,0 1.08966,-0.389166 1.58779,-1.38543 0.7939,-1.696762 1.5878,-2.194894 3.58033,-2.194894 2.89539,0 4.59215,1.790162 4.59215,4.872353 0,3.082192 -1.89913,5.16812 -4.68555,5.16812 -2.2883,0 -4.98132,-1.478829 -7.56538,-4.171855 -4.09403,-4.187423 -8.07908,-10.05604 -9.66688,-14.041096 l -1.40099,-3.580324 5.27708,21.590909 -0.29576,0.186799 c -7.26962,-1.29203 -8.17248,-1.463262 -15.4421,-2.661892 v -1.696763 c 2.39726,0.498132 2.69303,0.498132 3.39353,0.498132 2.19489,0 3.48692,-0.996264 3.48692,-2.770859 0,-1.416563 0,-1.416563 -1.60336,-8.172478 l -8.06351,-29.09402213 z"
+         style="stroke-width:0.0155666;stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#NimbusRomNo9L-ReguItal-69"
+         transform="matrix(0.737241,0,0,0.737241,674.43323,-14.943915)"
+         id="use114-9"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#CMR10-3d"
+         transform="matrix(0.996264,0,0,0.996264,717.56508,0)"
+         id="use115-3"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#NimbusRomNo9L-Regu-31"
+         transform="matrix(0.996264,0,0,0.996264,817.11293,0)"
+         id="use116-0"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+    </g>
+  </g>
+  <g
+     id="text_17-5-8"
+     transform="matrix(1.2982633,0,0,1.2982633,165.75162,1020.2881)"
+     style="stroke-linecap:butt;stroke-linejoin:round">
+    <!-- $L/r_i=100,\ r_\phi/r_i=1$ -->
+    <g
+       transform="matrix(0.2,0,0,-0.2,98.94335,110.93764)"
+       id="g116-3"
+       style="stroke-linecap:butt;stroke-linejoin:round">
+      <defs
+         id="defs100-7">
+        <path
+           id="path7"
+           d="M 2579,4160 H 832 v -102 c 397,-38 493,-89 493,-273 0,-90 -26,-237 -71,-395 L 467,574 C 352,204 307,166 -51,102 V 0 h 3257 l 372,1141 -128,38 C 3226,721 3053,516 2771,377 2547,268 2285,230 1728,230 c -486,0 -646,51 -646,217 0,45 32,198 64,319 l 787,2832 c 96,325 262,447 646,447 z"
+           transform="scale(0.015625)" />
+      </defs>
+      <path
+         id="use101-2-0"
+         d="M 40.146326,64.75716 H 12.951432 v -1.587796 c 6.17995,-0.591532 7.674346,-1.385429 7.674346,-4.249688 0,-1.400997 -0.404732,-3.68929 -1.10523,-6.148817 L 7.2696139,8.9352428 C 5.479452,3.1755915 4.7789539,2.5840598 -0.79389788,1.5877958 V 0 H 49.9066 l 5.790784,17.761519 -1.992528,0.591532 C 50.217932,11.223537 47.524906,8.0323785 43.135118,5.8686176 39.648194,4.1718555 35.569738,3.5803238 26.899128,3.5803238 c -7.56538,0 -10.05604,0.7938978 -10.05604,3.3779576 0,0.7004981 0.498132,3.0821916 0.996264,4.9657536 l 12.250934,44.084682 c 1.494396,5.059153 4.078456,6.958281 10.05604,6.958281 z"
+         style="stroke-width:0.0155666;stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#CMMI10-3d"
+         transform="matrix(0.996264,0,0,0.996264,55.689525,0)"
+         id="use102-0-0"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <path
+         id="use103-3-8"
+         d="m 117.5513,-0.07783313 c 5.18368,16.93648813 6.88045,21.21731013 11.45703,28.79825613 3.30013,5.572852 6.08655,8.655044 7.78332,8.655044 0.59153,0 1.08966,-0.389166 1.58779,-1.38543 0.7939,-1.696762 1.5878,-2.194894 3.58033,-2.194894 2.89539,0 4.59215,1.790162 4.59215,4.872353 0,3.082192 -1.89913,5.16812 -4.68555,5.16812 -2.2883,0 -4.98132,-1.478829 -7.56538,-4.171855 -4.09403,-4.187423 -8.07908,-10.05604 -9.66688,-14.041096 l -1.40099,-3.580324 5.27708,21.590909 -0.29576,0.186799 c -7.26962,-1.29203 -8.17248,-1.463262 -15.4421,-2.661892 v -1.696763 c 2.39726,0.498132 2.69303,0.498132 3.39353,0.498132 2.19489,0 3.48692,-0.996264 3.48692,-2.770859 0,-1.416563 0,-1.416563 -1.60336,-8.172478 l -8.06351,-29.09402213 z"
+         style="stroke-width:0.0155666;stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#NimbusRomNo9L-ReguItal-69"
+         transform="matrix(0.737241,0,0,0.737241,144.25643,-14.943915)"
+         id="use104-7-3"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#CMR10-3d"
+         transform="matrix(0.996264,0,0,0.996264,187.38828,0)"
+         id="use105-2-4"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#NimbusRomNo9L-Regu-31"
+         transform="matrix(0.996264,0,0,0.996264,286.93613,0)"
+         id="use106-9-5"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#NimbusRomNo9L-Regu-30"
+         transform="matrix(0.996264,0,0,0.996264,336.74934,0)"
+         id="use107-0"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#NimbusRomNo9L-Regu-30"
+         transform="matrix(0.996264,0,0,0.996264,386.56254,0)"
+         id="use108-1"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#CMMI10-3b"
+         transform="matrix(0.996264,0,0,0.996264,436.37574,0)"
+         id="use109-5-4"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <path
+         id="use110-7-5"
+         d="m 511.99599,-0.07783313 c 5.18368,16.93648813 6.88045,21.21731013 11.45703,28.79825613 3.30013,5.572852 6.08655,8.655044 7.78332,8.655044 0.59153,0 1.08966,-0.389166 1.58779,-1.38543 0.7939,-1.696762 1.5878,-2.194894 3.58033,-2.194894 2.89539,0 4.59215,1.790162 4.59215,4.872353 0,3.082192 -1.89913,5.16812 -4.68555,5.16812 -2.2883,0 -4.98132,-1.478829 -7.56538,-4.171855 -4.09403,-4.187423 -8.07908,-10.05604 -9.66688,-14.041096 l -1.40099,-3.580324 5.27708,21.590909 -0.29576,0.186799 c -7.26962,-1.29203 -8.17248,-1.463262 -15.4421,-2.661892 v -1.696763 c 2.39726,0.498132 2.69303,0.498132 3.39353,0.498132 2.19489,0 3.48692,-0.996264 3.48692,-2.770859 0,-1.416563 0,-1.416563 -1.60336,-8.172478 l -8.06351,-29.09402213 z"
+         style="stroke-width:0.0155666;stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#StandardSymL-66"
+         transform="matrix(0.737241,0,0,0.737241,538.70112,-15.270966)"
+         id="use111-7-6"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#CMMI10-3d"
+         transform="matrix(0.996264,0,0,0.996264,585.86632,0)"
+         id="use112-0-2"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <path
+         id="use113-8-0"
+         d="m 647.7281,-0.07783313 c 5.18368,16.93648813 6.88045,21.21731013 11.45703,28.79825613 3.30013,5.572852 6.08655,8.655044 7.78332,8.655044 0.59153,0 1.08966,-0.389166 1.58779,-1.38543 0.7939,-1.696762 1.5878,-2.194894 3.58033,-2.194894 2.89539,0 4.59215,1.790162 4.59215,4.872353 0,3.082192 -1.89913,5.16812 -4.68555,5.16812 -2.2883,0 -4.98132,-1.478829 -7.56538,-4.171855 -4.09403,-4.187423 -8.07908,-10.05604 -9.66688,-14.041096 l -1.40099,-3.580324 5.27708,21.590909 -0.29576,0.186799 c -7.26962,-1.29203 -8.17248,-1.463262 -15.4421,-2.661892 v -1.696763 c 2.39726,0.498132 2.69303,0.498132 3.39353,0.498132 2.19489,0 3.48692,-0.996264 3.48692,-2.770859 0,-1.416563 0,-1.416563 -1.60336,-8.172478 l -8.06351,-29.09402213 z"
+         style="stroke-width:0.0155666;stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#NimbusRomNo9L-ReguItal-69"
+         transform="matrix(0.737241,0,0,0.737241,674.43323,-14.943915)"
+         id="use114-9-3"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#CMR10-3d"
+         transform="matrix(0.996264,0,0,0.996264,717.56508,0)"
+         id="use115-3-5"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
+      <use
+         xlink:href="#NimbusRomNo9L-Regu-31"
+         transform="matrix(0.996264,0,0,0.996264,817.11293,0)"
+         id="use116-0-6"
+         style="stroke-linecap:butt;stroke-linejoin:round" />
     </g>
   </g>
   <defs
